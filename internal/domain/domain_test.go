@@ -74,3 +74,21 @@ func TestDefaultMaterialData(t *testing.T) {
 		}
 	}
 }
+
+func TestNewSpoolDisplayCode(t *testing.T) {
+	spool := &Spool{
+		Manufacturer: "Bambu Lab",
+		Material:     MaterialPLA,
+		Color:        "Black",
+	}
+
+	got := NewSpoolDisplayCode(spool, "a7f3")
+	if got != "PLA-BLA-BAM-A7F3" {
+		t.Fatalf("display code = %q", got)
+	}
+
+	got = NewSpoolDisplayCode(&Spool{Material: "CF-PETG"}, "spool-42")
+	if got != "CFP-COL-MFR-OL42" {
+		t.Fatalf("fallback display code = %q", got)
+	}
+}

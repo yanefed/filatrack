@@ -11,10 +11,11 @@ func TestNewAppStoresServices(t *testing.T) {
 	prints := &service.PrintService{}
 	dryings := &service.DryingService{}
 	settings := &service.SettingsService{}
+	printers := &service.PrinterService{}
 
-	app := NewApp(spools, prints, dryings, settings)
+	app := NewApp(spools, prints, dryings, settings, printers)
 
-	if app.SpoolService != spools || app.PrintService != prints || app.DryingService != dryings || app.SettingsService != settings {
+	if app.SpoolService != spools || app.PrintService != prints || app.DryingService != dryings || app.SettingsService != settings || app.PrinterService != printers {
 		t.Fatalf("NewApp did not retain its services: %+v", app)
 	}
 }

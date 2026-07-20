@@ -9,6 +9,7 @@ import (
 	"awesomeProject/internal/ui/screens"
 
 	"github.com/diamondburned/gotk4-adwaita/pkg/adw"
+	"github.com/diamondburned/gotk4/pkg/gdk/v4"
 	"github.com/diamondburned/gotk4/pkg/gio/v2"
 	"github.com/diamondburned/gotk4/pkg/glib/v2"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
@@ -20,14 +21,16 @@ type App struct {
 	PrintService    *service.PrintService
 	DryingService   *service.DryingService
 	SettingsService *service.SettingsService
+	PrinterService  *service.PrinterService
 }
 
-func NewApp(spools *service.SpoolService, prints *service.PrintService, dryings *service.DryingService, settings *service.SettingsService) *App {
+func NewApp(spools *service.SpoolService, prints *service.PrintService, dryings *service.DryingService, settings *service.SettingsService, printers *service.PrinterService) *App {
 	return &App{
 		SpoolService:    spools,
 		PrintService:    prints,
 		DryingService:   dryings,
 		SettingsService: settings,
+		PrinterService:  printers,
 	}
 }
 
@@ -46,6 +49,8 @@ func (a *App) Run() error {
 func (a *App) activate(app *adw.Application) {
 	ctx := context.Background()
 
+	installAppCSS()
+
 	window := adw.NewApplicationWindow(&app.Application)
 	window.SetTitle("FilaTrack")
 	window.SetDefaultSize(1000, 700)
@@ -63,12 +68,14 @@ func (a *App) activate(app *adw.Application) {
 		refreshSpools := func() {}
 		refreshPrints := func() {}
 		refreshDrying := func() {}
+		refreshPrinters := func() {}
 		refreshSettings := func() {}
 		refreshAll = func() {
 			refreshDashboard()
 			refreshSpools()
 			refreshPrints()
 			refreshDrying()
+			refreshPrinters()
 			refreshSettings()
 		}
 
@@ -83,6 +90,9 @@ func (a *App) activate(app *adw.Application) {
 
 		dryingPage, refreshDrying := screens.NewDryingScreen(ctx, a.DryingService, a.SpoolService, refreshAll)
 		stack.AddTitled(dryingPage, "drying", t.Drying)
+
+		printersPage, refreshPrinters := screens.NewPrintersScreen(ctx, a.PrinterService, a.SpoolService, refreshAll)
+		stack.AddTitled(printersPage, "printers", t.Printers)
 
 		settingsPage, refreshSettings := screens.NewSettingsScreen(ctx, a.SettingsService, refreshAll, rebuildUI)
 		stack.AddTitled(settingsPage, "settings", t.Settings)
@@ -124,4 +134,26 @@ func (a *App) activate(app *adw.Application) {
 		refreshAll()
 		return true
 	})
+}
+
+func installAppCSS() {
+	display := gdk.DisplayGetDefault()
+	if display == nil {
+		return
+	}
+	provider := gtk.NewCSSProvider()
+	provider.LoadFromString(`
+.printer-status-dot {
+	min-width: 12px;
+	min-height: 12px;
+	border-radius: 999px;
+}
+.printer-status-dot.online {
+	background: #2ec27e;
+}
+.printer-status-dot.offline {
+	background: #e01b24;
+}
+`)
+	gtk.StyleContextAddProviderForDisplay(display, provider, gtk.STYLE_PROVIDER_PRIORITY_APPLICATION)
 }

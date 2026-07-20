@@ -41,7 +41,7 @@ func TestSpoolRepoFullCRUDAndFilters(t *testing.T) {
 	if err != nil {
 		t.Fatalf("getting spool: %v", err)
 	}
-	if got.ID != first.ID || got.PurchasedAt.IsZero() || got.Archived {
+	if got.ID != first.ID || got.DisplayCode == "" || got.PurchasedAt.IsZero() || got.Archived {
 		t.Fatalf("unexpected spool: %+v", got)
 	}
 	if _, err := repo.GetByID(ctx, "missing"); err == nil || !strings.Contains(err.Error(), "not found") {
@@ -74,7 +74,7 @@ func TestSpoolRepoFullCRUDAndFilters(t *testing.T) {
 		t.Fatal("Update did not refresh UpdatedAt")
 	}
 	got, err = repo.GetByID(ctx, first.ID)
-	if err != nil || got.Manufacturer != "Updated" || got.TotalWeightG != 750 || !got.Archived {
+	if err != nil || got.Manufacturer != "Updated" || got.TotalWeightG != 750 || got.DisplayCode == "" || !got.Archived {
 		t.Fatalf("updated spool = (%+v, %v)", got, err)
 	}
 
@@ -123,9 +123,21 @@ func TestPrintJobRepoFullCRUDFiltersAndStats(t *testing.T) {
 			t.Fatalf("creating spool: %v", err)
 		}
 	}
+	printers := NewPrinterRepo(db)
+	if err := printers.Create(ctx, &domain.Printer{
+		ID:           "printer-1",
+		Name:         "Voron",
+		Kind:         domain.PrinterKindMoonraker,
+		MoonrakerURL: "http://printer.local",
+		Enabled:      true,
+		CreatedAt:    base,
+		UpdatedAt:    base,
+	}); err != nil {
+		t.Fatalf("creating printer: %v", err)
+	}
 
 	jobs := []*domain.PrintJob{
-		{ID: "job-1", SpoolID: "spool-1", GcodeFilename: "one.gcode", ModelName: "one", Status: domain.PrintStatusSuccess, CompletionPercent: 100, EstimatedWeightG: 20, ActualWeightG: 20, EstimatedLengthMM: 1000, PrintDuration: 90 * time.Minute, NozzleTempC: 210, BedTempC: 60, Slicer: "PrusaSlicer", Notes: "ok", PrintedAt: base.Add(-2 * time.Hour), CreatedAt: base},
+		{ID: "job-1", SpoolID: "spool-1", PrinterID: "printer-1", ExternalPrintID: "moonraker-job-1", GcodeFilename: "one.gcode", ModelName: "one", Status: domain.PrintStatusSuccess, CompletionPercent: 100, EstimatedWeightG: 20, ActualWeightG: 20, EstimatedLengthMM: 1000, PrintDuration: 90 * time.Minute, NozzleTempC: 210, BedTempC: 60, Slicer: "PrusaSlicer", Notes: "ok", PrintedAt: base.Add(-2 * time.Hour), CreatedAt: base},
 		{ID: "job-2", SpoolID: "spool-1", GcodeFilename: "two.gcode", Status: domain.PrintStatusFailed, CompletionPercent: 50, EstimatedWeightG: 20, ActualWeightG: 10, PrintedAt: base.Add(-time.Hour), CreatedAt: base},
 		{ID: "job-3", SpoolID: "spool-2", GcodeFilename: "three.gcode", Status: domain.PrintStatusCancelled, CompletionPercent: 25, EstimatedWeightG: 20, ActualWeightG: 5, PrintedAt: base, CreatedAt: base},
 	}
@@ -136,7 +148,7 @@ func TestPrintJobRepoFullCRUDFiltersAndStats(t *testing.T) {
 	}
 
 	got, err := prints.GetByID(ctx, "job-1")
-	if err != nil || got.ModelName != "one" || got.PrintDuration != 90*time.Minute || got.Status != domain.PrintStatusSuccess {
+	if err != nil || got.ModelName != "one" || got.PrinterID != "printer-1" || got.ExternalPrintID != "moonraker-job-1" || got.PrintDuration != 90*time.Minute || got.Status != domain.PrintStatusSuccess {
 		t.Fatalf("GetByID() = (%+v, %v)", got, err)
 	}
 	if _, err := prints.GetByID(ctx, "missing"); err == nil || !strings.Contains(err.Error(), "not found") {
@@ -148,6 +160,11 @@ func TestPrintJobRepoFullCRUDFiltersAndStats(t *testing.T) {
 	filtered, err := prints.List(ctx, repository.PrintJobFilter{SpoolID: &spoolID, Status: &status, From: &from, To: &to})
 	if err != nil || len(filtered) != 1 || filtered[0].ID != "job-2" {
 		t.Fatalf("filtered jobs = (%+v, %v)", filtered, err)
+	}
+	printerID := "printer-1"
+	filtered, err = prints.List(ctx, repository.PrintJobFilter{PrinterID: &printerID})
+	if err != nil || len(filtered) != 1 || filtered[0].ID != "job-1" {
+		t.Fatalf("printer-filtered jobs = (%+v, %v)", filtered, err)
 	}
 	all, err := prints.List(ctx, repository.PrintJobFilter{})
 	if err != nil || len(all) != 3 || all[0].ID != "job-3" {
@@ -173,6 +190,14 @@ func TestPrintJobRepoFullCRUDFiltersAndStats(t *testing.T) {
 	if err := prints.Create(ctx, &invalid); err == nil {
 		t.Fatal("expected foreign-key error")
 	}
+
+	if err := prints.UpdateSpool(ctx, "job-1", "spool-2"); err != nil {
+		t.Fatalf("updating print spool: %v", err)
+	}
+	got, err = prints.GetByID(ctx, "job-1")
+	if err != nil || got.SpoolID != "spool-2" {
+		t.Fatalf("updated print spool = (%+v, %v)", got, err)
+	}
 }
 
 func TestPrintJobRepoDatabaseErrors(t *testing.T) {
@@ -191,6 +216,105 @@ func TestPrintJobRepoDatabaseErrors(t *testing.T) {
 		{name: "get", run: func() error { _, err := repo.GetByID(ctx, job.ID); return err }},
 		{name: "list", run: func() error { _, err := repo.List(ctx, repository.PrintJobFilter{}); return err }},
 		{name: "stats", run: func() error { _, err := repo.GetStats(ctx, repository.StatsFilter{}); return err }},
+	}
+	for _, check := range checks {
+		t.Run(check.name, func(t *testing.T) {
+			if err := check.run(); err == nil {
+				t.Fatal("expected closed-database error")
+			}
+		})
+	}
+}
+
+func TestPrinterRepoCRUDAndAssignments(t *testing.T) {
+	db := setupTestDB(t)
+	spools := NewSpoolRepo(db)
+	repo := NewPrinterRepo(db)
+	ctx := t.Context()
+	now := time.Now().UTC().Truncate(time.Second)
+
+	if err := spools.Create(ctx, testSpool("spool-1", now)); err != nil {
+		t.Fatalf("creating spool: %v", err)
+	}
+	printer := &domain.Printer{
+		ID:           "printer-1",
+		Name:         "Voron",
+		Kind:         domain.PrinterKindMoonraker,
+		MoonrakerURL: "http://voron.local",
+		APIKey:       "secret",
+		Enabled:      true,
+		State:        domain.PrinterStateUnknown,
+		CreatedAt:    now,
+		UpdatedAt:    now,
+	}
+	if err := repo.Create(ctx, printer); err != nil {
+		t.Fatalf("creating printer: %v", err)
+	}
+
+	got, err := repo.GetByID(ctx, printer.ID)
+	if err != nil || got.Name != "Voron" || got.Kind != domain.PrinterKindMoonraker || !got.Enabled {
+		t.Fatalf("printer = (%+v, %v)", got, err)
+	}
+	listed, err := repo.List(ctx)
+	if err != nil || len(listed) != 1 || listed[0].ID != printer.ID {
+		t.Fatalf("listed printers = (%+v, %v)", listed, err)
+	}
+
+	if err := repo.AssignSpool(ctx, printer.ID, "spool-1"); err != nil {
+		t.Fatalf("assigning spool: %v", err)
+	}
+	got, err = repo.GetByID(ctx, printer.ID)
+	if err != nil || got.ActiveSpoolID != "spool-1" {
+		t.Fatalf("assigned printer = (%+v, %v)", got, err)
+	}
+
+	got.State = domain.PrinterStatePrinting
+	got.CurrentFile = "benchy.gcode"
+	got.Progress = 0.42
+	got.LastSeenAt = now.Add(time.Minute)
+	if err := repo.UpdateStatus(ctx, got); err != nil {
+		t.Fatalf("updating status: %v", err)
+	}
+	got, err = repo.GetByID(ctx, printer.ID)
+	if err != nil || got.State != domain.PrinterStatePrinting || got.CurrentFile != "benchy.gcode" || got.Progress != 0.42 || got.LastSeenAt.IsZero() {
+		t.Fatalf("status printer = (%+v, %v)", got, err)
+	}
+
+	got.Name = "Trident"
+	if err := repo.Update(ctx, got); err != nil {
+		t.Fatalf("updating printer: %v", err)
+	}
+	got, err = repo.GetByID(ctx, printer.ID)
+	if err != nil || got.Name != "Trident" {
+		t.Fatalf("updated printer = (%+v, %v)", got, err)
+	}
+
+	if err := repo.AssignSpool(ctx, printer.ID, "missing"); err == nil {
+		t.Fatal("expected missing spool foreign-key error")
+	}
+	if _, err := repo.GetByID(ctx, "missing"); err == nil || !strings.Contains(err.Error(), "not found") {
+		t.Fatalf("missing printer error = %v", err)
+	}
+}
+
+func TestPrinterRepoDatabaseErrors(t *testing.T) {
+	db := setupTestDB(t)
+	repo := NewPrinterRepo(db)
+	if err := db.Close(); err != nil {
+		t.Fatalf("closing database: %v", err)
+	}
+	ctx := context.Background()
+	printer := &domain.Printer{ID: "printer"}
+	checks := []struct {
+		name string
+		run  func() error
+	}{
+		{name: "create", run: func() error { return repo.Create(ctx, printer) }},
+		{name: "get", run: func() error { _, err := repo.GetByID(ctx, "printer"); return err }},
+		{name: "list", run: func() error { _, err := repo.List(ctx); return err }},
+		{name: "update", run: func() error { return repo.Update(ctx, printer) }},
+		{name: "assign", run: func() error { return repo.AssignSpool(ctx, "printer", "spool") }},
+		{name: "status", run: func() error { return repo.UpdateStatus(ctx, printer) }},
 	}
 	for _, check := range checks {
 		t.Run(check.name, func(t *testing.T) {

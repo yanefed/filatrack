@@ -57,6 +57,16 @@ func (s *PrintService) CreateFromGcode(ctx context.Context, spoolID string, meta
 	return job, nil
 }
 
+func (s *PrintService) ChangeSpool(ctx context.Context, printJobID, spoolID string) error {
+	if _, err := s.spools.GetByID(ctx, spoolID); err != nil {
+		return fmt.Errorf("getting spool: %w", err)
+	}
+	if err := s.prints.UpdateSpool(ctx, printJobID, spoolID); err != nil {
+		return fmt.Errorf("changing print job spool: %w", err)
+	}
+	return nil
+}
+
 func (s *PrintService) List(ctx context.Context, filter repository.PrintJobFilter) ([]domain.PrintJob, error) {
 	return s.prints.List(ctx, filter)
 }

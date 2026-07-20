@@ -4,6 +4,7 @@ import "time"
 
 type Spool struct {
 	ID           string
+	DisplayCode  string
 	Manufacturer string
 	Material     Material
 	Color        string

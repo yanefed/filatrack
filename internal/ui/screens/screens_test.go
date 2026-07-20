@@ -33,10 +33,12 @@ func TestScreenConstructorsWithRealServices(t *testing.T) {
 	printRepo := sqlite.NewPrintJobRepo(db)
 	dryingRepo := sqlite.NewDryingRepo(db)
 	settingsRepo := sqlite.NewSettingsRepo(db)
+	printerRepo := sqlite.NewPrinterRepo(db)
 	spoolSvc := service.NewSpoolService(spoolRepo, dryingRepo, settingsRepo)
 	printSvc := service.NewPrintService(printRepo, spoolRepo)
 	dryingSvc := service.NewDryingService(dryingRepo, settingsRepo)
 	settingsSvc := service.NewSettingsService(settingsRepo)
+	printerSvc := service.NewPrinterService(printerRepo, spoolRepo, printRepo)
 	ctx := t.Context()
 
 	spool := &domain.Spool{Manufacturer: "UI Test", Material: domain.MaterialPLA, Color: "Black", TotalWeightG: 1000}
@@ -54,8 +56,9 @@ func TestScreenConstructorsWithRealServices(t *testing.T) {
 	spools, refreshSpools := NewSpoolsScreen(ctx, spoolSvc, func() {})
 	prints, refreshPrints := NewPrintsScreen(ctx, printSvc, spoolSvc, func() {})
 	drying, refreshDrying := NewDryingScreen(ctx, dryingSvc, spoolSvc, func() {})
+	printers, refreshPrinters := NewPrintersScreen(ctx, printerSvc, spoolSvc, func() {})
 	settings, refreshSettings := NewSettingsScreen(ctx, settingsSvc, func() {}, func() {})
-	if dashboard == nil || spools == nil || prints == nil || drying == nil || settings == nil {
+	if dashboard == nil || spools == nil || prints == nil || drying == nil || printers == nil || settings == nil {
 		t.Fatal("one or more screen constructors returned nil")
 	}
 
@@ -63,6 +66,7 @@ func TestScreenConstructorsWithRealServices(t *testing.T) {
 	refreshSpools()
 	refreshPrints()
 	refreshDrying()
+	refreshPrinters()
 	refreshSettings()
-	runtime.KeepAlive([]any{dashboard, spools, prints, drying, settings})
+	runtime.KeepAlive([]any{dashboard, spools, prints, drying, printers, settings})
 }

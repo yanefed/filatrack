@@ -47,6 +47,9 @@ type printRepoStub struct {
 	listErr   error
 	stats     *repository.PrintStats
 	statsErr  error
+	spoolID   string
+	jobID     string
+	updateErr error
 }
 
 func (r *printRepoStub) Create(_ context.Context, job *domain.PrintJob) error {
@@ -61,6 +64,10 @@ func (r *printRepoStub) List(context.Context, repository.PrintJobFilter) ([]doma
 }
 func (r *printRepoStub) GetStats(context.Context, repository.StatsFilter) (*repository.PrintStats, error) {
 	return r.stats, r.statsErr
+}
+func (r *printRepoStub) UpdateSpool(_ context.Context, jobID, spoolID string) error {
+	r.jobID, r.spoolID = jobID, spoolID
+	return r.updateErr
 }
 
 type dryingRepoStub struct {
@@ -126,6 +133,55 @@ func (r *settingsRepoStub) AddCustomMaterial(_ context.Context, name string) err
 func (r *settingsRepoStub) DeleteCustomMaterial(_ context.Context, name string) error {
 	r.deletedMaterial = name
 	return r.deleteErr
+}
+
+type printerRepoStub struct {
+	created       *domain.Printer
+	createErr     error
+	printer       *domain.Printer
+	getErr        error
+	list          []domain.Printer
+	listErr       error
+	assignedID    string
+	assignedSpool string
+	assignErr     error
+	status        *domain.Printer
+	statusErr     error
+	updated       *domain.Printer
+	updateErr     error
+}
+
+type checkerStub struct {
+	printer domain.Printer
+	err     error
+}
+
+func (c *checkerStub) Check(_ context.Context, printer domain.Printer) error {
+	c.printer = printer
+	return c.err
+}
+
+func (r *printerRepoStub) Create(_ context.Context, printer *domain.Printer) error {
+	r.created = printer
+	return r.createErr
+}
+func (r *printerRepoStub) GetByID(context.Context, string) (*domain.Printer, error) {
+	return r.printer, r.getErr
+}
+func (r *printerRepoStub) List(context.Context) ([]domain.Printer, error) {
+	return r.list, r.listErr
+}
+func (r *printerRepoStub) Update(_ context.Context, printer *domain.Printer) error {
+	r.updated = printer
+	return r.updateErr
+}
+func (r *printerRepoStub) AssignSpool(_ context.Context, printerID, spoolID string) error {
+	r.assignedID, r.assignedSpool = printerID, spoolID
+	return r.assignErr
+}
+func (r *printerRepoStub) UpdateStatus(_ context.Context, printer *domain.Printer) error {
+	r.status = printer
+	return r.statusErr
 }
 
 func TestSpoolServiceCreateValidationAndDefaults(t *testing.T) {
@@ -313,6 +369,131 @@ func TestPrintServiceListAndStats(t *testing.T) {
 	}
 	if stats, err := service.GetStats(t.Context(), repository.StatsFilter{}); stats.TotalPrints != 1 || !errors.Is(err, wantErr) {
 		t.Fatalf("GetStats() = (%+v, %v)", stats, err)
+	}
+}
+
+func TestPrintServiceChangeSpool(t *testing.T) {
+	spool := &domain.Spool{ID: "spool-2"}
+	spools := &spoolRepoStub{spool: spool}
+	prints := &printRepoStub{}
+	service := NewPrintService(prints, spools)
+
+	if err := service.ChangeSpool(t.Context(), "job-1", spool.ID); err != nil {
+		t.Fatalf("ChangeSpool: %v", err)
+	}
+	if prints.jobID != "job-1" || prints.spoolID != spool.ID {
+		t.Fatalf("repository update = job %q spool %q", prints.jobID, prints.spoolID)
+	}
+
+	spools.getErr = errors.New("spool missing")
+	if err := service.ChangeSpool(t.Context(), "job-1", "missing"); !errors.Is(err, spools.getErr) {
+		t.Fatalf("spool lookup error = %v", err)
+	}
+	spools.getErr = nil
+	prints.updateErr = errors.New("update failed")
+	if err := service.ChangeSpool(t.Context(), "job-1", spool.ID); !errors.Is(err, prints.updateErr) {
+		t.Fatalf("update error = %v", err)
+	}
+}
+
+func TestPrinterServiceCreateAssignStatusAndList(t *testing.T) {
+	printers := &printerRepoStub{list: []domain.Printer{{ID: "printer-1"}}}
+	spools := &spoolRepoStub{spool: &domain.Spool{ID: "spool-1"}}
+	service := NewPrinterService(printers, spools, &printRepoStub{})
+
+	if err := service.CreateMoonrakerPrinter(t.Context(), &domain.Printer{Name: "   "}); err == nil {
+		t.Fatal("expected blank printer name error")
+	}
+	if err := service.CreateMoonrakerPrinter(t.Context(), &domain.Printer{Name: "Voron", MoonrakerURL: "ftp://printer"}); err == nil {
+		t.Fatal("expected invalid Moonraker URL error")
+	}
+
+	printer := &domain.Printer{Name: " Voron ", MoonrakerURL: "http://printer.local/"}
+	if err := service.CreateMoonrakerPrinter(t.Context(), printer); err != nil {
+		t.Fatalf("CreateMoonrakerPrinter: %v", err)
+	}
+	if printers.created != printer || printer.Name != "Voron" || printer.MoonrakerURL != "http://printer.local" || printer.Kind != domain.PrinterKindMoonraker || !printer.Enabled || printer.CreatedAt.IsZero() {
+		t.Fatalf("unexpected created printer: %+v", printer)
+	}
+
+	listed, err := service.List(t.Context())
+	if err != nil || len(listed) != 1 {
+		t.Fatalf("List() = (%+v, %v)", listed, err)
+	}
+
+	if err := service.AssignSpool(t.Context(), "printer-1", "spool-1"); err != nil {
+		t.Fatalf("AssignSpool: %v", err)
+	}
+	if printers.assignedID != "printer-1" || printers.assignedSpool != "spool-1" {
+		t.Fatalf("assignment = printer %q spool %q", printers.assignedID, printers.assignedSpool)
+	}
+	if err := service.ClearAssignedSpool(t.Context(), "printer-1"); err != nil {
+		t.Fatalf("ClearAssignedSpool: %v", err)
+	}
+	if printers.assignedSpool != "" {
+		t.Fatalf("expected cleared spool, got %q", printers.assignedSpool)
+	}
+
+	status := &domain.Printer{ID: "printer-1", Progress: 1.5}
+	if err := service.UpdateStatus(t.Context(), status); err != nil {
+		t.Fatalf("UpdateStatus: %v", err)
+	}
+	if printers.status != status || status.State != domain.PrinterStateUnknown || status.Progress != 1 || status.LastSeenAt.IsZero() {
+		t.Fatalf("normalized status = %+v", status)
+	}
+}
+
+func TestPrinterServiceCheckMoonrakerConnection(t *testing.T) {
+	checker := &checkerStub{}
+	service := NewPrinterService(&printerRepoStub{}, &spoolRepoStub{}, &printRepoStub{})
+	service.SetConnectionChecker(checker)
+
+	printer := &domain.Printer{MoonrakerURL: "http://printer.local/"}
+	if err := service.CheckMoonrakerConnection(t.Context(), printer); err != nil {
+		t.Fatalf("CheckMoonrakerConnection: %v", err)
+	}
+	if checker.printer.MoonrakerURL != "http://printer.local" || checker.printer.Name != "Moonraker" {
+		t.Fatalf("normalized checked printer = %+v", checker.printer)
+	}
+
+	if err := service.CheckMoonrakerConnection(t.Context(), &domain.Printer{MoonrakerURL: "ftp://printer"}); err == nil {
+		t.Fatal("expected invalid URL error")
+	}
+	checker.err = errors.New("connection failed")
+	if err := service.CheckMoonrakerConnection(t.Context(), printer); !errors.Is(err, checker.err) {
+		t.Fatalf("checker error = %v", err)
+	}
+}
+
+func TestPrinterServiceRecordPrinterPrint(t *testing.T) {
+	printers := &printerRepoStub{printer: &domain.Printer{ID: "printer-1", Name: "Voron", ActiveSpoolID: "spool-1"}}
+	spools := &spoolRepoStub{spool: &domain.Spool{ID: "spool-1", DiameterMM: 1.75, DensityGCM3: 1.24}}
+	prints := &printRepoStub{}
+	service := NewPrinterService(printers, spools, prints)
+
+	event := domain.PrinterPrintEvent{
+		PrinterID:         "printer-1",
+		ExternalPrintID:   "moonraker-123",
+		GcodeFilename:     "folder/benchy.gcode",
+		EstimatedLengthMM: 9000,
+		PrintDuration:     time.Hour,
+	}
+	job, err := service.RecordPrinterPrint(t.Context(), event)
+	if err != nil {
+		t.Fatalf("RecordPrinterPrint: %v", err)
+	}
+	if job != prints.created || job.SpoolID != "spool-1" || job.PrinterID != "printer-1" || job.ExternalPrintID != "moonraker-123" || job.ModelName != "benchy" || job.Status != domain.PrintStatusSuccess || job.EstimatedWeightG <= 0 || job.ActualWeightG != job.EstimatedWeightG {
+		t.Fatalf("unexpected printer print job: %+v", job)
+	}
+
+	printers.printer.ActiveSpoolID = ""
+	if _, err := service.RecordPrinterPrint(t.Context(), event); err == nil || !strings.Contains(err.Error(), "no active spool") {
+		t.Fatalf("expected active spool error, got %v", err)
+	}
+	printers.printer.ActiveSpoolID = "spool-1"
+	prints.createErr = errors.New("insert failed")
+	if _, err := service.RecordPrinterPrint(t.Context(), event); !errors.Is(err, prints.createErr) {
+		t.Fatalf("create error = %v", err)
 	}
 }
 

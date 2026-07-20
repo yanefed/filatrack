@@ -31,6 +31,13 @@ func NewPrintsScreen(ctx context.Context, printSvc *service.PrintService, spoolS
 	listBox := gtk.NewListBox()
 	listBox.SetSelectionMode(gtk.SelectionNone)
 
+	messageLabel := gtk.NewLabel("")
+	messageLabel.SetHAlign(gtk.AlignStart)
+	messageLabel.AddCSSClass("dim-label")
+	messageLabel.SetWrap(true)
+	messageLabel.SetVisible(false)
+	box.Append(messageLabel)
+
 	scrolled := gtk.NewScrolledWindow()
 	scrolled.SetVExpand(true)
 	scrolled.SetChild(listBox)
@@ -52,8 +59,10 @@ func NewPrintsScreen(ctx context.Context, printSvc *service.PrintService, spoolS
 			listBox.Append(label)
 			return
 		}
+		currentSpools := activeSpools(ctx, spoolSvc)
 
 		for _, job := range jobs {
+			job := job
 			statusIcon := "✅"
 			switch job.Status {
 			case "failed":
@@ -75,6 +84,45 @@ func NewPrintsScreen(ctx context.Context, printSvc *service.PrintService, spoolS
 			details.SetHAlign(gtk.AlignStart)
 			details.AddCSSClass("dim-label")
 			row.Append(details)
+
+			if len(currentSpools) > 0 {
+				assignRow := gtk.NewBox(gtk.OrientationHorizontal, 6)
+				assignLabel := gtk.NewLabel(t.SpoolColon)
+				assignLabel.SetHAlign(gtk.AlignStart)
+				assignRow.Append(assignLabel)
+
+				spoolNames := make([]string, len(currentSpools))
+				selectedIdx := uint(0)
+				for i, spool := range currentSpools {
+					spoolNames[i] = spoolDisplayName(spool)
+					if spool.ID == job.SpoolID {
+						selectedIdx = uint(i)
+					}
+				}
+				dropdown := gtk.NewDropDown(gtk.NewStringList(spoolNames), nil)
+				dropdown.SetSelected(selectedIdx)
+				assignRow.Append(dropdown)
+
+				saveSpoolBtn := gtk.NewButtonWithLabel(t.Save)
+				saveSpoolBtn.ConnectClicked(func() {
+					idx := dropdown.Selected()
+					if int(idx) >= len(currentSpools) {
+						return
+					}
+					if err := printSvc.ChangeSpool(ctx, job.ID, currentSpools[idx].ID); err != nil {
+						messageLabel.SetLabel(fmt.Sprintf("%s: %v", t.SaveError, err))
+						messageLabel.SetVisible(true)
+						return
+					}
+					messageLabel.SetVisible(false)
+					refreshPrints()
+					if onChanged != nil {
+						onChanged()
+					}
+				})
+				assignRow.Append(saveSpoolBtn)
+				row.Append(assignRow)
+			}
 
 			listBox.Append(row)
 		}

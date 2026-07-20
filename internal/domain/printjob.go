@@ -13,6 +13,8 @@ const (
 type PrintJob struct {
 	ID                string
 	SpoolID           string
+	PrinterID         string
+	ExternalPrintID   string
 	GcodeFilename     string
 	ModelName         string
 	Status            PrintStatus

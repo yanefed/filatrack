@@ -27,14 +27,25 @@ type PrintJobRepository interface {
 	Create(ctx context.Context, job *domain.PrintJob) error
 	GetByID(ctx context.Context, id string) (*domain.PrintJob, error)
 	List(ctx context.Context, filter PrintJobFilter) ([]domain.PrintJob, error)
+	UpdateSpool(ctx context.Context, jobID, spoolID string) error
 	GetStats(ctx context.Context, filter StatsFilter) (*PrintStats, error)
 }
 
 type PrintJobFilter struct {
-	SpoolID *string
-	Status  *domain.PrintStatus
-	From    *time.Time
-	To      *time.Time
+	SpoolID   *string
+	PrinterID *string
+	Status    *domain.PrintStatus
+	From      *time.Time
+	To        *time.Time
+}
+
+type PrinterRepository interface {
+	Create(ctx context.Context, printer *domain.Printer) error
+	GetByID(ctx context.Context, id string) (*domain.Printer, error)
+	List(ctx context.Context) ([]domain.Printer, error)
+	Update(ctx context.Context, printer *domain.Printer) error
+	AssignSpool(ctx context.Context, printerID, spoolID string) error
+	UpdateStatus(ctx context.Context, printer *domain.Printer) error
 }
 
 type StatsFilter struct {

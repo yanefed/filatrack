@@ -122,6 +122,25 @@ type T struct {
 	Add             string
 	Close           string
 	RestartNote     string
+
+	// Printers
+	Printers             string
+	AddPrinter           string
+	PrinterName          string
+	MoonrakerURL         string
+	APIKey               string
+	ActiveSpool          string
+	NoPrinters           string
+	UnassignedSpool      string
+	SaveAssignment       string
+	PrinterInfoFmt       string
+	CurrentFileFmt       string
+	AddPrinterError      string
+	AssignPrinterError   string
+	PrinterMonitorNotice string
+	CheckConnection      string
+	ConnectionOK         string
+	ConnectionFailed     string
 }
 
 var translations = map[Language]T{
@@ -218,8 +237,25 @@ var translations = map[Language]T{
 		ColorPH:               "Color",
 		NetWeightPH:           "Net weight (g)",
 		PricePH:               "Price",
-		SpoolInfoFmt:          "%s %s (%s) — %.0f g / %.0f g (%.0f%%)",
+		SpoolInfoFmt:          "%s — %s %s (%s) — %.0f g / %.0f g (%.0f%%)",
 		RestartNote:           "Language changes apply immediately.",
+		Printers:              "Printers",
+		AddPrinter:            "Add Moonraker printer",
+		PrinterName:           "Printer name",
+		MoonrakerURL:          "Moonraker URL",
+		APIKey:                "API key",
+		ActiveSpool:           "Active spool",
+		NoPrinters:            "No printers configured.",
+		UnassignedSpool:       "No active spool",
+		SaveAssignment:        "Save assignment",
+		PrinterInfoFmt:        "%s — %s, %.0f%%",
+		CurrentFileFmt:        "File: %s",
+		AddPrinterError:       "Printer save error",
+		AssignPrinterError:    "Spool assignment error",
+		PrinterMonitorNotice:  "Enabled Moonraker printers are monitored automatically.",
+		CheckConnection:       "Check connection",
+		ConnectionOK:          "Connection OK",
+		ConnectionFailed:      "Connection failed",
 	},
 	LangBG: {
 		Dashboard:             "Табло",
@@ -314,8 +350,25 @@ var translations = map[Language]T{
 		ColorPH:               "Цвят",
 		NetWeightPH:           "Тегло нето (г)",
 		PricePH:               "Цена",
-		SpoolInfoFmt:          "%s %s (%s) — %.0f г / %.0f г (%.0f%%)",
+		SpoolInfoFmt:          "%s — %s %s (%s) — %.0f г / %.0f г (%.0f%%)",
 		RestartNote:           "Промените в езика се прилагат веднага.",
+		Printers:              "Принтери",
+		AddPrinter:            "Добави Moonraker принтер",
+		PrinterName:           "Име на принтер",
+		MoonrakerURL:          "Moonraker URL",
+		APIKey:                "API ключ",
+		ActiveSpool:           "Активна макара",
+		NoPrinters:            "Няма конфигурирани принтери.",
+		UnassignedSpool:       "Няма активна макара",
+		SaveAssignment:        "Запази връзката",
+		PrinterInfoFmt:        "%s — %s, %.0f%%",
+		CurrentFileFmt:        "Файл: %s",
+		AddPrinterError:       "Грешка при запазване на принтер",
+		AssignPrinterError:    "Грешка при свързване на макара",
+		PrinterMonitorNotice:  "Включените Moonraker принтери се наблюдават автоматично.",
+		CheckConnection:       "Провери връзката",
+		ConnectionOK:          "Връзката е успешна",
+		ConnectionFailed:      "Връзката е неуспешна",
 	},
 }
 

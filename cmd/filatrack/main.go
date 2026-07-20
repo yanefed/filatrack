@@ -7,6 +7,7 @@ import (
 
 	"awesomeProject/internal/config"
 	"awesomeProject/internal/i18n"
+	"awesomeProject/internal/moonraker"
 	"awesomeProject/internal/repository/sqlite"
 	"awesomeProject/internal/service"
 	"awesomeProject/internal/ui"
@@ -44,9 +45,11 @@ func appOptions() []fx.Option {
 			sqlite.NewPrintJobRepo,
 			sqlite.NewDryingRepo,
 			sqlite.NewSettingsRepo,
+			sqlite.NewPrinterRepo,
 			service.NewSpoolService,
 			service.NewPrintService,
 			service.NewDryingService,
+			service.NewPrinterService,
 			fx.Annotate(
 				service.NewSettingsService,
 				fx.As(new(languageProvider)),
@@ -54,6 +57,8 @@ func appOptions() []fx.Option {
 			),
 			fx.Annotate(ui.NewApp, fx.As(new(applicationRunner))),
 		),
+		fx.Invoke(configurePrinterConnectionChecker),
+		fx.Invoke(startPrinterMonitors),
 		fx.Invoke(runApp),
 	}
 }
@@ -71,6 +76,23 @@ func newDB(cfg *config.Config) (*sqlite.DB, error) {
 		return nil, err
 	}
 	return db, nil
+}
+
+func startPrinterMonitors(lifecycle fx.Lifecycle, printerSvc *service.PrinterService) {
+	runner := moonraker.NewRunner(printerSvc, printerSvc, moonraker.WebSocketDialer{})
+	runner.Metadata = moonraker.HTTPMetadataFetcher{}
+	lifecycle.Append(fx.Hook{
+		OnStart: func(ctx context.Context) error {
+			return runner.Start(ctx)
+		},
+		OnStop: func(ctx context.Context) error {
+			return runner.Stop(ctx)
+		},
+	})
+}
+
+func configurePrinterConnectionChecker(printerSvc *service.PrinterService) {
+	printerSvc.SetConnectionChecker(moonraker.HTTPMetadataFetcher{})
 }
 
 func runApp(app applicationRunner, settingsSvc languageProvider, shutdowner fx.Shutdowner) {

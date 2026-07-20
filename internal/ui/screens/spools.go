@@ -64,7 +64,7 @@ func NewSpoolsScreen(ctx context.Context, spoolSvc *service.SpoolService, onChan
 			row.SetMarginBottom(6)
 
 			info := gtk.NewLabel(fmt.Sprintf(t.SpoolInfoFmt,
-				spool.Manufacturer, spool.Color, string(spool.Material),
+				spool.DisplayCode, spool.Manufacturer, spool.Color, string(spool.Material),
 				remaining, spool.TotalWeightG, percent))
 			info.SetHAlign(gtk.AlignStart)
 			info.SetHExpand(true)

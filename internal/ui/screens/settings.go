@@ -7,6 +7,7 @@ import (
 
 	"awesomeProject/internal/domain"
 	"awesomeProject/internal/i18n"
+	"awesomeProject/internal/repository"
 	"awesomeProject/internal/service"
 
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
@@ -228,6 +229,46 @@ func NewSettingsScreen(ctx context.Context, settingsSvc *service.SettingsService
 	}
 
 	return box, refreshSettings
+}
+
+func activeSpools(ctx context.Context, spoolSvc *service.SpoolService) []domain.Spool {
+	notArchived := false
+	spools, err := spoolSvc.List(ctx, repository.SpoolFilter{Archived: &notArchived})
+	if err != nil {
+		return nil
+	}
+	return spools
+}
+
+func spoolChoiceNames(t i18n.T, spools []domain.Spool) []string {
+	names := []string{t.UnassignedSpool}
+	for _, spool := range spools {
+		names = append(names, spoolDisplayName(spool))
+	}
+	return names
+}
+
+func spoolDisplayName(spool domain.Spool) string {
+	return fmt.Sprintf("%s — %s %s (%s)", spool.DisplayCode, spool.Manufacturer, spool.Color, string(spool.Material))
+}
+
+func selectedSpoolIndex(activeSpoolID string, spools []domain.Spool) uint {
+	for i, spool := range spools {
+		if spool.ID == activeSpoolID {
+			return uint(i + 1)
+		}
+	}
+	return 0
+}
+
+func clearListBox(list *gtk.ListBox) {
+	for {
+		row := list.RowAtIndex(0)
+		if row == nil {
+			break
+		}
+		list.Remove(row)
+	}
 }
 
 // showEditProfileDialog opens a window for editing a drying profile.

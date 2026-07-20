@@ -1,0 +1,53 @@
+package moonraker
+
+import (
+	"testing"
+	"time"
+
+	"awesomeProject/internal/domain"
+)
+
+func TestProcessorRecordsCompletedPrint(t *testing.T) {
+	processor := NewProcessor("printer-1")
+	started := time.Unix(1000, 0)
+
+	status, event := processor.Apply(StatusUpdate{
+		State:         domain.PrinterStatePrinting,
+		RawPrintState: "printing",
+		Filename:      "benchy.gcode",
+		Progress:      0.5,
+	}, started)
+	if status.State != domain.PrinterStatePrinting || event != nil {
+		t.Fatalf("printing update = (%+v, %+v)", status, event)
+	}
+
+	finished := started.Add(time.Hour)
+	_, event = processor.Apply(StatusUpdate{
+		State:          domain.PrinterStateReady,
+		RawPrintState:  "complete",
+		Filename:       "benchy.gcode",
+		Progress:       1,
+		FilamentUsedMM: 7654,
+		PrintDuration:  time.Hour,
+	}, finished)
+	if event == nil {
+		t.Fatal("expected completed print event")
+	}
+	if event.PrinterID != "printer-1" || event.GcodeFilename != "benchy.gcode" || event.Status != domain.PrintStatusSuccess || event.CompletionPercent != 100 || event.EstimatedLengthMM != 7654 || event.PrintDuration != time.Hour || event.PrintedAt != finished {
+		t.Fatalf("completed event = %+v", event)
+	}
+	if event.ExternalPrintID != "printer-1:benchy.gcode:1000" {
+		t.Fatalf("external print id = %q", event.ExternalPrintID)
+	}
+}
+
+func TestProcessorRecordsCancelledPrintWithProgress(t *testing.T) {
+	processor := NewProcessor("printer-1")
+	now := time.Unix(1000, 0)
+	processor.Apply(StatusUpdate{RawPrintState: "printing", Filename: "part.gcode", Progress: 0.42}, now)
+
+	_, event := processor.Apply(StatusUpdate{RawPrintState: "cancelled", Filename: "part.gcode"}, now.Add(time.Minute))
+	if event == nil || event.Status != domain.PrintStatusCancelled || event.CompletionPercent != 42 {
+		t.Fatalf("cancelled event = %+v", event)
+	}
+}
