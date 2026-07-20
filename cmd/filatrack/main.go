@@ -15,11 +15,28 @@ import (
 	_ "modernc.org/sqlite"
 )
 
+type applicationRunner interface {
+	Run() error
+}
+
+type languageProvider interface {
+	GetLanguage(context.Context) i18n.Language
+}
+
+var (
+	runApplication = startApplication
+	exitProcess    = os.Exit
+)
+
 func main() {
 	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelInfo}))
 	slog.SetDefault(logger)
 
-	fx.New(
+	runApplication(appOptions()...)
+}
+
+func appOptions() []fx.Option {
+	return []fx.Option{
 		fx.Provide(
 			config.Default,
 			newDB,
@@ -30,11 +47,19 @@ func main() {
 			service.NewSpoolService,
 			service.NewPrintService,
 			service.NewDryingService,
-			service.NewSettingsService,
-			ui.NewApp,
+			fx.Annotate(
+				service.NewSettingsService,
+				fx.As(new(languageProvider)),
+				fx.As(fx.Self()),
+			),
+			fx.Annotate(ui.NewApp, fx.As(new(applicationRunner))),
 		),
 		fx.Invoke(runApp),
-	).Run()
+	}
+}
+
+func startApplication(options ...fx.Option) {
+	fx.New(options...).Run()
 }
 
 func newDB(cfg *config.Config) (*sqlite.DB, error) {
@@ -48,12 +73,17 @@ func newDB(cfg *config.Config) (*sqlite.DB, error) {
 	return db, nil
 }
 
-func runApp(app *ui.App, settingsSvc *service.SettingsService) {
+func runApp(app applicationRunner, settingsSvc languageProvider, shutdowner fx.Shutdowner) {
 	lang := settingsSvc.GetLanguage(context.Background())
 	i18n.SetLanguage(lang)
 
 	if err := app.Run(); err != nil {
 		slog.Error("application error", "error", err)
-		os.Exit(1)
+		exitProcess(1)
+		return
+	}
+
+	if err := shutdowner.Shutdown(); err != nil {
+		slog.Error("shutdown error", "error", err)
 	}
 }

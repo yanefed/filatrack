@@ -2,41 +2,55 @@ package main
 
 import (
 	"fmt"
+	"io"
 	"os"
 	"time"
 
 	"awesomeProject/internal/gcode"
 )
 
+var (
+	stdout      io.Writer = os.Stdout
+	stderr      io.Writer = os.Stderr
+	exitProcess           = os.Exit
+)
+
 func main() {
-	if len(os.Args) < 2 {
-		fmt.Fprintf(os.Stderr, "Использование: gcodecheck <файл.gcode>\n")
-		os.Exit(1)
+	if code := run(os.Args, stdout, stderr); code != 0 {
+		exitProcess(code)
+	}
+}
+
+func run(args []string, stdout, stderr io.Writer) int {
+	if len(args) < 2 {
+		fmt.Fprintln(stderr, "Использование: gcodecheck <файл.gcode>")
+		return 1
 	}
 
-	path := os.Args[1]
+	path := args[1]
 	meta, err := gcode.ParseFile(path)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Ошибка: %v\n", err)
-		os.Exit(1)
+		fmt.Fprintf(stderr, "Ошибка: %v\n", err)
+		return 1
 	}
 
-	fmt.Println("=== Результаты парсинга G-code ===")
-	fmt.Printf("Файл:              %s\n", path)
-	fmt.Printf("Слайсер:           %s\n", valOrNA(meta.Slicer))
-	fmt.Printf("Модель:            %s\n", valOrNA(meta.ModelName))
-	fmt.Printf("Длина филамента:   %.2f мм (%.2f м)\n", meta.FilamentLengthMM, meta.FilamentLengthMM/1000)
-	fmt.Printf("Вес филамента:     %.2f г\n", meta.FilamentWeightG)
-	fmt.Printf("Время печати:      %s\n", formatDuration(meta.PrintDuration))
-	fmt.Printf("Температура сопла: %s\n", tempOrNA(meta.NozzleTempC))
-	fmt.Printf("Температура стола: %s\n", tempOrNA(meta.BedTempC))
-	fmt.Printf("Высота слоя:       %s\n", layerOrNA(meta.LayerHeight))
+	fmt.Fprintln(stdout, "=== Результаты парсинга G-code ===")
+	fmt.Fprintf(stdout, "Файл:              %s\n", path)
+	fmt.Fprintf(stdout, "Слайсер:           %s\n", valOrNA(meta.Slicer))
+	fmt.Fprintf(stdout, "Модель:            %s\n", valOrNA(meta.ModelName))
+	fmt.Fprintf(stdout, "Длина филамента:   %.2f мм (%.2f м)\n", meta.FilamentLengthMM, meta.FilamentLengthMM/1000)
+	fmt.Fprintf(stdout, "Вес филамента:     %.2f г\n", meta.FilamentWeightG)
+	fmt.Fprintf(stdout, "Время печати:      %s\n", formatDuration(meta.PrintDuration))
+	fmt.Fprintf(stdout, "Температура сопла: %s\n", tempOrNA(meta.NozzleTempC))
+	fmt.Fprintf(stdout, "Температура стола: %s\n", tempOrNA(meta.BedTempC))
+	fmt.Fprintf(stdout, "Высота слоя:       %s\n", layerOrNA(meta.LayerHeight))
 
 	if meta.FilamentLengthMM > 0 && meta.FilamentWeightG == 0 {
-		fmt.Println("\n--- Расчёт веса по длине (PLA, 1.75мм, 1.24 г/см³) ---")
+		fmt.Fprintln(stdout, "\n--- Расчёт веса по длине (PLA, 1.75мм, 1.24 г/см³) ---")
 		w := gcode.WeightFromLength(meta.FilamentLengthMM, 1.75, 1.24)
-		fmt.Printf("Расчётный вес:     %.2f г\n", w)
+		fmt.Fprintf(stdout, "Расчётный вес:     %.2f г\n", w)
 	}
+	return 0
 }
 
 func valOrNA(s string) string {
