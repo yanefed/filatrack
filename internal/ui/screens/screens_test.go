@@ -54,7 +54,7 @@ func TestScreenConstructorsWithRealServices(t *testing.T) {
 	spools, refreshSpools := NewSpoolsScreen(ctx, spoolSvc, func() {})
 	prints, refreshPrints := NewPrintsScreen(ctx, printSvc, spoolSvc, func() {})
 	drying, refreshDrying := NewDryingScreen(ctx, dryingSvc, spoolSvc, func() {})
-	settings, refreshSettings := NewSettingsScreen(ctx, settingsSvc, func() {})
+	settings, refreshSettings := NewSettingsScreen(ctx, settingsSvc, func() {}, func() {})
 	if dashboard == nil || spools == nil || prints == nil || drying == nil || settings == nil {
 		t.Fatal("one or more screen constructors returned nil")
 	}

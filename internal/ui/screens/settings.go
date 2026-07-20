@@ -13,7 +13,7 @@ import (
 )
 
 // NewSettingsScreen создаёт экран настроек приложения.
-func NewSettingsScreen(ctx context.Context, settingsSvc *service.SettingsService, onChanged func()) (*gtk.Box, func()) {
+func NewSettingsScreen(ctx context.Context, settingsSvc *service.SettingsService, onChanged func(), onLanguageChanged func()) (*gtk.Box, func()) {
 	box := gtk.NewBox(gtk.OrientationVertical, 12)
 	box.SetMarginTop(24)
 	box.SetMarginBottom(24)
@@ -54,8 +54,14 @@ func NewSettingsScreen(ctx context.Context, settingsSvc *service.SettingsService
 	langSaveBtn := gtk.NewButtonWithLabel(i18n.L().Save)
 	langSaveBtn.ConnectClicked(func() {
 		idx := langDropdown.Selected()
-		if int(idx) < len(langs) {
-			_ = settingsSvc.SetLanguage(ctx, langs[idx].Code)
+		if int(idx) >= len(langs) {
+			return
+		}
+		if err := settingsSvc.SetLanguage(ctx, langs[idx].Code); err != nil {
+			return
+		}
+		if onLanguageChanged != nil {
+			onLanguageChanged()
 		}
 	})
 

@@ -50,64 +50,74 @@ func (a *App) activate(app *adw.Application) {
 	window.SetTitle("FilaTrack")
 	window.SetDefaultSize(1000, 700)
 
-	t := i18n.L()
+	refreshAll := func() {}
+	activePage := "dashboard"
+	var rebuildUI func()
+	rebuildUI = func() {
+		t := i18n.L()
 
-	stack := gtk.NewStack()
-	stack.SetTransitionType(gtk.StackTransitionTypeCrossfade)
+		stack := gtk.NewStack()
+		stack.SetTransitionType(gtk.StackTransitionTypeCrossfade)
 
-	refreshDashboard := func() {}
-	refreshSpools := func() {}
-	refreshPrints := func() {}
-	refreshDrying := func() {}
-	refreshSettings := func() {}
-	refreshAll := func() {
-		refreshDashboard()
-		refreshSpools()
-		refreshPrints()
-		refreshDrying()
-		refreshSettings()
+		refreshDashboard := func() {}
+		refreshSpools := func() {}
+		refreshPrints := func() {}
+		refreshDrying := func() {}
+		refreshSettings := func() {}
+		refreshAll = func() {
+			refreshDashboard()
+			refreshSpools()
+			refreshPrints()
+			refreshDrying()
+			refreshSettings()
+		}
+
+		dashboardPage, refreshDashboard := screens.NewDashboard(ctx, a.SpoolService, a.PrintService, a.DryingService)
+		stack.AddTitled(dashboardPage, "dashboard", t.Dashboard)
+
+		spoolsPage, refreshSpools := screens.NewSpoolsScreen(ctx, a.SpoolService, refreshAll)
+		stack.AddTitled(spoolsPage, "spools", t.Spools)
+
+		printsPage, refreshPrints := screens.NewPrintsScreen(ctx, a.PrintService, a.SpoolService, refreshAll)
+		stack.AddTitled(printsPage, "prints", t.Prints)
+
+		dryingPage, refreshDrying := screens.NewDryingScreen(ctx, a.DryingService, a.SpoolService, refreshAll)
+		stack.AddTitled(dryingPage, "drying", t.Drying)
+
+		settingsPage, refreshSettings := screens.NewSettingsScreen(ctx, a.SettingsService, refreshAll, rebuildUI)
+		stack.AddTitled(settingsPage, "settings", t.Settings)
+
+		sidebar := gtk.NewStackSidebar()
+		sidebar.SetStack(stack)
+		sidebar.SetSizeRequest(200, -1)
+
+		splitView := gtk.NewBox(gtk.OrientationHorizontal, 0)
+		splitView.Append(sidebar)
+
+		separator := gtk.NewSeparator(gtk.OrientationVertical)
+		splitView.Append(separator)
+
+		stack.SetHExpand(true)
+		stack.SetVExpand(true)
+		splitView.Append(stack)
+
+		headerBar := adw.NewHeaderBar()
+		headerBar.SetShowEndTitleButtons(true)
+
+		toolbarView := adw.NewToolbarView()
+		toolbarView.AddTopBar(headerBar)
+		toolbarView.SetContent(splitView)
+
+		window.SetContent(toolbarView)
+		stack.SetVisibleChildName(activePage)
+		stack.NotifyProperty("visible-child-name", func() {
+			activePage = stack.VisibleChildName()
+			refreshAll()
+		})
 	}
 
-	dashboardPage, refreshDashboard := screens.NewDashboard(ctx, a.SpoolService, a.PrintService, a.DryingService)
-	stack.AddTitled(dashboardPage, "dashboard", t.Dashboard)
-
-	spoolsPage, refreshSpools := screens.NewSpoolsScreen(ctx, a.SpoolService, refreshAll)
-	stack.AddTitled(spoolsPage, "spools", t.Spools)
-
-	printsPage, refreshPrints := screens.NewPrintsScreen(ctx, a.PrintService, a.SpoolService, refreshAll)
-	stack.AddTitled(printsPage, "prints", t.Prints)
-
-	dryingPage, refreshDrying := screens.NewDryingScreen(ctx, a.DryingService, a.SpoolService, refreshAll)
-	stack.AddTitled(dryingPage, "drying", t.Drying)
-
-	settingsPage, refreshSettings := screens.NewSettingsScreen(ctx, a.SettingsService, refreshAll)
-	stack.AddTitled(settingsPage, "settings", t.Settings)
-
-	sidebar := gtk.NewStackSidebar()
-	sidebar.SetStack(stack)
-	sidebar.SetSizeRequest(200, -1)
-
-	splitView := gtk.NewBox(gtk.OrientationHorizontal, 0)
-	splitView.Append(sidebar)
-
-	separator := gtk.NewSeparator(gtk.OrientationVertical)
-	splitView.Append(separator)
-
-	stack.SetHExpand(true)
-	stack.SetVExpand(true)
-	splitView.Append(stack)
-
-	headerBar := adw.NewHeaderBar()
-	headerBar.SetShowEndTitleButtons(true)
-
-	toolbarView := adw.NewToolbarView()
-	toolbarView.AddTopBar(headerBar)
-	toolbarView.SetContent(splitView)
-
-	window.SetContent(toolbarView)
+	rebuildUI()
 	window.Show()
-
-	stack.NotifyProperty("visible-child-name", refreshAll)
 
 	// Периодическое обновление данных каждые 5 минут
 	glib.TimeoutSecondsAdd(300, func() bool {

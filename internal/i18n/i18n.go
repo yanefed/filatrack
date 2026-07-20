@@ -219,7 +219,7 @@ var translations = map[Language]T{
 		NetWeightPH:           "Net weight (g)",
 		PricePH:               "Price",
 		SpoolInfoFmt:          "%s %s (%s) — %.0f g / %.0f g (%.0f%%)",
-		RestartNote:           "Restart the application to apply language changes.",
+		RestartNote:           "Language changes apply immediately.",
 	},
 	LangBG: {
 		Dashboard:             "Табло",
@@ -315,7 +315,7 @@ var translations = map[Language]T{
 		NetWeightPH:           "Тегло нето (г)",
 		PricePH:               "Цена",
 		SpoolInfoFmt:          "%s %s (%s) — %.0f г / %.0f г (%.0f%%)",
-		RestartNote:           "Рестартирайте приложението, за да приложите промените в езика.",
+		RestartNote:           "Промените в езика се прилагат веднага.",
 	},
 }
 
