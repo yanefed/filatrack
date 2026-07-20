@@ -51,15 +51,18 @@ func TestScreenConstructorsWithRealServices(t *testing.T) {
 	}
 
 	dashboard, refreshDashboard := NewDashboard(ctx, spoolSvc, printSvc, dryingSvc)
-	spools, refreshSpools := NewSpoolsScreen(ctx, spoolSvc)
-	prints := NewPrintsScreen(ctx, printSvc, spoolSvc, func() {})
-	drying := NewDryingScreen(ctx, dryingSvc, spoolSvc, func() {})
-	settings := NewSettingsScreen(ctx, settingsSvc)
+	spools, refreshSpools := NewSpoolsScreen(ctx, spoolSvc, func() {})
+	prints, refreshPrints := NewPrintsScreen(ctx, printSvc, spoolSvc, func() {})
+	drying, refreshDrying := NewDryingScreen(ctx, dryingSvc, spoolSvc, func() {})
+	settings, refreshSettings := NewSettingsScreen(ctx, settingsSvc, func() {})
 	if dashboard == nil || spools == nil || prints == nil || drying == nil || settings == nil {
 		t.Fatal("one or more screen constructors returned nil")
 	}
 
 	refreshDashboard()
 	refreshSpools()
+	refreshPrints()
+	refreshDrying()
+	refreshSettings()
 	runtime.KeepAlive([]any{dashboard, spools, prints, drying, settings})
 }

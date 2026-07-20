@@ -13,7 +13,7 @@ import (
 )
 
 // NewSettingsScreen создаёт экран настроек приложения.
-func NewSettingsScreen(ctx context.Context, settingsSvc *service.SettingsService) *gtk.Box {
+func NewSettingsScreen(ctx context.Context, settingsSvc *service.SettingsService, onChanged func()) (*gtk.Box, func()) {
 	box := gtk.NewBox(gtk.OrientationVertical, 12)
 	box.SetMarginTop(24)
 	box.SetMarginBottom(24)
@@ -115,6 +115,9 @@ func NewSettingsScreen(ctx context.Context, settingsSvc *service.SettingsService
 			editBtn.ConnectClicked(func() {
 				showEditProfileDialog(ctx, settingsSvc, &profile, func() {
 					refreshProfiles()
+					if onChanged != nil {
+						onChanged()
+					}
 				})
 			})
 			row.Append(editBtn)
@@ -172,6 +175,9 @@ func NewSettingsScreen(ctx context.Context, settingsSvc *service.SettingsService
 				delBtn.ConnectClicked(func() {
 					_ = settingsSvc.DeleteCustomMaterial(ctx, string(mat))
 					refreshMaterials()
+					if onChanged != nil {
+						onChanged()
+					}
 				})
 				row.Append(delBtn)
 			}
@@ -201,13 +207,21 @@ func NewSettingsScreen(ctx context.Context, settingsSvc *service.SettingsService
 		}
 		matEntry.SetText("")
 		refreshMaterials()
+		if onChanged != nil {
+			onChanged()
+		}
 	})
 	addRow.Append(addBtn)
 	matSection.Append(addRow)
 
 	content.Append(matSection)
 
-	return box
+	refreshSettings := func() {
+		refreshProfiles()
+		refreshMaterials()
+	}
+
+	return box, refreshSettings
 }
 
 // showEditProfileDialog opens a window for editing a drying profile.

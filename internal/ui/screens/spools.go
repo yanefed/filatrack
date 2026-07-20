@@ -14,7 +14,7 @@ import (
 )
 
 // NewSpoolsScreen создаёт экран управления катушками филамента.
-func NewSpoolsScreen(ctx context.Context, spoolSvc *service.SpoolService) (*gtk.Box, func()) {
+func NewSpoolsScreen(ctx context.Context, spoolSvc *service.SpoolService, onChanged func()) (*gtk.Box, func()) {
 	box := gtk.NewBox(gtk.OrientationVertical, 12)
 	box.SetMarginTop(24)
 	box.SetMarginBottom(24)
@@ -141,6 +141,9 @@ func NewSpoolsScreen(ctx context.Context, spoolSvc *service.SpoolService) (*gtk.
 		weightEntry.SetText("")
 		priceEntry.SetText("")
 		refreshSpools()
+		if onChanged != nil {
+			onChanged()
+		}
 	})
 
 	refreshSpools()

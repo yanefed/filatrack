@@ -16,7 +16,7 @@ import (
 )
 
 // NewPrintsScreen создаёт экран истории печатей.
-func NewPrintsScreen(ctx context.Context, printSvc *service.PrintService, spoolSvc *service.SpoolService, onChanged func()) *gtk.Box {
+func NewPrintsScreen(ctx context.Context, printSvc *service.PrintService, spoolSvc *service.SpoolService, onChanged func()) (*gtk.Box, func()) {
 	box := gtk.NewBox(gtk.OrientationVertical, 12)
 	box.SetMarginTop(24)
 	box.SetMarginBottom(24)
@@ -36,7 +36,8 @@ func NewPrintsScreen(ctx context.Context, printSvc *service.PrintService, spoolS
 	scrolled.SetChild(listBox)
 	box.Append(scrolled)
 
-	refreshPrints := func() {
+	var refreshPrints func()
+	refreshPrints = func() {
 		for {
 			row := listBox.RowAtIndex(0)
 			if row == nil {
@@ -116,17 +117,49 @@ func NewPrintsScreen(ctx context.Context, printSvc *service.PrintService, spoolS
 	spoolLabel.SetHAlign(gtk.AlignStart)
 	formBox.Append(spoolLabel)
 
-	notArchived := false
-	spools, _ := spoolSvc.List(ctx, repository.SpoolFilter{Archived: &notArchived})
-	spoolNames := make([]string, len(spools))
-	for i, s := range spools {
-		spoolNames[i] = fmt.Sprintf("%s %s (%s)", s.Manufacturer, s.Color, string(s.Material))
-	}
-	if len(spoolNames) == 0 {
-		spoolNames = []string{t.NoSpoolsAvail}
-	}
-	spoolCombo := gtk.NewDropDown(gtk.NewStringList(spoolNames), nil)
+	var spools []domain.Spool
+	spoolCombo := gtk.NewDropDown(gtk.NewStringList([]string{t.NoSpoolsAvail}), nil)
 	formBox.Append(spoolCombo)
+
+	refreshSpoolChoices := func() {
+		notArchived := false
+		currentID := ""
+		if len(spools) > 0 {
+			selected := spoolCombo.Selected()
+			if int(selected) < len(spools) {
+				currentID = spools[selected].ID
+			}
+		}
+
+		loaded, err := spoolSvc.List(ctx, repository.SpoolFilter{Archived: &notArchived})
+		if err != nil {
+			spools = nil
+			spoolCombo.SetModel(gtk.NewStringList([]string{fmt.Sprintf("%s: %v", t.ErrorPrefix, err)}))
+			spoolCombo.SetSelected(0)
+			return
+		}
+
+		spools = loaded
+		spoolNames := make([]string, len(spools))
+		selectedIdx := uint(0)
+		for i, s := range spools {
+			spoolNames[i] = fmt.Sprintf("%s %s (%s)", s.Manufacturer, s.Color, string(s.Material))
+			if s.ID == currentID {
+				selectedIdx = uint(i)
+			}
+		}
+		if len(spoolNames) == 0 {
+			spoolNames = []string{t.NoSpoolsAvail}
+		}
+
+		spoolCombo.SetModel(gtk.NewStringList(spoolNames))
+		spoolCombo.SetSelected(selectedIdx)
+	}
+
+	refreshScreen := func() {
+		refreshSpoolChoices()
+		refreshPrints()
+	}
 
 	// Статус печати
 	statusLabel := gtk.NewLabel(t.StatusColon)
@@ -238,6 +271,6 @@ func NewPrintsScreen(ctx context.Context, printSvc *service.PrintService, spoolS
 		}
 	})
 
-	refreshPrints()
-	return box
+	refreshScreen()
+	return box, refreshScreen
 }

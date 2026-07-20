@@ -14,7 +14,7 @@ import (
 )
 
 // NewDryingScreen создаёт экран журнала сушки и рекомендаций.
-func NewDryingScreen(ctx context.Context, dryingSvc *service.DryingService, spoolSvc *service.SpoolService, onChanged func()) *gtk.Box {
+func NewDryingScreen(ctx context.Context, dryingSvc *service.DryingService, spoolSvc *service.SpoolService, onChanged func()) (*gtk.Box, func()) {
 	t := i18n.L()
 
 	box := gtk.NewBox(gtk.OrientationVertical, 12)
@@ -63,7 +63,8 @@ func NewDryingScreen(ctx context.Context, dryingSvc *service.DryingService, spoo
 	scrolled.SetChild(listBox)
 	box.Append(scrolled)
 
-	refreshDrying := func() {
+	var refreshDrying func()
+	refreshDrying = func() {
 		for {
 			row := listBox.RowAtIndex(0)
 			if row == nil {
@@ -102,16 +103,48 @@ func NewDryingScreen(ctx context.Context, dryingSvc *service.DryingService, spoo
 	box.Append(formBox)
 
 	// Выбор катушки
-	notArchivedForm := false
-	spools, _ := spoolSvc.List(ctx, repository.SpoolFilter{Archived: &notArchivedForm})
-	var spoolNames []string
-	for _, s := range spools {
-		spoolNames = append(spoolNames, fmt.Sprintf("%s %s (%s)", s.Manufacturer, s.Color, string(s.Material)))
+	var spools []domain.Spool
+	spoolDropdown := gtk.NewDropDown(gtk.NewStringList([]string{t.NoSpoolsAvail}), nil)
+	formBox.Append(spoolDropdown)
+
+	refreshSpoolChoices := func() {
+		notArchived := false
+		currentID := ""
+		if len(spools) > 0 {
+			selected := spoolDropdown.Selected()
+			if int(selected) < len(spools) {
+				currentID = spools[selected].ID
+			}
+		}
+
+		loaded, err := spoolSvc.List(ctx, repository.SpoolFilter{Archived: &notArchived})
+		if err != nil {
+			spools = nil
+			spoolDropdown.SetModel(gtk.NewStringList([]string{fmt.Sprintf("%s: %v", t.ErrorPrefix, err)}))
+			spoolDropdown.SetSelected(0)
+			return
+		}
+
+		spools = loaded
+		spoolNames := make([]string, len(spools))
+		selectedIdx := uint(0)
+		for i, s := range spools {
+			spoolNames[i] = fmt.Sprintf("%s %s (%s)", s.Manufacturer, s.Color, string(s.Material))
+			if s.ID == currentID {
+				selectedIdx = uint(i)
+			}
+		}
+		if len(spoolNames) == 0 {
+			spoolNames = []string{t.NoSpoolsAvail}
+		}
+
+		spoolDropdown.SetModel(gtk.NewStringList(spoolNames))
+		spoolDropdown.SetSelected(selectedIdx)
 	}
-	var spoolDropdown *gtk.DropDown
-	if len(spoolNames) > 0 {
-		spoolDropdown = gtk.NewDropDown(gtk.NewStringList(spoolNames), nil)
-		formBox.Append(spoolDropdown)
+
+	refreshScreen := func() {
+		refreshSpoolChoices()
+		refreshDrying()
 	}
 
 	tempEntry := gtk.NewEntry()
@@ -134,7 +167,7 @@ func NewDryingScreen(ctx context.Context, dryingSvc *service.DryingService, spoo
 	})
 
 	saveBtn.ConnectClicked(func() {
-		if spoolDropdown == nil || len(spools) == 0 {
+		if len(spools) == 0 {
 			return
 		}
 		idx := spoolDropdown.Selected()
@@ -166,6 +199,6 @@ func NewDryingScreen(ctx context.Context, dryingSvc *service.DryingService, spoo
 		}
 	})
 
-	refreshDrying()
-	return box
+	refreshScreen()
+	return box, refreshScreen
 }

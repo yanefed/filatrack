@@ -55,24 +55,32 @@ func (a *App) activate(app *adw.Application) {
 	stack := gtk.NewStack()
 	stack.SetTransitionType(gtk.StackTransitionTypeCrossfade)
 
+	refreshDashboard := func() {}
+	refreshSpools := func() {}
+	refreshPrints := func() {}
+	refreshDrying := func() {}
+	refreshSettings := func() {}
+	refreshAll := func() {
+		refreshDashboard()
+		refreshSpools()
+		refreshPrints()
+		refreshDrying()
+		refreshSettings()
+	}
+
 	dashboardPage, refreshDashboard := screens.NewDashboard(ctx, a.SpoolService, a.PrintService, a.DryingService)
 	stack.AddTitled(dashboardPage, "dashboard", t.Dashboard)
 
-	spoolsPage, refreshSpools := screens.NewSpoolsScreen(ctx, a.SpoolService)
+	spoolsPage, refreshSpools := screens.NewSpoolsScreen(ctx, a.SpoolService, refreshAll)
 	stack.AddTitled(spoolsPage, "spools", t.Spools)
 
-	printsPage := screens.NewPrintsScreen(ctx, a.PrintService, a.SpoolService, func() {
-		refreshSpools()
-		refreshDashboard()
-	})
+	printsPage, refreshPrints := screens.NewPrintsScreen(ctx, a.PrintService, a.SpoolService, refreshAll)
 	stack.AddTitled(printsPage, "prints", t.Prints)
 
-	dryingPage := screens.NewDryingScreen(ctx, a.DryingService, a.SpoolService, func() {
-		refreshDashboard()
-	})
+	dryingPage, refreshDrying := screens.NewDryingScreen(ctx, a.DryingService, a.SpoolService, refreshAll)
 	stack.AddTitled(dryingPage, "drying", t.Drying)
 
-	settingsPage := screens.NewSettingsScreen(ctx, a.SettingsService)
+	settingsPage, refreshSettings := screens.NewSettingsScreen(ctx, a.SettingsService, refreshAll)
 	stack.AddTitled(settingsPage, "settings", t.Settings)
 
 	sidebar := gtk.NewStackSidebar()
@@ -99,9 +107,11 @@ func (a *App) activate(app *adw.Application) {
 	window.SetContent(toolbarView)
 	window.Show()
 
-	// Периодическое обновление дашборда каждые 5 минут
+	stack.NotifyProperty("visible-child-name", refreshAll)
+
+	// Периодическое обновление данных каждые 5 минут
 	glib.TimeoutSecondsAdd(300, func() bool {
-		refreshDashboard()
+		refreshAll()
 		return true
 	})
 }
