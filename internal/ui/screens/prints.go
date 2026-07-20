@@ -97,7 +97,14 @@ func NewPrintsScreen(ctx context.Context, printSvc *service.PrintService, spoolS
 	// Путь к gcode файлу
 	pathEntry := gtk.NewEntry()
 	pathEntry.SetPlaceholderText(t.GCodeFilePath)
-	formBox.Append(pathEntry)
+
+	pathRow := gtk.NewBox(gtk.OrientationHorizontal, 6)
+	pathEntry.SetHExpand(true)
+	pathRow.Append(pathEntry)
+
+	chooseFileBtn := gtk.NewButtonWithLabel(t.SelectGCode)
+	pathRow.Append(chooseFileBtn)
+	formBox.Append(pathRow)
 
 	var selectedMeta *domain.GcodeMetadata
 
@@ -200,6 +207,10 @@ func NewPrintsScreen(ctx context.Context, printSvc *service.PrintService, spoolS
 		formBox.SetVisible(!formBox.IsVisible())
 	})
 
+	chooseFileBtn.ConnectClicked(func() {
+		showGCodeFileChooser(pathEntry)
+	})
+
 	parseBtn.ConnectClicked(func() {
 		path := pathEntry.Text()
 		if path == "" {
@@ -273,4 +284,42 @@ func NewPrintsScreen(ctx context.Context, printSvc *service.PrintService, spoolS
 
 	refreshScreen()
 	return box, refreshScreen
+}
+
+func showGCodeFileChooser(pathEntry *gtk.Entry) {
+	t := i18n.L()
+	dialog := gtk.NewFileChooserNative(t.SelectGCode, nil, gtk.FileChooserActionOpen, t.SelectGCode, t.Cancel)
+
+	filter := gtk.NewFileFilter()
+	filter.AddSuffix("gcode")
+	filter.AddSuffix("gco")
+	filter.AddSuffix("gc")
+	filter.AddPattern("*.gcode")
+	filter.AddPattern("*.GCODE")
+	filter.AddPattern("*.gco")
+	filter.AddPattern("*.GCO")
+	filter.AddPattern("*.gc")
+	filter.AddPattern("*.GC")
+	dialog.AddFilter(filter)
+	dialog.SetFilter(filter)
+
+	dialog.ConnectResponse(func(responseID int) {
+		defer dialog.Destroy()
+		if gtk.ResponseType(responseID) != gtk.ResponseAccept {
+			return
+		}
+
+		file := dialog.File()
+		if file == nil {
+			return
+		}
+
+		path := file.Path()
+		if path == "" {
+			path = file.ParseName()
+		}
+		pathEntry.SetText(path)
+	})
+
+	dialog.Show()
 }
