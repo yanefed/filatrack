@@ -33,6 +33,22 @@ func TestParseFileSuccess(t *testing.T) {
 	}
 }
 
+func TestParseFileRejectsModelFiles(t *testing.T) {
+	for _, name := range []string{"part.stl", "part.STL", "part.obj", "part.3mf"} {
+		t.Run(name, func(t *testing.T) {
+			path := filepath.Join(t.TempDir(), name)
+			if err := os.WriteFile(path, []byte("solid test\nendsolid test\n"), 0o600); err != nil {
+				t.Fatalf("writing model fixture: %v", err)
+			}
+
+			_, err := ParseFile(path)
+			if !errors.Is(err, ErrUnsupportedModelFile) {
+				t.Fatalf("ParseFile error = %v, want ErrUnsupportedModelFile", err)
+			}
+		})
+	}
+}
+
 func TestParseReturnsReaderError(t *testing.T) {
 	wantErr := errors.New("read failed")
 	if _, err := Parse(failingReader{err: wantErr}); !errors.Is(err, wantErr) {

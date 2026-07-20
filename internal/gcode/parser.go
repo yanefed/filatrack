@@ -2,10 +2,12 @@ package gcode
 
 import (
 	"bufio"
+	"errors"
 	"fmt"
 	"io"
 	"math"
 	"os"
+	"path/filepath"
 	"regexp"
 	"strconv"
 	"strings"
@@ -13,6 +15,9 @@ import (
 
 	"awesomeProject/internal/domain"
 )
+
+// ErrUnsupportedModelFile indicates that the input is a 3D model file, not sliced G-code.
+var ErrUnsupportedModelFile = errors.New("unsupported 3D model file")
 
 // Общие регулярные выражения для извлечения метаданных из комментариев G-code.
 var (
@@ -64,6 +69,10 @@ var (
 
 // ParseFile открывает файл и парсит метаданные G-code.
 func ParseFile(path string) (*domain.GcodeMetadata, error) {
+	if isUnsupportedModelFile(path) {
+		return nil, fmt.Errorf("%w: %s contains model geometry, not filament usage; slice it to G-code first", ErrUnsupportedModelFile, filepath.Ext(path))
+	}
+
 	f, err := os.Open(path)
 	if err != nil {
 		return nil, fmt.Errorf("opening gcode file: %w", err)
@@ -76,6 +85,15 @@ func ParseFile(path string) (*domain.GcodeMetadata, error) {
 	}
 	meta.Filename = path
 	return meta, nil
+}
+
+func isUnsupportedModelFile(path string) bool {
+	switch strings.ToLower(filepath.Ext(path)) {
+	case ".stl", ".obj", ".3mf":
+		return true
+	default:
+		return false
+	}
 }
 
 // Parse читает G-code из io.Reader и извлекает метаданные из комментариев.
