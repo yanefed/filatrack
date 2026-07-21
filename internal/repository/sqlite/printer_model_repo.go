@@ -67,7 +67,7 @@ func (r *PrinterModelRepo) List(ctx context.Context, printerID *string) ([]domai
 	query := `SELECT printer_id, path, filename, modified_at, size_bytes, estimated_weight_g, print_duration_sec, slicer, preview_image_path, cached_at FROM printer_models`
 	args := []any{}
 	if printerID != nil {
-		query += ` AND printer_id = ?`
+		query += ` WHERE printer_id = ?`
 		args = append(args, *printerID)
 	}
 	query += ` ORDER BY modified_at IS NULL ASC, modified_at DESC, cached_at DESC, path ASC`
