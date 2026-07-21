@@ -282,5 +282,5 @@ func showEditSpoolDialog(ctx context.Context, spoolSvc *service.SpoolService, se
 	box.Append(actions)
 
 	dialog.SetChild(box)
-	dialog.Show()
+	dialog.SetVisible(true)
 }

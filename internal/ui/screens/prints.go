@@ -9,6 +9,7 @@ import (
 	"awesomeProject/internal/repository"
 	"awesomeProject/internal/service"
 
+	"github.com/diamondburned/gotk4/pkg/gio/v2"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 	"github.com/diamondburned/gotk4/pkg/pango"
 )
@@ -322,7 +323,9 @@ func showLaunchResult(t i18n.T, label *gtk.Label, result *domain.PrintLaunchResu
 
 func showGCodeFileChooser(pathEntry *gtk.Entry) {
 	t := i18n.L()
-	dialog := gtk.NewFileChooserNative(t.SelectGCode, nil, gtk.FileChooserActionOpen, t.SelectGCode, t.Cancel)
+	dialog := gtk.NewFileDialog()
+	dialog.SetTitle(t.SelectGCode)
+	dialog.SetAcceptLabel(t.SelectGCode)
 
 	filter := gtk.NewFileFilter()
 	filter.AddSuffix("gcode")
@@ -334,26 +337,17 @@ func showGCodeFileChooser(pathEntry *gtk.Entry) {
 	filter.AddPattern("*.GCO")
 	filter.AddPattern("*.gc")
 	filter.AddPattern("*.GC")
-	dialog.AddFilter(filter)
-	dialog.SetFilter(filter)
+	dialog.SetDefaultFilter(filter)
 
-	dialog.ConnectResponse(func(responseID int) {
-		defer dialog.Destroy()
-		if gtk.ResponseType(responseID) != gtk.ResponseAccept {
+	dialog.Open(context.Background(), nil, func(result gio.AsyncResulter) {
+		file, err := dialog.OpenFinish(result)
+		if err != nil || file == nil {
 			return
 		}
-
-		file := dialog.File()
-		if file == nil {
-			return
-		}
-
 		path := file.Path()
 		if path == "" {
 			path = file.ParseName()
 		}
 		pathEntry.SetText(path)
 	})
-
-	dialog.Show()
 }

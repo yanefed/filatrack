@@ -1,14 +1,13 @@
 package screens
 
 import (
-	"context"
-	"fmt"
-	"strconv"
-
 	"awesomeProject/internal/domain"
 	"awesomeProject/internal/i18n"
 	"awesomeProject/internal/repository"
 	"awesomeProject/internal/service"
+	"context"
+	"fmt"
+	"strconv"
 
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 )
@@ -351,5 +350,5 @@ func showEditProfileDialog(ctx context.Context, settingsSvc *service.SettingsSer
 
 	box.Append(btnRow)
 	dialog.SetChild(box)
-	dialog.Show()
+	dialog.SetVisible(true)
 }

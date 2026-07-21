@@ -1,14 +1,13 @@
 package screens
 
 import (
-	"context"
-	"fmt"
-	"strings"
-
 	"awesomeProject/internal/domain"
 	"awesomeProject/internal/i18n"
 	"awesomeProject/internal/repository"
 	"awesomeProject/internal/service"
+	"context"
+	"fmt"
+	"strings"
 
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 	"github.com/diamondburned/gotk4/pkg/pango"
@@ -324,7 +323,7 @@ func showPrintLaunchDialog(t i18n.T, ctx context.Context, printerSvc *service.Pr
 	box.Append(actions)
 
 	dialog.SetChild(box)
-	dialog.Show()
+	dialog.SetVisible(true)
 }
 
 func selectedPrinterID(dropdown *gtk.DropDown, printers []domain.Printer) string {
