@@ -19,12 +19,15 @@ func New(dbPath string) (*DB, error) {
 	}
 
 	if _, err := conn.Exec("PRAGMA journal_mode=WAL"); err != nil {
+		_ = conn.Close()
 		return nil, fmt.Errorf("setting WAL mode: %w", err)
 	}
 	if _, err := conn.Exec("PRAGMA busy_timeout=5000"); err != nil {
+		_ = conn.Close()
 		return nil, fmt.Errorf("setting busy timeout: %w", err)
 	}
 	if _, err := conn.Exec("PRAGMA foreign_keys=ON"); err != nil {
+		_ = conn.Close()
 		return nil, fmt.Errorf("enabling foreign keys: %w", err)
 	}
 	conn.SetMaxOpenConns(1)
