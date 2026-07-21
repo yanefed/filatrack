@@ -514,7 +514,7 @@ func (s *PrinterService) PrintModel(ctx context.Context, req domain.PrintLaunchR
 	defer func(path string) {
 		osErr := os.RemoveAll(path)
 		if osErr != nil {
-			s.logger.Error("remove all error: %w", osErr)
+			s.logger.Error("removing transfer cache failed", "path", path, "error", osErr)
 		}
 	}(tmpDir)
 	tmpPath := filepath.Join(tmpDir, filepath.Base(req.GcodeFilename))
