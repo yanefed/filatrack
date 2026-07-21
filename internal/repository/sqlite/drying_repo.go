@@ -7,17 +7,27 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"log/slog"
 
 	"github.com/google/uuid"
 )
 
 // DryingRepo реализует repository.DryingSessionRepository поверх SQLite.
 type DryingRepo struct {
-	db *DB
+	logger *slog.Logger
+	db     *DB
 }
 
 func NewDryingRepo(db *DB) repository.DryingSessionRepository {
 	return &DryingRepo{db: db}
+}
+
+func NewDryingRepoWithLogger(db *DB, logger *slog.Logger,
+) repository.DryingSessionRepository {
+	if logger == nil {
+		logger = slog.Default()
+	}
+	return &DryingRepo{db: db, logger: logger}
 }
 
 func (r *DryingRepo) Create(ctx context.Context, session *domain.DryingSession) error {
@@ -43,7 +53,12 @@ func (r *DryingRepo) List(ctx context.Context, spoolID string) ([]domain.DryingS
 	if err != nil {
 		return nil, fmt.Errorf("listing drying sessions: %w", err)
 	}
-	defer rows.Close()
+	defer func(rows *sql.Rows) {
+		if err := rows.Close(); err != nil {
+			r.logger.Error("failed to close rows", "error", err)
+		}
+
+	}(rows)
 
 	var sessions []domain.DryingSession
 	for rows.Next() {

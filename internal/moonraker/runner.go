@@ -196,9 +196,7 @@ func (r *Runner) startMonitorLocked(printer domain.Printer) {
 	monitorCtx, cancel := context.WithCancel(r.runCtx)
 	handle := &monitorHandle{cancel: cancel}
 	r.monitors[printer.ID] = handle
-	r.wg.Add(1)
-	go func() {
-		defer r.wg.Done()
+	r.wg.Go(func() {
 		monitor := Monitor{
 			Printer:  printer,
 			Dialer:   r.Dialer,
@@ -215,7 +213,7 @@ func (r *Runner) startMonitorLocked(printer domain.Printer) {
 			delete(r.monitors, printer.ID)
 		}
 		r.mu.Unlock()
-	}()
+	})
 }
 
 func (r *Runner) markPrinterOffline(ctx context.Context, printer domain.Printer) {

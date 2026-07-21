@@ -47,7 +47,7 @@ func appOptions() []fx.Option {
 			newDB,
 			sqlite.NewSpoolRepo,
 			sqlite.NewPrintJobRepo,
-			sqlite.NewDryingRepo,
+			sqlite.NewDryingRepoWithLogger,
 			sqlite.NewSettingsRepo,
 			sqlite.NewPrinterRepo,
 			sqlite.NewPrinterModelRepo,

@@ -1,6 +1,7 @@
 package gcode
 
 import (
+	"awesomeProject/internal/domain"
 	"bufio"
 	"errors"
 	"fmt"
@@ -12,8 +13,6 @@ import (
 	"strconv"
 	"strings"
 	"time"
-
-	"awesomeProject/internal/domain"
 )
 
 // ErrUnsupportedModelFile indicates that the input is a 3D model file, not sliced G-code.
@@ -56,9 +55,8 @@ var (
 	reSlicerEngine = regexp.MustCompile(`(?i);\s*slicer_version\s*[:=]\s*(.+)`)
 
 	// Cura-специфичные
-	reCuraFlavor = regexp.MustCompile(`(?i);\s*FLAVOR\s*:\s*(.+)`)
-	reCuraTime   = regexp.MustCompile(`(?i);\s*TIME\s*:\s*(\d+)`)
-	reCuraLayer  = regexp.MustCompile(`(?i);\s*Layer\s+height\s*:\s*([\d.]+)`)
+	reCuraTime  = regexp.MustCompile(`(?i);\s*TIME\s*:\s*(\d+)`)
+	reCuraLayer = regexp.MustCompile(`(?i);\s*Layer\s+height\s*:\s*([\d.]+)`)
 
 	// Длительность в формате "1h 30m 5s" или "1d 2h 30m"
 	reDurDays = regexp.MustCompile(`(\d+)\s*d`)

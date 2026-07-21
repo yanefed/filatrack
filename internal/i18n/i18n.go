@@ -439,7 +439,7 @@ var translations = map[Language]T{
 }
 
 var (
-	currentLang Language = LangEN
+	currentLang = LangEN
 	mu          sync.RWMutex
 )
 

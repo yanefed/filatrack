@@ -606,13 +606,7 @@ func (s *PrinterService) updateExistingHistoryUsage(ctx context.Context, local d
 				actualWeight = estimatedWeight
 			}
 		} else if estimatedWeight > 0 && actualWeight > 0 {
-			completion = int(actualWeight / estimatedWeight * 100)
-			if completion < 0 {
-				completion = 0
-			}
-			if completion > 100 {
-				completion = 100
-			}
+			completion = min(max(int(actualWeight/estimatedWeight*100), 0), 100)
 		}
 	}
 
@@ -642,10 +636,7 @@ func (s *PrinterService) createPrintFromHistory(ctx context.Context, item domain
 	if status != domain.PrintStatusSuccess {
 		completion = 0
 		if estimatedWeight > 0 && actualWeight > 0 {
-			completion = int(actualWeight / estimatedWeight * 100)
-			if completion > 100 {
-				completion = 100
-			}
+			completion = min(int(actualWeight/estimatedWeight*100), 100)
 		}
 	}
 	if actualWeight == 0 && status == domain.PrintStatusSuccess {
