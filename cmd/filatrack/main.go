@@ -42,6 +42,7 @@ func main() {
 func appOptions() []fx.Option {
 	return []fx.Option{
 		fx.Provide(
+			provideLogger,
 			config.Default,
 			newDB,
 			sqlite.NewSpoolRepo,
@@ -53,7 +54,7 @@ func appOptions() []fx.Option {
 			service.NewSpoolService,
 			service.NewPrintService,
 			service.NewDryingService,
-			service.NewPrinterService,
+			service.NewPrinterServiceWithLogger,
 			fx.Annotate(
 				service.NewSettingsService,
 				fx.As(new(languageProvider)),
@@ -66,6 +67,10 @@ func appOptions() []fx.Option {
 		fx.Invoke(configurePrinterModelCache),
 		fx.Invoke(startPrinterMonitors),
 	}
+}
+
+func provideLogger() *slog.Logger {
+	return slog.Default()
 }
 
 func startApplication(options ...fx.Option) {

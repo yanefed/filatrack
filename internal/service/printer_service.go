@@ -1,20 +1,21 @@
 package service
 
 import (
+	"awesomeProject/internal/domain"
+	"awesomeProject/internal/gcode"
+	"awesomeProject/internal/repository"
 	"context"
 	"fmt"
+	"log/slog"
 	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
 	"time"
-
-	"awesomeProject/internal/domain"
-	"awesomeProject/internal/gcode"
-	"awesomeProject/internal/repository"
 )
 
 type PrinterService struct {
+	logger    *slog.Logger
 	printers  repository.PrinterRepository
 	spools    repository.SpoolRepository
 	prints    repository.PrintJobRepository
@@ -41,7 +42,24 @@ type printerHistoryPageClient interface {
 }
 
 func NewPrinterService(printers repository.PrinterRepository, spools repository.SpoolRepository, prints repository.PrintJobRepository) *PrinterService {
-	return &PrinterService{printers: printers, spools: spools, prints: prints}
+	return NewPrinterServiceWithLogger(printers, spools, prints, slog.Default())
+}
+
+func NewPrinterServiceWithLogger(
+	printers repository.PrinterRepository,
+	spools repository.SpoolRepository,
+	prints repository.PrintJobRepository,
+	logger *slog.Logger,
+) *PrinterService {
+	if logger == nil {
+		logger = slog.Default()
+	}
+	return &PrinterService{
+		logger:   logger.With("service", "printer"),
+		printers: printers,
+		spools:   spools,
+		prints:   prints,
+	}
 }
 
 func (s *PrinterService) SetConnectionChecker(checker ConnectionChecker) {
@@ -455,7 +473,7 @@ func (s *PrinterService) StartPrinterFile(ctx context.Context, req domain.PrintL
 	return result, nil
 }
 
-func (s *PrinterService) PrintModel(ctx context.Context, req domain.PrintLaunchRequest) (*domain.PrintLaunchResult, error) {
+func (s *PrinterService) PrintModel(ctx context.Context, req domain.PrintLaunchRequest) (launchResult *domain.PrintLaunchResult, err error) {
 	if req.SourcePrinterID == "" {
 		req.SourcePrinterID = req.PrinterID
 	}
@@ -493,7 +511,12 @@ func (s *PrinterService) PrintModel(ctx context.Context, req domain.PrintLaunchR
 	if err != nil {
 		return nil, fmt.Errorf("creating transfer cache: %w", err)
 	}
-	defer os.RemoveAll(tmpDir)
+	defer func(path string) {
+		osErr := os.RemoveAll(path)
+		if osErr != nil {
+			s.logger.Error("remove all error: %w", osErr)
+		}
+	}(tmpDir)
 	tmpPath := filepath.Join(tmpDir, filepath.Base(req.GcodeFilename))
 	if err := s.jobClient.DownloadFile(ctx, *source, req.GcodeFilename, tmpPath); err != nil {
 		return nil, err
