@@ -1,0 +1,43 @@
+app-id: com.filatrack.app
+runtime: org.gnome.Platform
+runtime-version: '50'
+sdk: org.gnome.Sdk
+command: filatrack
+
+sdk-extensions:
+  - org.freedesktop.Sdk.Extension.golang
+
+finish-args:
+  - --share=ipc
+  - --share=network
+  - --socket=wayland
+  - --socket=fallback-x11
+  - --device=dri
+  - --env=FILATRACK_DATA_DIR=/var/data
+
+modules:
+  - name: filatrack
+    buildsystem: simple
+    build-options:
+      append-path: /usr/lib/sdk/golang/bin
+      env:
+        CGO_ENABLED: '1'
+        GOFLAGS: -mod=vendor
+    build-commands:
+      - go build -trimpath -ldflags=-s -o filatrack ./cmd/filatrack
+      - install -Dm755 filatrack /app/bin/filatrack
+      - install -Dm644 packaging/com.filatrack.app.desktop /app/share/applications/com.filatrack.app.desktop
+      - install -Dm644 packaging/com.filatrack.app.metainfo.xml /app/share/metainfo/com.filatrack.app.metainfo.xml
+      - install -Dm644 packaging/com.filatrack.app.svg /app/share/icons/hicolor/scalable/apps/com.filatrack.app.svg
+    sources:
+      - type: dir
+        path: .
+        skip:
+          - .flatpak-builder
+          - build-dir
+          - repo
+          - '*.db'
+          - '*.db-shm'
+          - '*.db-wal'
+          - cache
+

@@ -98,6 +98,11 @@ func startApplication(options ...fx.Option) {
 }
 
 func newDB(cfg *config.Config) (*sqlite.DB, error) {
+	if cfg.DataDir != "" {
+		if err := os.MkdirAll(cfg.DataDir, 0o755); err != nil {
+			return nil, fmt.Errorf("creating application data directory: %w", err)
+		}
+	}
 	db, err := sqlite.New(cfg.DBPath)
 	if err != nil {
 		return nil, err

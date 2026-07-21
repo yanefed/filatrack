@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>com.filatrack.app</id>
+  <name>FilaTrack</name>
+  <summary>Track filament spools and 3D printer jobs</summary>
+  <summary xml:lang="ru">Учёт катушек филамента и заданий 3D-принтеров</summary>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>MIT</project_license>
+  <description>
+    <p>FilaTrack keeps track of filament inventory, drying sessions, print history, and Moonraker printers.</p>
+    <p xml:lang="ru">FilaTrack ведёт учёт филамента, сессий сушки, истории печати и принтеров Moonraker.</p>
+  </description>
+  <launchable type="desktop-id">com.filatrack.app.desktop</launchable>
+  <provides>
+    <binary>filatrack</binary>
+  </provides>
+  <content_rating type="oars-1.1"/>
+  <releases>
+    <release version="0.1.0" date="2026-07-21"/>
+  </releases>
+</component>

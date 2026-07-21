@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Application
+Name=FilaTrack
+Comment=Track filament spools and 3D printer jobs
+Comment[ru]=Учёт катушек филамента и заданий 3D-принтеров
+Exec=filatrack
+Icon=com.filatrack.app
+Terminal=false
+Categories=Utility;
+Keywords=3D;printer;filament;spool;Moonraker;
+StartupNotify=true
+StartupWMClass=com.filatrack.app
