@@ -1,8 +1,10 @@
 package moonraker
 
 import (
+	"awesomeProject/internal/domain"
 	"fmt"
 	"io"
+	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -10,8 +12,6 @@ import (
 	"strings"
 	"testing"
 	"time"
-
-	"awesomeProject/internal/domain"
 )
 
 func TestHTTPControlClientListHistory(t *testing.T) {
@@ -21,7 +21,7 @@ func TestHTTPControlClientListHistory(t *testing.T) {
 		if r.URL.Path != "/server/history/list" || r.URL.Query().Get("limit") != "25" || r.URL.Query().Get("order") != "desc" {
 			t.Fatalf("history request URL = %s", r.URL.String())
 		}
-		fmt.Fprint(w, `{"jobs":[{
+		_, _ = fmt.Fprint(w, `{"jobs":[{
 			"job_id":"job-1",
 			"filename":"folder/benchy.gcode",
 			"status":"completed",
@@ -54,7 +54,7 @@ func TestHTTPControlClientListHistory(t *testing.T) {
 
 func TestHTTPControlClientListHistoryFromResultObject(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		fmt.Fprint(w, `{"result":{"count":1,"jobs":[{
+		_, _ = fmt.Fprint(w, `{"result":{"count":1,"jobs":[{
 			"job_id":"job-2",
 			"filename":"part.gcode",
 			"status":"completed",
@@ -79,7 +79,7 @@ func TestHTTPControlClientListHistoryFromResultObject(t *testing.T) {
 
 func TestHTTPControlClientListHistoryParsesFlexibleFilamentUsed(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		fmt.Fprint(w, `{"result":{"count":2,"jobs":[
+		_, _ = fmt.Fprint(w, `{"result":{"count":2,"jobs":[
 			{"job_id":"job-1","filename":"one.gcode","status":"cancelled","filament_used":"1234","end_time":1000},
 			{"job_id":"job-2","filename":"two.gcode","status":"cancelled","metadata":{"filament_used":5678},"end_time":900}
 		]}}`)
@@ -104,9 +104,9 @@ func TestHTTPControlClientListHistoryFetchesAllPages(t *testing.T) {
 		}
 		switch r.URL.Query().Get("start") {
 		case "":
-			fmt.Fprint(w, `{"result":{"count":2,"jobs":[{"job_id":"job-1","filename":"one.gcode","status":"completed","end_time":1000}]}}`)
+			_, _ = fmt.Fprint(w, `{"result":{"count":2,"jobs":[{"job_id":"job-1","filename":"one.gcode","status":"completed","end_time":1000}]}}`)
 		case "1":
-			fmt.Fprint(w, `{"result":{"count":2,"jobs":[{"job_id":"job-2","filename":"two.gcode","status":"completed","end_time":900}]}}`)
+			_, _ = fmt.Fprint(w, `{"result":{"count":2,"jobs":[{"job_id":"job-2","filename":"two.gcode","status":"completed","end_time":900}]}}`)
 		default:
 			t.Fatalf("unexpected start query: %q", r.URL.Query().Get("start"))
 		}
@@ -127,7 +127,7 @@ func TestHTTPControlClientStartFile(t *testing.T) {
 		if r.Method != http.MethodPost || r.URL.Path != "/printer/print/start" || r.URL.Query().Get("filename") != "folder/part.gcode" {
 			t.Fatalf("start request = %s %s", r.Method, r.URL.String())
 		}
-		fmt.Fprint(w, `"ok"`)
+		_, _ = fmt.Fprint(w, `"ok"`)
 	}))
 	t.Cleanup(server.Close)
 
@@ -141,7 +141,7 @@ func TestHTTPControlClientListModels(t *testing.T) {
 		if r.URL.Path != "/server/files/list" || r.URL.Query().Get("root") != "gcodes" {
 			t.Fatalf("file list request URL = %s", r.URL.String())
 		}
-		fmt.Fprint(w, `{"result":[
+		_, _ = fmt.Fprint(w, `{"result":[
 			{"path":"folder/cube.gcode","type":"file","size":1234,"modified":1000},
 			{"path":"folder","type":"directory","size":0,"modified":1000}
 		]}`)
@@ -178,7 +178,12 @@ func TestHTTPControlClientUploadAndStart(t *testing.T) {
 		if err != nil {
 			t.Fatalf("FormFile: %v", err)
 		}
-		defer file.Close()
+		defer func(file multipart.File) {
+			fileErr := file.Close()
+			if fileErr != nil {
+				t.Errorf("close file: %v", fileErr)
+			}
+		}(file)
 		data, err := io.ReadAll(file)
 		if err != nil {
 			t.Fatalf("reading uploaded file: %v", err)
@@ -187,7 +192,7 @@ func TestHTTPControlClientUploadAndStart(t *testing.T) {
 			t.Fatalf("uploaded file = %q %q", header.Filename, string(data))
 		}
 		w.WriteHeader(http.StatusCreated)
-		fmt.Fprint(w, `{"item":{"path":"part.gcode"},"print_started":true,"print_queued":false}`)
+		_, _ = fmt.Fprint(w, `{"item":{"path":"part.gcode"},"print_started":true,"print_queued":false}`)
 	}))
 	t.Cleanup(server.Close)
 

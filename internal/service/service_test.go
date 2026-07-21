@@ -1,6 +1,10 @@
 package service
 
 import (
+	"awesomeProject/internal/domain"
+	"awesomeProject/internal/gcode"
+	"awesomeProject/internal/i18n"
+	"awesomeProject/internal/repository"
 	"context"
 	"errors"
 	"math"
@@ -9,11 +13,6 @@ import (
 	"strings"
 	"testing"
 	"time"
-
-	"awesomeProject/internal/domain"
-	"awesomeProject/internal/gcode"
-	"awesomeProject/internal/i18n"
-	"awesomeProject/internal/repository"
 )
 
 type spoolRepoStub struct {
@@ -216,7 +215,7 @@ func (c *printerJobClientStub) ListHistory(context.Context, domain.Printer, int)
 	return c.history, c.historyErr
 }
 
-func (c *printerJobClientStub) ListHistoryPage(_ context.Context, _ domain.Printer, start, limit int) ([]domain.PrinterHistoryJob, int, error) {
+func (c *printerJobClientStub) ListHistoryPage(_ context.Context, _ domain.Printer, start, _ int) ([]domain.PrinterHistoryJob, int, error) {
 	c.historyStarts = append(c.historyStarts, start)
 	if c.historyErr != nil {
 		return nil, 0, c.historyErr
@@ -259,7 +258,7 @@ func (r *printerModelRepoStub) SaveForPrinter(_ context.Context, printerID strin
 	return r.saveErr
 }
 
-func (r *printerModelRepoStub) List(_ context.Context, printerID *string) ([]domain.PrinterModelFile, error) {
+func (r *printerModelRepoStub) List(_ context.Context, _ *string) ([]domain.PrinterModelFile, error) {
 	return r.list, r.listErr
 }
 
@@ -504,8 +503,12 @@ func TestPrintServiceListAndStats(t *testing.T) {
 	if jobs, err := service.List(t.Context(), repository.PrintJobFilter{}); len(jobs) != 1 || !errors.Is(err, wantErr) {
 		t.Fatalf("List() = (%+v, %v)", jobs, err)
 	}
-	if stats, err := service.GetStats(t.Context(), repository.StatsFilter{}); stats.TotalPrints != 1 || !errors.Is(err, wantErr) {
+	stats, err := service.GetStats(t.Context(), repository.StatsFilter{})
+	if !errors.Is(err, wantErr) {
 		t.Fatalf("GetStats() = (%+v, %v)", stats, err)
+	}
+	if stats == nil || stats.TotalPrints != 1 {
+		t.Fatalf("GetStats() stats = %+v", stats)
 	}
 }
 
