@@ -61,7 +61,7 @@ func (r *PrinterRepo) GetByID(ctx context.Context, id string) (*domain.Printer, 
 func (r *PrinterRepo) List(ctx context.Context) ([]domain.Printer, error) {
 	rows, err := r.db.Conn().QueryContext(ctx,
 		`SELECT id, name, kind, moonraker_url, api_key, enabled, COALESCE(active_spool_id, ''), state, current_file, progress, last_seen_at, created_at, updated_at
-		 FROM printers ORDER BY name ASC`)
+		 FROM printers ORDER BY name`)
 	if err != nil {
 		return nil, fmt.Errorf("listing printers: %w", err)
 	}
