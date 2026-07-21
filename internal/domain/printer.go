@@ -47,5 +47,6 @@ type PrinterPrintEvent struct {
 	NozzleTempC       int
 	BedTempC          int
 	Slicer            string
+	PreviewImagePath  string
 	PrintedAt         time.Time
 }

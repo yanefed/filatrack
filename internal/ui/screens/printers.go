@@ -13,7 +13,7 @@ import (
 )
 
 // NewPrintersScreen creates the Moonraker printer management screen.
-func NewPrintersScreen(ctx context.Context, printerSvc *service.PrinterService, spoolSvc *service.SpoolService, onChanged func()) (*gtk.Box, func()) {
+func NewPrintersScreen(ctx context.Context, printerSvc *service.PrinterService, spoolSvc *service.SpoolService, onChanged func()) (*gtk.Box, func(), func()) {
 	t := i18n.L()
 
 	box := gtk.NewBox(gtk.OrientationVertical, 12)
@@ -70,10 +70,27 @@ func NewPrintersScreen(ctx context.Context, printerSvc *service.PrinterService, 
 	addForm.Append(checkBtn)
 	box.Append(addForm)
 
+	pendingSpoolSelection := map[string]uint{}
+	statusSlots := map[string]*gtk.Box{}
 	var refreshPrinters func()
+	refreshPrinterStatuses := func() {
+		printers, err := printerSvc.List(ctx)
+		if err != nil {
+			return
+		}
+		for _, printer := range printers {
+			slot, ok := statusSlots[printer.ID]
+			if !ok {
+				refreshPrinters()
+				return
+			}
+			replaceBoxChild(slot, printerStatusWidget(t, printer))
+		}
+	}
 	refreshPrinters = func() {
 		errorLabel.SetVisible(false)
 		clearListBox(list)
+		statusSlots = map[string]*gtk.Box{}
 
 		printers, err := printerSvc.List(ctx)
 		if err != nil {
@@ -96,27 +113,10 @@ func NewPrintersScreen(ctx context.Context, printerSvc *service.PrinterService, 
 			row.SetMarginTop(6)
 			row.SetMarginBottom(8)
 
-			header := gtk.NewBox(gtk.OrientationHorizontal, 8)
-			dot := gtk.NewBox(gtk.OrientationHorizontal, 0)
-			dot.AddCSSClass("printer-status-dot")
-			if printerOnline(printer) {
-				dot.AddCSSClass("online")
-			} else {
-				dot.AddCSSClass("offline")
-			}
-			header.Append(dot)
-
-			info := gtk.NewLabel(fmt.Sprintf(t.PrinterInfoFmt, printer.Name, string(printer.State), printer.Progress*100))
-			info.SetHAlign(gtk.AlignStart)
-			header.Append(info)
-			row.Append(header)
-
-			if printer.CurrentFile != "" {
-				file := gtk.NewLabel(fmt.Sprintf(t.CurrentFileFmt, printer.CurrentFile))
-				file.SetHAlign(gtk.AlignStart)
-				file.AddCSSClass("dim-label")
-				row.Append(file)
-			}
+			statusSlot := gtk.NewBox(gtk.OrientationVertical, 0)
+			statusSlot.Append(printerStatusWidget(t, printer))
+			statusSlots[printer.ID] = statusSlot
+			row.Append(statusSlot)
 
 			assignRow := gtk.NewBox(gtk.OrientationHorizontal, 6)
 			assignLabel := gtk.NewLabel(t.ActiveSpool)
@@ -125,7 +125,14 @@ func NewPrintersScreen(ctx context.Context, printerSvc *service.PrinterService, 
 
 			spoolNames := spoolChoiceNames(t, spools)
 			dropdown := gtk.NewDropDown(gtk.NewStringList(spoolNames), nil)
-			dropdown.SetSelected(selectedSpoolIndex(printer.ActiveSpoolID, spools))
+			selected := selectedSpoolIndex(printer.ActiveSpoolID, spools)
+			if pending, ok := pendingSpoolSelection[printer.ID]; ok && int(pending) <= len(spools) {
+				selected = pending
+			}
+			dropdown.SetSelected(selected)
+			dropdown.NotifyProperty("selected", func() {
+				pendingSpoolSelection[printer.ID] = dropdown.Selected()
+			})
 			assignRow.Append(dropdown)
 
 			saveBtn := gtk.NewButtonWithLabel(t.SaveAssignment)
@@ -142,7 +149,8 @@ func NewPrintersScreen(ctx context.Context, printerSvc *service.PrinterService, 
 					errorLabel.SetVisible(true)
 					return
 				}
-				refreshPrinters()
+				delete(pendingSpoolSelection, printer.ID)
+				errorLabel.SetVisible(false)
 				if onChanged != nil {
 					onChanged()
 				}
@@ -190,9 +198,5 @@ func NewPrintersScreen(ctx context.Context, printerSvc *service.PrinterService, 
 	})
 
 	refreshPrinters()
-	return box, refreshPrinters
-}
-
-func printerOnline(printer domain.Printer) bool {
-	return printer.State != domain.PrinterStateOffline && printer.State != domain.PrinterStateError
+	return box, refreshPrinters, refreshPrinterStatuses
 }

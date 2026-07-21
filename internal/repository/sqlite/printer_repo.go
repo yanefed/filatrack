@@ -1,14 +1,13 @@
 package sqlite
 
 import (
+	"awesomeProject/internal/domain"
+	"awesomeProject/internal/repository"
 	"context"
 	"database/sql"
 	"errors"
 	"fmt"
 	"time"
-
-	"awesomeProject/internal/domain"
-	"awesomeProject/internal/repository"
 
 	"github.com/google/uuid"
 )
@@ -66,7 +65,9 @@ func (r *PrinterRepo) List(ctx context.Context) ([]domain.Printer, error) {
 	if err != nil {
 		return nil, fmt.Errorf("listing printers: %w", err)
 	}
-	defer rows.Close()
+	defer func(rows *sql.Rows) {
+		_ = rows.Close()
+	}(rows)
 
 	var printers []domain.Printer
 	for rows.Next() {
@@ -115,11 +116,13 @@ func (r *PrinterRepo) AssignSpool(ctx context.Context, printerID, spoolID string
 
 func (r *PrinterRepo) UpdateStatus(ctx context.Context, printer *domain.Printer) error {
 	printer.UpdatedAt = time.Now()
-	result, err := r.db.Conn().ExecContext(ctx,
-		`UPDATE printers SET state=?, current_file=?, progress=?, last_seen_at=?, updated_at=? WHERE id=?`,
-		string(printer.State), printer.CurrentFile, printer.Progress, nullTime(printer.LastSeenAt),
-		printer.UpdatedAt, printer.ID,
-	)
+	result, err := execWithBusyRetry(ctx, func() (sql.Result, error) {
+		return r.db.Conn().ExecContext(ctx,
+			`UPDATE printers SET state=?, current_file=?, progress=?, last_seen_at=?, updated_at=? WHERE id=?`,
+			string(printer.State), printer.CurrentFile, printer.Progress, nullTime(printer.LastSeenAt),
+			printer.UpdatedAt, printer.ID,
+		)
+	})
 	if err != nil {
 		return fmt.Errorf("updating printer status: %w", err)
 	}

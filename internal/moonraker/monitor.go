@@ -1,13 +1,12 @@
 package moonraker
 
 import (
+	"awesomeProject/internal/domain"
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"time"
-
-	"awesomeProject/internal/domain"
 )
 
 type Sink interface {
@@ -39,7 +38,9 @@ func (m Monitor) Run(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	defer conn.Close()
+	defer func(conn Conn) {
+		_ = conn.Close()
+	}(conn)
 	go func() {
 		<-ctx.Done()
 		_ = conn.Close()
@@ -72,7 +73,7 @@ func (m Monitor) Run(ctx context.Context) error {
 
 		printer, event := processor.Apply(update, now())
 		if err := m.Sink.UpdateStatus(ctx, &printer); err != nil {
-			return fmt.Errorf("updating printer status: %w", err)
+			continue
 		}
 		if event != nil {
 			if m.Metadata != nil {
@@ -107,5 +108,8 @@ func enrichEventWithMetadata(ctx context.Context, fetcher MetadataFetcher, print
 	}
 	if metadata.Slicer != "" {
 		event.Slicer = metadata.Slicer
+	}
+	if metadata.PreviewImagePath != "" {
+		event.PreviewImagePath = metadata.PreviewImagePath
 	}
 }

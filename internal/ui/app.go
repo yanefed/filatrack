@@ -1,12 +1,11 @@
 package ui
 
 import (
-	"context"
-	"os"
-
 	"awesomeProject/internal/i18n"
 	"awesomeProject/internal/service"
 	"awesomeProject/internal/ui/screens"
+	"context"
+	"os"
 
 	"github.com/diamondburned/gotk4-adwaita/pkg/adw"
 	"github.com/diamondburned/gotk4/pkg/gdk/v4"
@@ -55,7 +54,8 @@ func (a *App) activate(app *adw.Application) {
 	window.SetTitle("FilaTrack")
 	window.SetDefaultSize(1000, 700)
 
-	refreshAll := func() {}
+	refreshActive := func(bool) {}
+	refreshLive := func() {}
 	activePage := "dashboard"
 	var rebuildUI func()
 	rebuildUI = func() {
@@ -67,34 +67,85 @@ func (a *App) activate(app *adw.Application) {
 		refreshDashboard := func() {}
 		refreshSpools := func() {}
 		refreshPrints := func() {}
+		refreshModels := func() {}
 		refreshDrying := func() {}
 		refreshPrinters := func() {}
+		refreshPrintsLive := func() {}
+		refreshPrintersLive := func() {}
 		refreshSettings := func() {}
-		refreshAll = func() {
-			refreshDashboard()
-			refreshSpools()
-			refreshPrints()
-			refreshDrying()
-			refreshPrinters()
-			refreshSettings()
+		dirty := map[string]bool{
+			"dashboard": false,
+			"spools":    false,
+			"prints":    false,
+			"models":    false,
+			"drying":    false,
+			"printers":  false,
+			"settings":  false,
 		}
+		refreshLive = func() {
+			refreshPrintsLive()
+			refreshPrintersLive()
+		}
+
+		refreshPage := func(page string) {
+			switch page {
+			case "dashboard":
+				refreshDashboard()
+			case "spools":
+				refreshSpools()
+			case "prints":
+				refreshPrints()
+			case "models":
+				refreshModels()
+			case "drying":
+				refreshDrying()
+			case "printers":
+				refreshPrinters()
+			case "settings":
+				refreshSettings()
+			}
+			dirty[page] = false
+		}
+		refreshActive = func(force bool) {
+			if force || dirty[activePage] {
+				refreshPage(activePage)
+			}
+		}
+		markDirty := func(pages ...string) {
+			for _, page := range pages {
+				if page == activePage {
+					refreshPage(page)
+					continue
+				}
+				dirty[page] = true
+			}
+		}
+		refreshPrintDependencies := func() { markDirty("dashboard", "spools", "printers") }
+		refreshSpoolDependencies := func() { markDirty("dashboard", "prints", "models", "drying", "printers", "settings") }
+		refreshPrinterDependencies := func() { markDirty("dashboard", "prints") }
+		refreshDryingDependencies := func() { markDirty("dashboard", "spools") }
+		refreshSettingsDependencies := func() { markDirty("spools", "drying") }
+		refreshModelDependencies := func() { markDirty("dashboard", "printers") }
 
 		dashboardPage, refreshDashboard := screens.NewDashboard(ctx, a.SpoolService, a.PrintService, a.DryingService)
 		stack.AddTitled(dashboardPage, "dashboard", t.Dashboard)
 
-		spoolsPage, refreshSpools := screens.NewSpoolsScreen(ctx, a.SpoolService, refreshAll)
+		spoolsPage, refreshSpools := screens.NewSpoolsScreen(ctx, a.SpoolService, a.SettingsService, refreshSpoolDependencies)
 		stack.AddTitled(spoolsPage, "spools", t.Spools)
 
-		printsPage, refreshPrints := screens.NewPrintsScreen(ctx, a.PrintService, a.SpoolService, refreshAll)
+		printsPage, refreshPrints, refreshPrintsLive := screens.NewPrintsScreen(ctx, a.PrintService, a.PrinterService, a.SpoolService, refreshPrintDependencies)
 		stack.AddTitled(printsPage, "prints", t.Prints)
 
-		dryingPage, refreshDrying := screens.NewDryingScreen(ctx, a.DryingService, a.SpoolService, refreshAll)
+		modelsPage, refreshModels := screens.NewModelsScreen(ctx, a.PrinterService, a.SpoolService, a.SettingsService, refreshModelDependencies)
+		stack.AddTitled(modelsPage, "models", t.Models)
+
+		dryingPage, refreshDrying := screens.NewDryingScreen(ctx, a.DryingService, a.SpoolService, refreshDryingDependencies)
 		stack.AddTitled(dryingPage, "drying", t.Drying)
 
-		printersPage, refreshPrinters := screens.NewPrintersScreen(ctx, a.PrinterService, a.SpoolService, refreshAll)
+		printersPage, refreshPrinters, refreshPrintersLive := screens.NewPrintersScreen(ctx, a.PrinterService, a.SpoolService, refreshPrinterDependencies)
 		stack.AddTitled(printersPage, "printers", t.Printers)
 
-		settingsPage, refreshSettings := screens.NewSettingsScreen(ctx, a.SettingsService, refreshAll, rebuildUI)
+		settingsPage, refreshSettings := screens.NewSettingsScreen(ctx, a.SettingsService, refreshSettingsDependencies, rebuildUI)
 		stack.AddTitled(settingsPage, "settings", t.Settings)
 
 		sidebar := gtk.NewStackSidebar()
@@ -122,16 +173,20 @@ func (a *App) activate(app *adw.Application) {
 		stack.SetVisibleChildName(activePage)
 		stack.NotifyProperty("visible-child-name", func() {
 			activePage = stack.VisibleChildName()
-			refreshAll()
+			refreshActive(false)
 		})
 	}
 
 	rebuildUI()
-	window.Show()
+	window.SetVisible(true)
 
 	// Периодическое обновление данных каждые 5 минут
 	glib.TimeoutSecondsAdd(300, func() bool {
-		refreshAll()
+		refreshActive(true)
+		return true
+	})
+	glib.TimeoutSecondsAdd(2, func() bool {
+		refreshLive()
 		return true
 	})
 }

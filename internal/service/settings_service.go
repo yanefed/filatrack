@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"slices"
+	"strconv"
 	"strings"
 
 	"awesomeProject/internal/domain"
@@ -20,6 +21,8 @@ var BuiltInMaterials = []domain.Material{
 type SettingsService struct {
 	settings repository.SettingsRepository
 }
+
+const allowLowFilamentSettingKey = "allow_low_filament_warning"
 
 func NewSettingsService(settings repository.SettingsRepository) *SettingsService {
 	return &SettingsService{settings: settings}
@@ -43,6 +46,22 @@ func (s *SettingsService) SetLanguage(ctx context.Context, lang i18n.Language) e
 	}
 	i18n.SetLanguage(lang)
 	return s.settings.SetSetting(ctx, "language", string(lang))
+}
+
+func (s *SettingsService) AllowLowFilamentWarning(ctx context.Context) bool {
+	val, err := s.settings.GetSetting(ctx, allowLowFilamentSettingKey)
+	if err != nil {
+		return false
+	}
+	enabled, err := strconv.ParseBool(val)
+	if err != nil {
+		return false
+	}
+	return enabled
+}
+
+func (s *SettingsService) SetAllowLowFilamentWarning(ctx context.Context, enabled bool) error {
+	return s.settings.SetSetting(ctx, allowLowFilamentSettingKey, strconv.FormatBool(enabled))
 }
 
 func (s *SettingsService) ListDryingProfiles(ctx context.Context) ([]domain.DryingProfile, error) {

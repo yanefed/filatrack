@@ -1,17 +1,16 @@
 package moonraker
 
 import (
+	"awesomeProject/internal/domain"
 	"encoding/json"
 	"fmt"
 	"math"
 	"time"
-
-	"awesomeProject/internal/domain"
 )
 
 const subscribeRequestID = 1
 
-type rpcRequest struct {
+type RpcRequest struct {
 	JSONRPC string `json:"jsonrpc"`
 	Method  string `json:"method"`
 	Params  any    `json:"params,omitempty"`
@@ -22,8 +21,8 @@ type subscribeParams struct {
 	Objects map[string]any `json:"objects"`
 }
 
-func SubscribeRequest() rpcRequest {
-	return rpcRequest{
+func SubscribeRequest() RpcRequest {
+	return RpcRequest{
 		JSONRPC: "2.0",
 		Method:  "printer.objects.subscribe",
 		Params: subscribeParams{Objects: map[string]any{
@@ -40,6 +39,8 @@ type rpcEnvelope struct {
 	JSONRPC string            `json:"jsonrpc"`
 	Method  string            `json:"method"`
 	Params  []json.RawMessage `json:"params"`
+	Result  json.RawMessage   `json:"result"`
+	ID      int               `json:"id"`
 }
 
 type StatusUpdate struct {
@@ -47,6 +48,9 @@ type StatusUpdate struct {
 	RawPrintState    string
 	Filename         string
 	Progress         float64
+	HasState         bool
+	HasFilename      bool
+	HasProgress      bool
 	FilamentUsedMM   float64
 	TotalDuration    time.Duration
 	PrintDuration    time.Duration
@@ -59,15 +63,50 @@ func DecodeStatusUpdate(raw json.RawMessage) (StatusUpdate, bool, error) {
 	if err := json.Unmarshal(raw, &envelope); err != nil {
 		return StatusUpdate{}, false, fmt.Errorf("decoding moonraker message: %w", err)
 	}
-	if envelope.Method != "notify_status_update" || len(envelope.Params) == 0 {
+
+	objects, ok, err := statusObjects(envelope)
+	if err != nil {
+		return StatusUpdate{}, false, err
+	}
+	if !ok {
 		return StatusUpdate{}, false, nil
 	}
 
-	var objects map[string]json.RawMessage
-	if err := json.Unmarshal(envelope.Params[0], &objects); err != nil {
-		return StatusUpdate{}, false, fmt.Errorf("decoding moonraker status objects: %w", err)
+	update, err := decodeStatusObjects(objects)
+	if err != nil {
+		return StatusUpdate{}, false, err
+	}
+	return update, true, nil
+}
+
+func statusObjects(envelope rpcEnvelope) (map[string]json.RawMessage, bool, error) {
+	if envelope.Method == "notify_status_update" {
+		if len(envelope.Params) == 0 {
+			return nil, false, nil
+		}
+		var objects map[string]json.RawMessage
+		if err := json.Unmarshal(envelope.Params[0], &objects); err != nil {
+			return nil, false, fmt.Errorf("decoding moonraker status objects: %w", err)
+		}
+		return objects, true, nil
 	}
 
+	if len(envelope.Result) == 0 {
+		return nil, false, nil
+	}
+	var result struct {
+		Status map[string]json.RawMessage `json:"status"`
+	}
+	if err := json.Unmarshal(envelope.Result, &result); err != nil {
+		return nil, false, fmt.Errorf("decoding moonraker subscribe result: %w", err)
+	}
+	if len(result.Status) == 0 {
+		return nil, false, nil
+	}
+	return result.Status, true, nil
+}
+
+func decodeStatusObjects(objects map[string]json.RawMessage) (StatusUpdate, error) {
 	update := StatusUpdate{State: domain.PrinterStateUnknown}
 
 	if rawPrintStats, ok := objects["print_stats"]; ok {
@@ -80,11 +119,17 @@ func DecodeStatusUpdate(raw json.RawMessage) (StatusUpdate, bool, error) {
 			Message       string  `json:"message"`
 		}
 		if err := json.Unmarshal(rawPrintStats, &printStats); err != nil {
-			return StatusUpdate{}, false, fmt.Errorf("decoding print_stats: %w", err)
+			return StatusUpdate{}, fmt.Errorf("decoding print_stats: %w", err)
 		}
-		update.RawPrintState = printStats.State
-		update.State = mapPrintState(printStats.State)
-		update.Filename = printStats.Filename
+		if printStats.State != "" {
+			update.RawPrintState = printStats.State
+			update.State = mapPrintState(printStats.State)
+			update.HasState = true
+		}
+		if printStats.Filename != "" {
+			update.Filename = printStats.Filename
+			update.HasFilename = true
+		}
 		update.FilamentUsedMM = printStats.FilamentUsed
 		update.TotalDuration = secondsDuration(printStats.TotalDuration)
 		update.PrintDuration = secondsDuration(printStats.PrintDuration)
@@ -95,19 +140,21 @@ func DecodeStatusUpdate(raw json.RawMessage) (StatusUpdate, bool, error) {
 			Progress float64 `json:"progress"`
 		}
 		if err := json.Unmarshal(rawVirtualSD, &virtualSD); err != nil {
-			return StatusUpdate{}, false, fmt.Errorf("decoding virtual_sdcard: %w", err)
+			return StatusUpdate{}, fmt.Errorf("decoding virtual_sdcard: %w", err)
 		}
 		update.Progress = normalizeProgress(virtualSD.Progress)
+		update.HasProgress = true
 	}
 
-	if rawDisplay, ok := objects["display_status"]; ok && update.Progress == 0 {
+	if rawDisplay, ok := objects["display_status"]; ok {
 		var display struct {
 			Progress float64 `json:"progress"`
 		}
 		if err := json.Unmarshal(rawDisplay, &display); err != nil {
-			return StatusUpdate{}, false, fmt.Errorf("decoding display_status: %w", err)
+			return StatusUpdate{}, fmt.Errorf("decoding display_status: %w", err)
 		}
 		update.Progress = normalizeProgress(display.Progress)
+		update.HasProgress = true
 	}
 
 	if rawWebhooks, ok := objects["webhooks"]; ok {
@@ -116,7 +163,7 @@ func DecodeStatusUpdate(raw json.RawMessage) (StatusUpdate, bool, error) {
 			StateMessage string `json:"state_message"`
 		}
 		if err := json.Unmarshal(rawWebhooks, &webhooks); err != nil {
-			return StatusUpdate{}, false, fmt.Errorf("decoding webhooks: %w", err)
+			return StatusUpdate{}, fmt.Errorf("decoding webhooks: %w", err)
 		}
 		update.KlippyState = webhooks.State
 		update.KlippyStateError = webhooks.StateMessage
@@ -125,7 +172,7 @@ func DecodeStatusUpdate(raw json.RawMessage) (StatusUpdate, bool, error) {
 		}
 	}
 
-	return update, true, nil
+	return update, nil
 }
 
 func mapPrintState(state string) domain.PrinterState {
@@ -134,7 +181,7 @@ func mapPrintState(state string) domain.PrinterState {
 		return domain.PrinterStatePrinting
 	case "paused":
 		return domain.PrinterStatePaused
-	case "standby", "complete":
+	case "standby", "complete", "cancelled":
 		return domain.PrinterStateReady
 	case "error":
 		return domain.PrinterStateError
@@ -159,6 +206,9 @@ func statusToPrintStatus(state string) (domain.PrintStatus, bool) {
 func normalizeProgress(progress float64) float64 {
 	if math.IsNaN(progress) || progress < 0 {
 		return 0
+	}
+	if progress > 1 && progress <= 100 {
+		return progress / 100
 	}
 	if progress > 1 {
 		return 1

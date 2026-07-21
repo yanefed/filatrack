@@ -12,4 +12,5 @@ type GcodeMetadata struct {
 	NozzleTempC      int
 	BedTempC         int
 	LayerHeight      float64
+	PreviewImagePath string
 }

@@ -32,16 +32,6 @@ func (p stubLanguageProvider) GetLanguage(context.Context) i18n.Language {
 	return p.language
 }
 
-type stubShutdowner struct {
-	called bool
-	err    error
-}
-
-func (s *stubShutdowner) Shutdown(...fx.ShutdownOption) error {
-	s.called = true
-	return s.err
-}
-
 func TestMainPassesValidOptionsToApplicationRunner(t *testing.T) {
 	originalRunner := runApplication
 	originalLogger := slog.Default()
@@ -72,15 +62,32 @@ func TestAppOptionsBuildAValidDependencyGraph(t *testing.T) {
 }
 
 func TestStartApplicationRunsAndStopsFxApp(t *testing.T) {
-	var started, stopped bool
+	var started, stopped, appRan bool
 
 	startApplication(
 		fx.NopLogger,
-		fx.Invoke(func(lifecycle fx.Lifecycle, shutdowner fx.Shutdowner) {
+		fx.Provide(
+			func() applicationRunner {
+				return stubApplication{run: func() error {
+					if !started {
+						t.Error("expected Fx lifecycle to start before application Run")
+					}
+					if stopped {
+						t.Error("expected Fx lifecycle to stop after application Run")
+					}
+					appRan = true
+					return nil
+				}}
+			},
+			func() languageProvider {
+				return stubLanguageProvider{language: i18n.LangEN}
+			},
+		),
+		fx.Invoke(func(lifecycle fx.Lifecycle) {
 			lifecycle.Append(fx.Hook{
 				OnStart: func(context.Context) error {
 					started = true
-					return shutdowner.Shutdown()
+					return nil
 				},
 				OnStop: func(context.Context) error {
 					stopped = true
@@ -92,6 +99,9 @@ func TestStartApplicationRunsAndStopsFxApp(t *testing.T) {
 
 	if !started {
 		t.Error("expected Fx application to start")
+	}
+	if !appRan {
+		t.Error("expected application Run to be called")
 	}
 	if !stopped {
 		t.Error("expected Fx application to stop")
@@ -188,15 +198,11 @@ func TestRunAppSetsLanguageBeforeRunning(t *testing.T) {
 		}
 		return nil
 	}}
-	shutdowner := &stubShutdowner{}
 
-	runApp(app, stubLanguageProvider{language: i18n.LangBG}, shutdowner)
+	runApp(app, stubLanguageProvider{language: i18n.LangBG})
 
 	if !called {
 		t.Fatal("expected application Run to be called")
-	}
-	if !shutdowner.called {
-		t.Fatal("expected Fx application shutdown after application Run returns")
 	}
 }
 
@@ -221,50 +227,13 @@ func TestRunAppLogsErrorAndExits(t *testing.T) {
 	app := stubApplication{run: func() error {
 		return runError
 	}}
-	shutdowner := &stubShutdowner{}
 
-	runApp(app, stubLanguageProvider{language: i18n.LangEN}, shutdowner)
+	runApp(app, stubLanguageProvider{language: i18n.LangEN})
 
 	if exitCode != 1 {
 		t.Fatalf("expected exit code 1, got %d", exitCode)
 	}
-	if shutdowner.called {
-		t.Fatal("expected no Fx shutdown after application Run error")
-	}
 	if output := logOutput.String(); !strings.Contains(output, "application error") || !strings.Contains(output, runError.Error()) {
 		t.Fatalf("expected application error in log, got %q", output)
-	}
-}
-
-func TestRunAppLogsShutdownError(t *testing.T) {
-	originalLanguage := i18n.GetLanguage()
-	originalExit := exitProcess
-	originalLogger := slog.Default()
-	t.Cleanup(func() {
-		i18n.SetLanguage(originalLanguage)
-		exitProcess = originalExit
-		slog.SetDefault(originalLogger)
-	})
-
-	exitProcess = func(code int) {
-		t.Fatalf("unexpected process exit with code %d", code)
-	}
-
-	var logOutput bytes.Buffer
-	slog.SetDefault(slog.New(slog.NewTextHandler(&logOutput, nil)))
-
-	shutdownErr := errors.New("shutdown failed")
-	app := stubApplication{run: func() error {
-		return nil
-	}}
-	shutdowner := &stubShutdowner{err: shutdownErr}
-
-	runApp(app, stubLanguageProvider{language: i18n.LangEN}, shutdowner)
-
-	if !shutdowner.called {
-		t.Fatal("expected Fx application shutdown after application Run returns")
-	}
-	if output := logOutput.String(); !strings.Contains(output, "shutdown error") || !strings.Contains(output, shutdownErr.Error()) {
-		t.Fatalf("expected shutdown error in log, got %q", output)
 	}
 }

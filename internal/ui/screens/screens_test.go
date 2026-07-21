@@ -53,20 +53,36 @@ func TestScreenConstructorsWithRealServices(t *testing.T) {
 	}
 
 	dashboard, refreshDashboard := NewDashboard(ctx, spoolSvc, printSvc, dryingSvc)
-	spools, refreshSpools := NewSpoolsScreen(ctx, spoolSvc, func() {})
-	prints, refreshPrints := NewPrintsScreen(ctx, printSvc, spoolSvc, func() {})
+	spools, refreshSpools := NewSpoolsScreen(ctx, spoolSvc, settingsSvc, func() {})
+	prints, refreshPrints, refreshPrintsLive := NewPrintsScreen(ctx, printSvc, printerSvc, spoolSvc, func() {})
+	models, refreshModels := NewModelsScreen(ctx, printerSvc, spoolSvc, settingsSvc, func() {})
 	drying, refreshDrying := NewDryingScreen(ctx, dryingSvc, spoolSvc, func() {})
-	printers, refreshPrinters := NewPrintersScreen(ctx, printerSvc, spoolSvc, func() {})
+	printers, refreshPrinters, refreshPrintersLive := NewPrintersScreen(ctx, printerSvc, spoolSvc, func() {})
 	settings, refreshSettings := NewSettingsScreen(ctx, settingsSvc, func() {}, func() {})
-	if dashboard == nil || spools == nil || prints == nil || drying == nil || printers == nil || settings == nil {
+	if dashboard == nil || spools == nil || prints == nil || models == nil || drying == nil || printers == nil || settings == nil {
 		t.Fatal("one or more screen constructors returned nil")
 	}
 
 	refreshDashboard()
 	refreshSpools()
 	refreshPrints()
+	refreshPrintsLive()
+	refreshModels()
 	refreshDrying()
 	refreshPrinters()
+	refreshPrintersLive()
 	refreshSettings()
-	runtime.KeepAlive([]any{dashboard, spools, prints, drying, printers, settings})
+	runtime.KeepAlive([]any{dashboard, spools, prints, models, drying, printers, settings})
+}
+
+func TestPrinterHasActivePrintIgnoresFinishedCurrentFile(t *testing.T) {
+	if !printerHasActivePrint(domain.Printer{State: domain.PrinterStatePrinting, CurrentFile: "part.gcode"}) {
+		t.Fatal("printing printer must be active")
+	}
+	if !printerHasActivePrint(domain.Printer{State: domain.PrinterStatePaused, CurrentFile: "part.gcode"}) {
+		t.Fatal("paused printer must be active")
+	}
+	if printerHasActivePrint(domain.Printer{State: domain.PrinterStateReady, CurrentFile: "part.gcode", Progress: 1}) {
+		t.Fatal("ready printer with stale current file must not be active")
+	}
 }

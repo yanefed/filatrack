@@ -51,3 +51,44 @@ func TestProcessorRecordsCancelledPrintWithProgress(t *testing.T) {
 		t.Fatalf("cancelled event = %+v", event)
 	}
 }
+
+func TestProcessorPreservesStateAcrossPartialUpdates(t *testing.T) {
+	processor := NewProcessor("printer-1")
+	now := time.Unix(1000, 0)
+
+	status, event := processor.Apply(StatusUpdate{
+		RawPrintState: "printing",
+		Filename:      "part.gcode",
+		Progress:      0.1,
+	}, now)
+	if event != nil || status.State != domain.PrinterStatePrinting || status.CurrentFile != "part.gcode" || status.Progress != 0.1 {
+		t.Fatalf("initial update = (%+v, %+v)", status, event)
+	}
+
+	status, event = processor.Apply(StatusUpdate{
+		Progress:    0.35,
+		HasProgress: true,
+	}, now.Add(time.Second))
+	if event != nil || status.State != domain.PrinterStatePrinting || status.CurrentFile != "part.gcode" || status.Progress != 0.35 {
+		t.Fatalf("partial progress update = (%+v, %+v)", status, event)
+	}
+}
+
+func TestProcessorPreservesFilamentUsedUntilFinalUpdate(t *testing.T) {
+	processor := NewProcessor("printer-1")
+	now := time.Unix(1000, 0)
+
+	processor.Apply(StatusUpdate{
+		RawPrintState:  "printing",
+		Filename:       "part.gcode",
+		FilamentUsedMM: 1234,
+		PrintDuration:  time.Minute,
+	}, now)
+
+	_, event := processor.Apply(StatusUpdate{
+		RawPrintState: "complete",
+	}, now.Add(time.Hour))
+	if event == nil || event.EstimatedLengthMM != 1234 || event.PrintDuration != time.Minute {
+		t.Fatalf("final event = %+v", event)
+	}
+}

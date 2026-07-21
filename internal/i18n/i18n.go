@@ -141,6 +141,28 @@ type T struct {
 	CheckConnection      string
 	ConnectionOK         string
 	ConnectionFailed     string
+	PrinterHistory       string
+	RefreshHistory       string
+	AssignHistoryJob     string
+	StartPrinterFile     string
+	UploadAndPrint       string
+	PrinterFilePath      string
+	LocalGCodePath       string
+	AllowLowFilament     string
+	LaunchBlocked        string
+	LaunchWarning        string
+	LaunchStarted        string
+	LaunchUploaded       string
+	NoPrinterHistory     string
+	HistoryJobFmt        string
+	Jobs                 string
+	Models               string
+	RefreshModels        string
+	NoPrinterModels      string
+	ModelFileFmt         string
+	PrintModel           string
+	PrintModelDialog     string
+	LowFilamentSetting   string
 }
 
 var translations = map[Language]T{
@@ -256,6 +278,28 @@ var translations = map[Language]T{
 		CheckConnection:       "Check connection",
 		ConnectionOK:          "Connection OK",
 		ConnectionFailed:      "Connection failed",
+		PrinterHistory:        "Printer history",
+		RefreshHistory:        "Refresh history",
+		AssignHistoryJob:      "Assign spool",
+		StartPrinterFile:      "Start printer file",
+		UploadAndPrint:        "Upload and print",
+		PrinterFilePath:       "G-code path on printer",
+		LocalGCodePath:        "Local G-code path",
+		AllowLowFilament:      "Allow low filament warning",
+		LaunchBlocked:         "Print blocked",
+		LaunchWarning:         "Warning",
+		LaunchStarted:         "Print started",
+		LaunchUploaded:        "File uploaded and print requested",
+		NoPrinterHistory:      "No printer history.",
+		HistoryJobFmt:         "%s — %s — %.1f g — %s",
+		Jobs:                  "Jobs",
+		Models:                "Models",
+		RefreshModels:         "Refresh models",
+		NoPrinterModels:       "No models on printer.",
+		ModelFileFmt:          "%s — %.1f g — %s",
+		PrintModel:            "Print",
+		PrintModelDialog:      "Print model",
+		LowFilamentSetting:    "Allow starting prints with low-filament warning",
 	},
 	LangBG: {
 		Dashboard:             "Табло",
@@ -369,6 +413,28 @@ var translations = map[Language]T{
 		CheckConnection:       "Провери връзката",
 		ConnectionOK:          "Връзката е успешна",
 		ConnectionFailed:      "Връзката е неуспешна",
+		PrinterHistory:        "История на принтера",
+		RefreshHistory:        "Обнови историята",
+		AssignHistoryJob:      "Свържи макара",
+		StartPrinterFile:      "Стартирай файл от принтера",
+		UploadAndPrint:        "Качи и печатай",
+		PrinterFilePath:       "G-code път на принтера",
+		LocalGCodePath:        "Локален G-code път",
+		AllowLowFilament:      "Позволи предупреждение за малко филамент",
+		LaunchBlocked:         "Печатът е блокиран",
+		LaunchWarning:         "Предупреждение",
+		LaunchStarted:         "Печатът е стартиран",
+		LaunchUploaded:        "Файлът е качен и печатът е заявен",
+		NoPrinterHistory:      "Няма история на принтера.",
+		HistoryJobFmt:         "%s — %s — %.1f г — %s",
+		Jobs:                  "Задачи",
+		Models:                "Модели",
+		RefreshModels:         "Обнови моделите",
+		NoPrinterModels:       "Няма модели на принтера.",
+		ModelFileFmt:          "%s — %.1f г — %s",
+		PrintModel:            "Печатай",
+		PrintModelDialog:      "Печатай модел",
+		LowFilamentSetting:    "Позволи стартиране при предупреждение за малко филамент",
 	},
 }
 

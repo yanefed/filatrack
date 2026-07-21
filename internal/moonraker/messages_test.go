@@ -55,8 +55,70 @@ func TestDecodeStatusUpdate(t *testing.T) {
 	if err != nil || !ok {
 		t.Fatalf("DecodeStatusUpdate() = (%+v, %v, %v)", update, ok, err)
 	}
-	if update.State != domain.PrinterStatePrinting || update.RawPrintState != "printing" || update.Filename != "benchy.gcode" || update.Progress != 0.25 || update.FilamentUsedMM != 1234.5 || update.TotalDuration != 42*time.Second || update.PrintDuration != 40*time.Second {
+	if update.State != domain.PrinterStatePrinting || update.RawPrintState != "printing" || update.Filename != "benchy.gcode" || update.Progress != 0.20 || update.FilamentUsedMM != 1234.5 || update.TotalDuration != 42*time.Second || update.PrintDuration != 40*time.Second {
 		t.Fatalf("unexpected status update: %+v", update)
+	}
+	if !update.HasState || !update.HasFilename || !update.HasProgress {
+		t.Fatalf("expected update flags to be set: %+v", update)
+	}
+}
+
+func TestDecodeStatusUpdatePartialProgressOnly(t *testing.T) {
+	raw := json.RawMessage(`{
+		"jsonrpc": "2.0",
+		"method": "notify_status_update",
+		"params": [{
+			"display_status": {"progress": 0.33}
+		}]
+	}`)
+	update, ok, err := DecodeStatusUpdate(raw)
+	if err != nil || !ok {
+		t.Fatalf("DecodeStatusUpdate() = (%+v, %v, %v)", update, ok, err)
+	}
+	if update.HasState || update.HasFilename || !update.HasProgress || update.Progress != 0.33 {
+		t.Fatalf("partial update flags/progress = %+v", update)
+	}
+}
+
+func TestDecodeStatusUpdateNormalizesPercentProgress(t *testing.T) {
+	raw := json.RawMessage(`{"jsonrpc":"2.0","method":"notify_status_update","params":[{"display_status":{"progress":42}}]}`)
+
+	update, ok, err := DecodeStatusUpdate(raw)
+	if err != nil || !ok {
+		t.Fatalf("DecodeStatusUpdate = (%+v, %v, %v)", update, ok, err)
+	}
+	if !update.HasProgress || update.Progress != 0.42 {
+		t.Fatalf("progress = %+v, want 0.42", update)
+	}
+}
+
+func TestDecodeStatusUpdateSubscribeSnapshot(t *testing.T) {
+	raw := json.RawMessage(`{
+		"jsonrpc": "2.0",
+		"id": 1,
+		"result": {
+			"eventtime": 123456.0,
+			"status": {
+				"print_stats": {
+					"state": "printing",
+					"filename": "snapshot.gcode",
+					"filament_used": 100,
+					"print_duration": 12
+				},
+				"display_status": {"progress": 0.44},
+				"webhooks": {"state": "ready"}
+			}
+		}
+	}`)
+	update, ok, err := DecodeStatusUpdate(raw)
+	if err != nil || !ok {
+		t.Fatalf("DecodeStatusUpdate() = (%+v, %v, %v)", update, ok, err)
+	}
+	if update.State != domain.PrinterStatePrinting || update.RawPrintState != "printing" || update.Filename != "snapshot.gcode" || update.Progress != 0.44 || update.FilamentUsedMM != 100 || update.PrintDuration != 12*time.Second {
+		t.Fatalf("unexpected subscribe snapshot: %+v", update)
+	}
+	if !update.HasState || !update.HasFilename || !update.HasProgress {
+		t.Fatalf("expected snapshot flags to be set: %+v", update)
 	}
 }
 

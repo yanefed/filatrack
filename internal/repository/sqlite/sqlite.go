@@ -1,8 +1,11 @@
 package sqlite
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
+	"strings"
+	"time"
 )
 
 type DB struct {
@@ -18,9 +21,14 @@ func New(dbPath string) (*DB, error) {
 	if _, err := conn.Exec("PRAGMA journal_mode=WAL"); err != nil {
 		return nil, fmt.Errorf("setting WAL mode: %w", err)
 	}
+	if _, err := conn.Exec("PRAGMA busy_timeout=5000"); err != nil {
+		return nil, fmt.Errorf("setting busy timeout: %w", err)
+	}
 	if _, err := conn.Exec("PRAGMA foreign_keys=ON"); err != nil {
 		return nil, fmt.Errorf("enabling foreign keys: %w", err)
 	}
+	conn.SetMaxOpenConns(1)
+	conn.SetMaxIdleConns(1)
 
 	return &DB{conn: conn}, nil
 }
@@ -31,4 +39,29 @@ func (db *DB) Conn() *sql.DB {
 
 func (db *DB) Close() error {
 	return db.conn.Close()
+}
+
+func execWithBusyRetry(ctx context.Context, run func() (sql.Result, error)) (sql.Result, error) {
+	var result sql.Result
+	var err error
+	for attempt := 0; attempt < 5; attempt++ {
+		result, err = run()
+		if err == nil || !isSQLiteBusy(err) {
+			return result, err
+		}
+		select {
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		case <-time.After(time.Duration(attempt+1) * 100 * time.Millisecond):
+		}
+	}
+	return result, err
+}
+
+func isSQLiteBusy(err error) bool {
+	if err == nil {
+		return false
+	}
+	text := strings.ToLower(err.Error())
+	return strings.Contains(text, "database is locked") || strings.Contains(text, "sqlite_busy")
 }

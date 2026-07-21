@@ -78,6 +78,24 @@ func NewSettingsScreen(ctx context.Context, settingsSvc *service.SettingsService
 
 	content.Append(langSection)
 
+	// === Print launch settings ===
+	printSection := gtk.NewBox(gtk.OrientationVertical, 6)
+	printLabel := gtk.NewLabel(i18n.L().Prints)
+	printLabel.SetHAlign(gtk.AlignStart)
+	printLabel.AddCSSClass("title-3")
+	printSection.Append(printLabel)
+
+	allowLowFilament := gtk.NewCheckButtonWithLabel(i18n.L().LowFilamentSetting)
+	allowLowFilament.SetActive(settingsSvc.AllowLowFilamentWarning(ctx))
+	allowLowFilament.ConnectToggled(func() {
+		_ = settingsSvc.SetAllowLowFilamentWarning(ctx, allowLowFilament.Active())
+		if onChanged != nil {
+			onChanged()
+		}
+	})
+	printSection.Append(allowLowFilament)
+	content.Append(printSection)
+
 	// === Drying profiles ===
 	dryingSection := gtk.NewBox(gtk.OrientationVertical, 6)
 	dryingLabel := gtk.NewLabel(i18n.L().DryingProfiles)

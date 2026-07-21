@@ -39,6 +39,33 @@ func (s *SpoolService) Create(ctx context.Context, spool *domain.Spool) error {
 	return s.spools.Create(ctx, spool)
 }
 
+func (s *SpoolService) Update(ctx context.Context, spool *domain.Spool) error {
+	if spool.ID == "" {
+		return fmt.Errorf("spool id is required")
+	}
+	if spool.TotalWeightG <= 0 {
+		return fmt.Errorf("total weight must be positive")
+	}
+	if spool.DiameterMM <= 0 {
+		spool.DiameterMM = 1.75
+	}
+	if spool.DensityGCM3 <= 0 {
+		if d, ok := domain.DefaultDensities[spool.Material]; ok {
+			spool.DensityGCM3 = d
+		} else {
+			spool.DensityGCM3 = 1.24
+		}
+	}
+	return s.spools.Update(ctx, spool)
+}
+
+func (s *SpoolService) Archive(ctx context.Context, id string) error {
+	if id == "" {
+		return fmt.Errorf("spool id is required")
+	}
+	return s.spools.Archive(ctx, id)
+}
+
 func (s *SpoolService) GetWithRemaining(ctx context.Context, id string) (*domain.Spool, float64, error) {
 	spool, err := s.spools.GetByID(ctx, id)
 	if err != nil {

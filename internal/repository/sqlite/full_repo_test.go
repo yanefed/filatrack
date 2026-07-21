@@ -137,9 +137,10 @@ func TestPrintJobRepoFullCRUDFiltersAndStats(t *testing.T) {
 	}
 
 	jobs := []*domain.PrintJob{
-		{ID: "job-1", SpoolID: "spool-1", PrinterID: "printer-1", ExternalPrintID: "moonraker-job-1", GcodeFilename: "one.gcode", ModelName: "one", Status: domain.PrintStatusSuccess, CompletionPercent: 100, EstimatedWeightG: 20, ActualWeightG: 20, EstimatedLengthMM: 1000, PrintDuration: 90 * time.Minute, NozzleTempC: 210, BedTempC: 60, Slicer: "PrusaSlicer", Notes: "ok", PrintedAt: base.Add(-2 * time.Hour), CreatedAt: base},
+		{ID: "job-1", SpoolID: "spool-1", PrinterID: "printer-1", ExternalPrintID: "moonraker-job-1", GcodeFilename: "one.gcode", ModelName: "one", Status: domain.PrintStatusSuccess, CompletionPercent: 100, EstimatedWeightG: 20, ActualWeightG: 20, EstimatedLengthMM: 1000, PrintDuration: 90 * time.Minute, NozzleTempC: 210, BedTempC: 60, Slicer: "PrusaSlicer", PreviewImagePath: "/tmp/one.png", Notes: "ok", PrintedAt: base.Add(-2 * time.Hour), CreatedAt: base},
 		{ID: "job-2", SpoolID: "spool-1", GcodeFilename: "two.gcode", Status: domain.PrintStatusFailed, CompletionPercent: 50, EstimatedWeightG: 20, ActualWeightG: 10, PrintedAt: base.Add(-time.Hour), CreatedAt: base},
 		{ID: "job-3", SpoolID: "spool-2", GcodeFilename: "three.gcode", Status: domain.PrintStatusCancelled, CompletionPercent: 25, EstimatedWeightG: 20, ActualWeightG: 5, PrintedAt: base, CreatedAt: base},
+		{ID: "job-4", PrinterID: "printer-1", ExternalPrintID: "moonraker-job-4", GcodeFilename: "backfill.gcode", ModelName: "backfill", Status: domain.PrintStatusSuccess, CompletionPercent: 100, EstimatedWeightG: 20, ActualWeightG: 0, PrintedAt: base.Add(-3 * time.Hour), CreatedAt: base},
 	}
 	for _, job := range jobs {
 		if err := prints.Create(ctx, job); err != nil {
@@ -148,7 +149,7 @@ func TestPrintJobRepoFullCRUDFiltersAndStats(t *testing.T) {
 	}
 
 	got, err := prints.GetByID(ctx, "job-1")
-	if err != nil || got.ModelName != "one" || got.PrinterID != "printer-1" || got.ExternalPrintID != "moonraker-job-1" || got.PrintDuration != 90*time.Minute || got.Status != domain.PrintStatusSuccess {
+	if err != nil || got.ModelName != "one" || got.PrinterID != "printer-1" || got.ExternalPrintID != "moonraker-job-1" || got.PrintDuration != 90*time.Minute || got.Status != domain.PrintStatusSuccess || got.PreviewImagePath != "/tmp/one.png" {
 		t.Fatalf("GetByID() = (%+v, %v)", got, err)
 	}
 	if _, err := prints.GetByID(ctx, "missing"); err == nil || !strings.Contains(err.Error(), "not found") {
@@ -163,16 +164,24 @@ func TestPrintJobRepoFullCRUDFiltersAndStats(t *testing.T) {
 	}
 	printerID := "printer-1"
 	filtered, err = prints.List(ctx, repository.PrintJobFilter{PrinterID: &printerID})
-	if err != nil || len(filtered) != 1 || filtered[0].ID != "job-1" {
+	if err != nil || len(filtered) != 2 || filtered[0].ID != "job-1" || filtered[1].ID != "job-4" {
 		t.Fatalf("printer-filtered jobs = (%+v, %v)", filtered, err)
 	}
 	all, err := prints.List(ctx, repository.PrintJobFilter{})
-	if err != nil || len(all) != 3 || all[0].ID != "job-3" {
+	if err != nil || len(all) != 4 || all[0].ID != "job-3" {
 		t.Fatalf("ordered jobs = (%+v, %v)", all, err)
+	}
+	limited, err := prints.List(ctx, repository.PrintJobFilter{Limit: 2})
+	if err != nil || len(limited) != 2 || limited[0].ID != "job-3" || limited[1].ID != "job-2" {
+		t.Fatalf("limited jobs = (%+v, %v)", limited, err)
+	}
+	got, err = prints.GetByID(ctx, "job-4")
+	if err != nil || got.SpoolID != "" || got.ActualWeightG != 0 {
+		t.Fatalf("nullable spool job = (%+v, %v)", got, err)
 	}
 
 	stats, err := prints.GetStats(ctx, repository.StatsFilter{})
-	if err != nil || stats.TotalPrints != 3 || stats.SuccessCount != 1 || stats.FailedCount != 1 || stats.CancelledCount != 1 || stats.TotalWeightG != 35 {
+	if err != nil || stats.TotalPrints != 4 || stats.SuccessCount != 2 || stats.FailedCount != 1 || stats.CancelledCount != 1 || stats.TotalWeightG != 35 {
 		t.Fatalf("all stats = (%+v, %v)", stats, err)
 	}
 	stats, err = prints.GetStats(ctx, repository.StatsFilter{From: &from, To: &to})
@@ -322,6 +331,69 @@ func TestPrinterRepoDatabaseErrors(t *testing.T) {
 				t.Fatal("expected closed-database error")
 			}
 		})
+	}
+}
+
+func TestPrinterModelRepoCache(t *testing.T) {
+	db := setupTestDB(t)
+	printers := NewPrinterRepo(db)
+	models := NewPrinterModelRepo(db)
+	ctx := t.Context()
+	now := time.Now().UTC().Truncate(time.Second)
+
+	if err := printers.Create(ctx, &domain.Printer{
+		ID:           "printer-1",
+		Name:         "Voron",
+		Kind:         domain.PrinterKindMoonraker,
+		MoonrakerURL: "http://voron.local",
+		Enabled:      true,
+		CreatedAt:    now,
+		UpdatedAt:    now,
+	}); err != nil {
+		t.Fatalf("creating printer: %v", err)
+	}
+	if err := printers.Create(ctx, &domain.Printer{
+		ID:           "printer-2",
+		Name:         "Trident",
+		Kind:         domain.PrinterKindMoonraker,
+		MoonrakerURL: "http://trident.local",
+		Enabled:      true,
+		CreatedAt:    now,
+		UpdatedAt:    now,
+	}); err != nil {
+		t.Fatalf("creating second printer: %v", err)
+	}
+
+	first := []domain.PrinterModelFile{
+		{PrinterID: "ignored", Path: "folder/cube.gcode", Filename: "cube.gcode", ModifiedAt: now.Add(-time.Hour), SizeBytes: 1234, EstimatedWeightG: 12.5, PrintDuration: 30 * time.Minute, Slicer: "OrcaSlicer", PreviewImagePath: "/tmp/cube.png"},
+		{Path: "benchy.gcode", Filename: "benchy.gcode", SizeBytes: 456},
+	}
+	if err := models.SaveForPrinter(ctx, "printer-1", first); err != nil {
+		t.Fatalf("saving printer models: %v", err)
+	}
+	if err := models.SaveForPrinter(ctx, "printer-2", []domain.PrinterModelFile{{Path: "other.gcode", Filename: "other.gcode"}}); err != nil {
+		t.Fatalf("saving second printer models: %v", err)
+	}
+
+	printerID := "printer-1"
+	listed, err := models.List(ctx, &printerID)
+	if err != nil || len(listed) != 2 {
+		t.Fatalf("listed printer models = (%+v, %v)", listed, err)
+	}
+	if listed[0].PrinterID != "printer-1" || listed[0].Path != "folder/cube.gcode" || listed[0].EstimatedWeightG != 12.5 || listed[0].PrintDuration != 30*time.Minute || listed[0].PreviewImagePath != "/tmp/cube.png" || listed[0].CachedAt.IsZero() {
+		t.Fatalf("cached model = %+v", listed[0])
+	}
+
+	if err := models.SaveForPrinter(ctx, "printer-1", []domain.PrinterModelFile{{Path: "new.gcode", Filename: "new.gcode"}}); err != nil {
+		t.Fatalf("replacing printer models: %v", err)
+	}
+	listed, err = models.List(ctx, &printerID)
+	if err != nil || len(listed) != 1 || listed[0].Path != "new.gcode" {
+		t.Fatalf("replaced printer models = (%+v, %v)", listed, err)
+	}
+	all, err := models.List(ctx, nil)
+	if err != nil || len(all) != 2 {
+		t.Fatalf("all printer models = (%+v, %v)", all, err)
 	}
 }
 

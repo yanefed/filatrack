@@ -26,6 +26,7 @@ type PrintJob struct {
 	NozzleTempC       int
 	BedTempC          int
 	Slicer            string
+	PreviewImagePath  string
 	Notes             string
 	PrintedAt         time.Time
 	CreatedAt         time.Time

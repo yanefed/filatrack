@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/url"
+	"os"
 	"path/filepath"
 	"strings"
 	"time"
@@ -14,14 +15,29 @@ import (
 )
 
 type PrinterService struct {
-	printers repository.PrinterRepository
-	spools   repository.SpoolRepository
-	prints   repository.PrintJobRepository
-	checker  ConnectionChecker
+	printers  repository.PrinterRepository
+	spools    repository.SpoolRepository
+	prints    repository.PrintJobRepository
+	models    repository.PrinterModelRepository
+	checker   ConnectionChecker
+	jobClient PrinterJobClient
 }
 
 type ConnectionChecker interface {
 	Check(ctx context.Context, printer domain.Printer) error
+}
+
+type PrinterJobClient interface {
+	ListHistory(ctx context.Context, printer domain.Printer, limit int) ([]domain.PrinterHistoryJob, error)
+	ListModels(ctx context.Context, printer domain.Printer) ([]domain.PrinterModelFile, error)
+	FetchMetadata(ctx context.Context, printer domain.Printer, filename string) (*domain.GcodeMetadata, error)
+	StartFile(ctx context.Context, printer domain.Printer, filename string) error
+	DownloadFile(ctx context.Context, printer domain.Printer, filename, localPath string) error
+	UploadAndStart(ctx context.Context, printer domain.Printer, localPath string) (domain.PrinterUploadResult, error)
+}
+
+type printerHistoryPageClient interface {
+	ListHistoryPage(ctx context.Context, printer domain.Printer, start, limit int) ([]domain.PrinterHistoryJob, int, error)
 }
 
 func NewPrinterService(printers repository.PrinterRepository, spools repository.SpoolRepository, prints repository.PrintJobRepository) *PrinterService {
@@ -30,6 +46,14 @@ func NewPrinterService(printers repository.PrinterRepository, spools repository.
 
 func (s *PrinterService) SetConnectionChecker(checker ConnectionChecker) {
 	s.checker = checker
+}
+
+func (s *PrinterService) SetJobClient(client PrinterJobClient) {
+	s.jobClient = client
+}
+
+func (s *PrinterService) SetModelCache(models repository.PrinterModelRepository) {
+	s.models = models
 }
 
 func (s *PrinterService) CreateMoonrakerPrinter(ctx context.Context, printer *domain.Printer) error {
@@ -150,6 +174,7 @@ func (s *PrinterService) RecordPrinterPrint(ctx context.Context, event domain.Pr
 		NozzleTempC:       event.NozzleTempC,
 		BedTempC:          event.BedTempC,
 		Slicer:            event.Slicer,
+		PreviewImagePath:  event.PreviewImagePath,
 		PrintedAt:         printedAt,
 		CreatedAt:         time.Now(),
 	}
@@ -162,6 +187,551 @@ func (s *PrinterService) RecordPrinterPrint(ctx context.Context, event domain.Pr
 	}
 	return job, nil
 }
+
+func (s *PrinterService) ListCombinedHistory(ctx context.Context, printerID string, limit int) ([]domain.PrinterHistoryJob, error) {
+	if s.jobClient == nil {
+		return nil, fmt.Errorf("printer job client is not configured")
+	}
+	printer, err := s.printers.GetByID(ctx, printerID)
+	if err != nil {
+		return nil, fmt.Errorf("getting printer: %w", err)
+	}
+	remoteJobs, err := s.jobClient.ListHistory(ctx, *printer, limit)
+	if err != nil {
+		return nil, err
+	}
+	localJobs, err := s.prints.List(ctx, repository.PrintJobFilter{PrinterID: &printerID})
+	if err != nil {
+		return nil, fmt.Errorf("listing local printer prints: %w", err)
+	}
+	localByExternalID := make(map[string]domain.PrintJob, len(localJobs))
+	for _, job := range localJobs {
+		if job.ExternalPrintID != "" {
+			localByExternalID[job.ExternalPrintID] = job
+		}
+	}
+	for i := range remoteJobs {
+		if local, ok := localByExternalID[remoteJobs[i].ExternalPrintID]; ok {
+			remoteJobs[i].LocalPrintJobID = local.ID
+			remoteJobs[i].LocalSpoolID = local.SpoolID
+			remoteJobs[i].PreviewImagePath = local.PreviewImagePath
+		}
+	}
+	return remoteJobs, nil
+}
+
+func (s *PrinterService) ListModels(ctx context.Context, printerID string) ([]domain.PrinterModelFile, error) {
+	if s.models != nil {
+		models, err := s.models.List(ctx, &printerID)
+		if err != nil {
+			return nil, err
+		}
+		return models, nil
+	}
+	return s.RefreshModels(ctx, printerID)
+}
+
+func (s *PrinterService) RefreshModels(ctx context.Context, printerID string) ([]domain.PrinterModelFile, error) {
+	if s.jobClient == nil {
+		return nil, fmt.Errorf("printer job client is not configured")
+	}
+	printer, err := s.printers.GetByID(ctx, printerID)
+	if err != nil {
+		return nil, fmt.Errorf("getting printer: %w", err)
+	}
+	models, err := s.jobClient.ListModels(ctx, *printer)
+	if err != nil {
+		return nil, err
+	}
+	for i := range models {
+		metadata, err := s.jobClient.FetchMetadata(ctx, *printer, models[i].Path)
+		if err != nil || metadata == nil {
+			continue
+		}
+		models[i].EstimatedWeightG = metadata.FilamentWeightG
+		models[i].PrintDuration = metadata.PrintDuration
+		models[i].Slicer = metadata.Slicer
+		models[i].PreviewImagePath = metadata.PreviewImagePath
+	}
+	if s.models != nil {
+		if err := s.models.SaveForPrinter(ctx, printerID, models); err != nil {
+			return nil, err
+		}
+		return s.models.List(ctx, &printerID)
+	}
+	return models, nil
+}
+
+func (s *PrinterService) ListAllModels(ctx context.Context) ([]domain.PrinterModelFile, error) {
+	if s.models != nil {
+		return s.models.List(ctx, nil)
+	}
+	return s.RefreshAllModels(ctx)
+}
+
+func (s *PrinterService) RefreshAllModels(ctx context.Context) ([]domain.PrinterModelFile, error) {
+	printers, err := s.printers.List(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("listing printers: %w", err)
+	}
+	var all []domain.PrinterModelFile
+	for _, printer := range printers {
+		if !printer.Enabled || printer.Kind != domain.PrinterKindMoonraker {
+			continue
+		}
+		models, err := s.RefreshModels(ctx, printer.ID)
+		if err != nil {
+			continue
+		}
+		all = append(all, models...)
+	}
+	return all, nil
+}
+
+func (s *PrinterService) SyncPrinterHistory(ctx context.Context, printerID string, limit int) (int, error) {
+	if s.jobClient == nil {
+		return 0, fmt.Errorf("printer job client is not configured")
+	}
+	printer, err := s.printers.GetByID(ctx, printerID)
+	if err != nil {
+		return 0, fmt.Errorf("getting printer: %w", err)
+	}
+	var activeSpool *domain.Spool
+	if printer.ActiveSpoolID != "" {
+		spool, err := s.spools.GetByID(ctx, printer.ActiveSpoolID)
+		if err != nil {
+			return 0, fmt.Errorf("getting active spool: %w", err)
+		}
+		activeSpool = spool
+	}
+	localJobs, err := s.prints.List(ctx, repository.PrintJobFilter{PrinterID: &printerID})
+	if err != nil {
+		return 0, fmt.Errorf("listing local printer prints: %w", err)
+	}
+	existing := make(map[string]struct{}, len(localJobs))
+	existingJobs := make(map[string]domain.PrintJob, len(localJobs))
+	existingFingerprints := make(map[string]struct{}, len(localJobs))
+	newestLocal := newestPrintTime(localJobs)
+	for _, job := range localJobs {
+		if job.ExternalPrintID != "" {
+			existing[job.ExternalPrintID] = struct{}{}
+			existingJobs[job.ExternalPrintID] = job
+		}
+		if fingerprint := printJobFingerprint(job.GcodeFilename, job.PrintedAt); fingerprint != "" {
+			existingFingerprints[fingerprint] = struct{}{}
+		}
+	}
+
+	importJobs := func(remoteJobs []domain.PrinterHistoryJob) (int, error) {
+		created := 0
+		for _, job := range remoteJobs {
+			if job.ExternalPrintID == "" {
+				continue
+			}
+			if local, ok := existingJobs[job.ExternalPrintID]; ok {
+				job.PrinterID = printerID
+				s.enrichHistoryJob(ctx, *printer, &job)
+				if err := s.updateExistingHistoryUsage(ctx, local, job); err != nil {
+					return created, err
+				}
+				continue
+			}
+			if fingerprint := printJobFingerprint(job.GcodeFilename, job.EndedAt); fingerprint != "" {
+				if _, ok := existingFingerprints[fingerprint]; ok {
+					continue
+				}
+			}
+			if _, ok := job.PrintStatus(); !ok {
+				continue
+			}
+			job.PrinterID = printerID
+			spoolForJob := activeSpool
+			if newestLocal.IsZero() || !job.EndedAt.After(newestLocal) {
+				spoolForJob = nil
+			}
+			s.enrichHistoryJob(ctx, *printer, &job)
+			if _, err := s.createPrintFromHistory(ctx, job, spoolForJob); err != nil {
+				return created, err
+			}
+			if fingerprint := printJobFingerprint(job.GcodeFilename, job.EndedAt); fingerprint != "" {
+				existingFingerprints[fingerprint] = struct{}{}
+			}
+			existing[job.ExternalPrintID] = struct{}{}
+			created++
+		}
+		return created, nil
+	}
+
+	if limit <= 0 {
+		if pageClient, ok := s.jobClient.(printerHistoryPageClient); ok {
+			const pageLimit = 100
+			created := 0
+			for start := 0; ; {
+				remoteJobs, total, err := pageClient.ListHistoryPage(ctx, *printer, start, pageLimit)
+				if err != nil {
+					return created, err
+				}
+				pageCreated, err := importJobs(remoteJobs)
+				created += pageCreated
+				if err != nil {
+					return created, err
+				}
+				if len(remoteJobs) == 0 {
+					return created, nil
+				}
+				start += len(remoteJobs)
+				if total > 0 && start >= total {
+					return created, nil
+				}
+				if total <= 0 && len(remoteJobs) < pageLimit {
+					return created, nil
+				}
+			}
+		}
+	}
+
+	remoteJobs, err := s.jobClient.ListHistory(ctx, *printer, limit)
+	if err != nil {
+		return 0, err
+	}
+	return importJobs(remoteJobs)
+}
+
+func (s *PrinterService) AssignHistoryJobSpool(ctx context.Context, printerID, externalPrintID, spoolID string) (*domain.PrintJob, error) {
+	if spoolID == "" {
+		return nil, fmt.Errorf("spool is required")
+	}
+	spool, err := s.spools.GetByID(ctx, spoolID)
+	if err != nil {
+		return nil, fmt.Errorf("getting spool: %w", err)
+	}
+	history, err := s.ListCombinedHistory(ctx, printerID, 0)
+	if err != nil {
+		return nil, err
+	}
+	for _, item := range history {
+		if item.ExternalPrintID != externalPrintID {
+			continue
+		}
+		if item.LocalPrintJobID != "" {
+			if err := s.prints.UpdateSpool(ctx, item.LocalPrintJobID, spoolID); err != nil {
+				return nil, fmt.Errorf("changing print job spool: %w", err)
+			}
+			return s.prints.GetByID(ctx, item.LocalPrintJobID)
+		}
+		return s.createPrintFromHistory(ctx, item, spool)
+	}
+	return nil, fmt.Errorf("printer history job not found: %s", externalPrintID)
+}
+
+func (s *PrinterService) StartPrinterFile(ctx context.Context, req domain.PrintLaunchRequest) (*domain.PrintLaunchResult, error) {
+	if s.jobClient == nil {
+		return nil, fmt.Errorf("printer job client is not configured")
+	}
+	printer, err := s.printers.GetByID(ctx, req.PrinterID)
+	if err != nil {
+		return nil, fmt.Errorf("getting printer: %w", err)
+	}
+	metadata, err := s.jobClient.FetchMetadata(ctx, *printer, req.GcodeFilename)
+	if err != nil {
+		return nil, fmt.Errorf("fetching printer file metadata: %w", err)
+	}
+	check, err := s.checkFilament(ctx, *printer, req.SpoolID, metadata)
+	if err != nil {
+		return nil, err
+	}
+	result := &domain.PrintLaunchResult{Filename: req.GcodeFilename, Filament: check}
+	if check.Blocked {
+		return result, nil
+	}
+	if check.Warning != "" && !req.AllowLowFilament {
+		result.RequiresUserConfirmation = true
+		return result, nil
+	}
+	if err := s.jobClient.StartFile(ctx, *printer, req.GcodeFilename); err != nil {
+		return nil, err
+	}
+	result.Started = true
+	return result, nil
+}
+
+func (s *PrinterService) PrintModel(ctx context.Context, req domain.PrintLaunchRequest) (*domain.PrintLaunchResult, error) {
+	if req.SourcePrinterID == "" {
+		req.SourcePrinterID = req.PrinterID
+	}
+	if req.SourcePrinterID == req.PrinterID {
+		return s.StartPrinterFile(ctx, req)
+	}
+	if s.jobClient == nil {
+		return nil, fmt.Errorf("printer job client is not configured")
+	}
+	source, err := s.printers.GetByID(ctx, req.SourcePrinterID)
+	if err != nil {
+		return nil, fmt.Errorf("getting source printer: %w", err)
+	}
+	target, err := s.printers.GetByID(ctx, req.PrinterID)
+	if err != nil {
+		return nil, fmt.Errorf("getting target printer: %w", err)
+	}
+	metadata, err := s.jobClient.FetchMetadata(ctx, *source, req.GcodeFilename)
+	if err != nil {
+		return nil, fmt.Errorf("fetching source model metadata: %w", err)
+	}
+	check, err := s.checkFilament(ctx, *target, req.SpoolID, metadata)
+	if err != nil {
+		return nil, err
+	}
+	result := &domain.PrintLaunchResult{Filename: req.GcodeFilename, Filament: check}
+	if check.Blocked {
+		return result, nil
+	}
+	if check.Warning != "" && !req.AllowLowFilament {
+		result.RequiresUserConfirmation = true
+		return result, nil
+	}
+	tmpDir, err := os.MkdirTemp("", "filatrack-transfer-*")
+	if err != nil {
+		return nil, fmt.Errorf("creating transfer cache: %w", err)
+	}
+	defer os.RemoveAll(tmpDir)
+	tmpPath := filepath.Join(tmpDir, filepath.Base(req.GcodeFilename))
+	if err := s.jobClient.DownloadFile(ctx, *source, req.GcodeFilename, tmpPath); err != nil {
+		return nil, err
+	}
+	uploaded, err := s.jobClient.UploadAndStart(ctx, *target, tmpPath)
+	if err != nil {
+		return nil, err
+	}
+	result.Filename = uploaded.Path
+	result.Uploaded = true
+	result.Started = uploaded.PrintStarted
+	result.Queued = uploaded.PrintQueued
+	return result, nil
+}
+
+func (s *PrinterService) UploadAndStartLocalFile(ctx context.Context, req domain.PrintLaunchRequest) (*domain.PrintLaunchResult, error) {
+	if s.jobClient == nil {
+		return nil, fmt.Errorf("printer job client is not configured")
+	}
+	if strings.TrimSpace(req.LocalPath) == "" {
+		return nil, fmt.Errorf("local gcode path is required")
+	}
+	printer, err := s.printers.GetByID(ctx, req.PrinterID)
+	if err != nil {
+		return nil, fmt.Errorf("getting printer: %w", err)
+	}
+	metadata, err := gcode.ParseFile(req.LocalPath)
+	if err != nil {
+		return nil, fmt.Errorf("parsing local gcode: %w", err)
+	}
+	if metadata.Filename == "" {
+		metadata.Filename = filepath.Base(req.LocalPath)
+	}
+	check, err := s.checkFilament(ctx, *printer, req.SpoolID, metadata)
+	if err != nil {
+		return nil, err
+	}
+	result := &domain.PrintLaunchResult{Filename: metadata.Filename, Filament: check}
+	if check.Blocked {
+		return result, nil
+	}
+	if check.Warning != "" && !req.AllowLowFilament {
+		result.RequiresUserConfirmation = true
+		return result, nil
+	}
+	uploaded, err := s.jobClient.UploadAndStart(ctx, *printer, req.LocalPath)
+	if err != nil {
+		return nil, err
+	}
+	result.Filename = uploaded.Path
+	result.Uploaded = true
+	result.Started = uploaded.PrintStarted
+	result.Queued = uploaded.PrintQueued
+	return result, nil
+}
+
+func (s *PrinterService) updateExistingHistoryUsage(ctx context.Context, local domain.PrintJob, item domain.PrinterHistoryJob) error {
+	estimatedWeight := local.EstimatedWeightG
+	if item.EstimatedWeightG > 0 {
+		estimatedWeight = item.EstimatedWeightG
+	}
+	estimatedLength := local.EstimatedLengthMM
+	if item.FilamentUsedMM > 0 {
+		estimatedLength = item.FilamentUsedMM
+	}
+	actualWeight := local.ActualWeightG
+	completion := local.CompletionPercent
+
+	var spool *domain.Spool
+	if local.SpoolID != "" {
+		loaded, err := s.spools.GetByID(ctx, local.SpoolID)
+		if err != nil {
+			return fmt.Errorf("getting print job spool: %w", err)
+		}
+		spool = loaded
+	}
+	if estimatedLength > 0 && spool != nil {
+		actualWeight = gcode.WeightFromLength(estimatedLength, spool.DiameterMM, spool.DensityGCM3)
+		if estimatedWeight == 0 {
+			estimatedWeight = actualWeight
+		}
+	}
+	if status, ok := item.PrintStatus(); ok {
+		if status == domain.PrintStatusSuccess {
+			completion = 100
+			if actualWeight == 0 && estimatedWeight > 0 {
+				actualWeight = estimatedWeight
+			}
+		} else if estimatedWeight > 0 && actualWeight > 0 {
+			completion = int(actualWeight / estimatedWeight * 100)
+			if completion < 0 {
+				completion = 0
+			}
+			if completion > 100 {
+				completion = 100
+			}
+		}
+	}
+
+	if estimatedWeight == local.EstimatedWeightG &&
+		actualWeight == local.ActualWeightG &&
+		estimatedLength == local.EstimatedLengthMM &&
+		completion == local.CompletionPercent {
+		return nil
+	}
+	return s.prints.UpdateUsage(ctx, local.ID, estimatedWeight, actualWeight, estimatedLength, completion)
+}
+
+func (s *PrinterService) createPrintFromHistory(ctx context.Context, item domain.PrinterHistoryJob, spool *domain.Spool) (*domain.PrintJob, error) {
+	status, ok := item.PrintStatus()
+	if !ok {
+		return nil, fmt.Errorf("only finished printer jobs can be assigned to a spool")
+	}
+	estimatedWeight := item.EstimatedWeightG
+	if estimatedWeight == 0 && item.FilamentUsedMM > 0 && spool != nil {
+		estimatedWeight = gcode.WeightFromLength(item.FilamentUsedMM, spool.DiameterMM, spool.DensityGCM3)
+	}
+	actualWeight := 0.0
+	if item.FilamentUsedMM > 0 && spool != nil {
+		actualWeight = gcode.WeightFromLength(item.FilamentUsedMM, spool.DiameterMM, spool.DensityGCM3)
+	}
+	completion := 100
+	if status != domain.PrintStatusSuccess {
+		completion = 0
+		if estimatedWeight > 0 && actualWeight > 0 {
+			completion = int(actualWeight / estimatedWeight * 100)
+			if completion > 100 {
+				completion = 100
+			}
+		}
+	}
+	if actualWeight == 0 && status == domain.PrintStatusSuccess {
+		actualWeight = estimatedWeight
+	}
+	spoolID := ""
+	if spool != nil {
+		spoolID = spool.ID
+	}
+	printedAt := item.EndedAt
+	if printedAt.IsZero() {
+		printedAt = time.Now()
+	}
+	job := &domain.PrintJob{
+		SpoolID:           spoolID,
+		PrinterID:         item.PrinterID,
+		ExternalPrintID:   item.ExternalPrintID,
+		GcodeFilename:     item.GcodeFilename,
+		ModelName:         item.ModelName,
+		Status:            status,
+		CompletionPercent: completion,
+		EstimatedWeightG:  estimatedWeight,
+		ActualWeightG:     actualWeight,
+		EstimatedLengthMM: item.FilamentUsedMM,
+		PrintDuration:     item.PrintDuration,
+		NozzleTempC:       item.NozzleTempC,
+		BedTempC:          item.BedTempC,
+		Slicer:            item.Slicer,
+		PreviewImagePath:  item.PreviewImagePath,
+		PrintedAt:         printedAt,
+		CreatedAt:         time.Now(),
+	}
+	if job.ModelName == "" {
+		job.ModelName = modelNameFromGcode(item.GcodeFilename)
+	}
+	if err := s.prints.Create(ctx, job); err != nil {
+		return nil, fmt.Errorf("creating print from printer history: %w", err)
+	}
+	return job, nil
+}
+
+func (s *PrinterService) enrichHistoryJob(ctx context.Context, printer domain.Printer, job *domain.PrinterHistoryJob) {
+	if s.jobClient == nil || job == nil || job.GcodeFilename == "" {
+		return
+	}
+	metadata, err := s.jobClient.FetchMetadata(ctx, printer, job.GcodeFilename)
+	if err != nil || metadata == nil {
+		return
+	}
+	if metadata.FilamentWeightG > 0 {
+		job.EstimatedWeightG = metadata.FilamentWeightG
+	}
+	if metadata.PrintDuration > 0 && job.PrintDuration == 0 {
+		job.PrintDuration = metadata.PrintDuration
+	}
+	if metadata.NozzleTempC > 0 {
+		job.NozzleTempC = metadata.NozzleTempC
+	}
+	if metadata.BedTempC > 0 {
+		job.BedTempC = metadata.BedTempC
+	}
+	if metadata.Slicer != "" {
+		job.Slicer = metadata.Slicer
+	}
+	if metadata.PreviewImagePath != "" {
+		job.PreviewImagePath = metadata.PreviewImagePath
+	}
+}
+
+func (s *PrinterService) checkFilament(ctx context.Context, printer domain.Printer, spoolID string, metadata *domain.GcodeMetadata) (domain.FilamentCheck, error) {
+	if spoolID == "" {
+		spoolID = printer.ActiveSpoolID
+	}
+	if spoolID == "" {
+		return domain.FilamentCheck{}, fmt.Errorf("spool is required before starting a print")
+	}
+	spool, err := s.spools.GetByID(ctx, spoolID)
+	if err != nil {
+		return domain.FilamentCheck{}, fmt.Errorf("getting spool: %w", err)
+	}
+	used, err := s.spools.GetUsedWeight(ctx, spoolID)
+	if err != nil {
+		return domain.FilamentCheck{}, fmt.Errorf("getting spool used weight: %w", err)
+	}
+	required := metadata.FilamentWeightG
+	if required == 0 && metadata.FilamentLengthMM > 0 {
+		required = gcode.WeightFromLength(metadata.FilamentLengthMM, spool.DiameterMM, spool.DensityGCM3)
+	}
+	remaining := spool.RemainingWeightG(used)
+	check := domain.FilamentCheck{
+		RequiredWeightG:  required,
+		RemainingBeforeG: remaining,
+		RemainingAfterG:  remaining - required,
+	}
+	if check.RemainingAfterG < 0 {
+		check.RemainingAfterG = 0
+	}
+	if required > remaining {
+		check.Blocked = true
+		check.Warning = fmt.Sprintf("not enough filament: need %.1fg, remaining %.1fg", required, remaining)
+		return check, nil
+	}
+	if remaining-required < lowFilamentWarningG {
+		check.Warning = fmt.Sprintf("low filament after print: %.1fg remaining", remaining-required)
+	}
+	return check, nil
+}
+
+const lowFilamentWarningG = 50.0
 
 func validateMoonrakerURL(raw string) error {
 	parsed, err := url.Parse(strings.TrimSpace(raw))
@@ -181,4 +751,21 @@ func modelNameFromGcode(filename string) string {
 		base = strings.TrimSuffix(base, ext)
 	}
 	return base
+}
+
+func printJobFingerprint(filename string, printedAt time.Time) string {
+	if filename == "" || printedAt.IsZero() {
+		return ""
+	}
+	return fmt.Sprintf("%s:%d", filename, printedAt.Truncate(time.Minute).Unix())
+}
+
+func newestPrintTime(jobs []domain.PrintJob) time.Time {
+	var newest time.Time
+	for _, job := range jobs {
+		if job.PrintedAt.After(newest) {
+			newest = job.PrintedAt
+		}
+	}
+	return newest
 }

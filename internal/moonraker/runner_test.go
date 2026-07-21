@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"sync"
 	"testing"
+	"time"
 
 	"awesomeProject/internal/domain"
 )
@@ -37,6 +38,7 @@ func (c *blockingConn) Close() error {
 type countingDialer struct {
 	count  int
 	conn   Conn
+	err    error
 	dialed chan struct{}
 }
 
@@ -44,6 +46,9 @@ func (d *countingDialer) Dial(context.Context, domain.Printer) (Conn, error) {
 	d.count++
 	if d.dialed != nil {
 		d.dialed <- struct{}{}
+	}
+	if d.err != nil {
+		return nil, d.err
 	}
 	return d.conn, nil
 }
@@ -70,7 +75,7 @@ func TestRunnerStartsEnabledMoonrakerPrinters(t *testing.T) {
 	if dialer.count != 1 {
 		t.Fatalf("dial count = %d, want 1", dialer.count)
 	}
-	if err := runner.Stop(t.Context()); err != nil {
+	if err := runner.Stop(); err != nil {
 		t.Fatalf("Stop: %v", err)
 	}
 }
@@ -106,7 +111,7 @@ func TestRunnerSyncStartsNewPrinters(t *testing.T) {
 	if dialer.count != 2 {
 		t.Fatalf("dial count = %d, want 2", dialer.count)
 	}
-	if err := runner.Stop(t.Context()); err != nil {
+	if err := runner.Stop(); err != nil {
 		t.Fatalf("Stop: %v", err)
 	}
 }
@@ -130,7 +135,66 @@ func TestRunnerSyncStopsDisabledPrinters(t *testing.T) {
 	if err := runner.Sync(t.Context()); err != nil {
 		t.Fatalf("Sync: %v", err)
 	}
-	if err := runner.Stop(t.Context()); err != nil {
+	if err := runner.Stop(); err != nil {
 		t.Fatalf("Stop: %v", err)
 	}
+}
+
+func TestRunnerMarksPrinterOfflineWhenMonitorFails(t *testing.T) {
+	dialed := make(chan struct{}, 1)
+	sink := &fakeSink{}
+	statusUpdated := make(chan struct{}, 1)
+	runner := NewRunner(
+		&fakePrinterLister{printers: []domain.Printer{
+			{
+				ID:          "printer",
+				Name:        "Printer",
+				Kind:        domain.PrinterKindMoonraker,
+				Enabled:     true,
+				State:       domain.PrinterStatePrinting,
+				CurrentFile: "part.gcode",
+				Progress:    0.5,
+			},
+		}},
+		sink,
+		&countingDialer{err: errors.New("dial failed"), dialed: dialed},
+	)
+	runner.Logger = slog.New(slog.DiscardHandler)
+	runner.Sink = runnerSinkFunc(func(ctx context.Context, printer *domain.Printer) error {
+		err := sink.UpdateStatus(ctx, printer)
+		statusUpdated <- struct{}{}
+		return err
+	})
+
+	if err := runner.Start(t.Context()); err != nil {
+		t.Fatalf("Start: %v", err)
+	}
+	<-dialed
+
+	select {
+	case <-statusUpdated:
+	case <-time.After(time.Second):
+		t.Fatal("timed out waiting for offline status")
+	}
+
+	if err := runner.Stop(); err != nil {
+		t.Fatalf("Stop: %v", err)
+	}
+	if len(sink.statuses) != 1 {
+		t.Fatalf("statuses = %+v", sink.statuses)
+	}
+	status := sink.statuses[0]
+	if status.State != domain.PrinterStateOffline || status.CurrentFile != "" || status.Progress != 0 || status.LastSeenAt.IsZero() {
+		t.Fatalf("offline status = %+v", status)
+	}
+}
+
+type runnerSinkFunc func(context.Context, *domain.Printer) error
+
+func (f runnerSinkFunc) UpdateStatus(ctx context.Context, printer *domain.Printer) error {
+	return f(ctx, printer)
+}
+
+func (f runnerSinkFunc) RecordPrinterPrint(context.Context, domain.PrinterPrintEvent) (*domain.PrintJob, error) {
+	return &domain.PrintJob{}, nil
 }

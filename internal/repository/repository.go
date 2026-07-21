@@ -28,6 +28,7 @@ type PrintJobRepository interface {
 	GetByID(ctx context.Context, id string) (*domain.PrintJob, error)
 	List(ctx context.Context, filter PrintJobFilter) ([]domain.PrintJob, error)
 	UpdateSpool(ctx context.Context, jobID, spoolID string) error
+	UpdateUsage(ctx context.Context, jobID string, estimatedWeightG, actualWeightG, estimatedLengthMM float64, completionPercent int) error
 	GetStats(ctx context.Context, filter StatsFilter) (*PrintStats, error)
 }
 
@@ -37,6 +38,7 @@ type PrintJobFilter struct {
 	Status    *domain.PrintStatus
 	From      *time.Time
 	To        *time.Time
+	Limit     int
 }
 
 type PrinterRepository interface {
@@ -46,6 +48,11 @@ type PrinterRepository interface {
 	Update(ctx context.Context, printer *domain.Printer) error
 	AssignSpool(ctx context.Context, printerID, spoolID string) error
 	UpdateStatus(ctx context.Context, printer *domain.Printer) error
+}
+
+type PrinterModelRepository interface {
+	SaveForPrinter(ctx context.Context, printerID string, models []domain.PrinterModelFile) error
+	List(ctx context.Context, printerID *string) ([]domain.PrinterModelFile, error)
 }
 
 type StatsFilter struct {
