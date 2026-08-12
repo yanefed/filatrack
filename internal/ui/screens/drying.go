@@ -62,8 +62,7 @@ func NewDryingScreen(ctx context.Context, dryingSvc *service.DryingService, spoo
 	scrolled.SetChild(listBox)
 	box.Append(scrolled)
 
-	var refreshDrying func()
-	refreshDrying = func() {
+	var refreshDrying = func() {
 		clearListBox(listBox)
 
 		notArchived := false

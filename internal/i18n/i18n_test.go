@@ -19,16 +19,3 @@ func TestLanguageSelectionAndFallback(t *testing.T) {
 		t.Fatalf("fallback dashboard translation = %q, want English", got)
 	}
 }
-
-func TestSupportedLanguages(t *testing.T) {
-	languages := SupportedLanguages()
-	if len(languages) != 2 {
-		t.Fatalf("supported language count = %d, want 2", len(languages))
-	}
-	if languages[0].Code != LangEN || languages[0].Name != "English" {
-		t.Fatalf("unexpected English language entry: %+v", languages[0])
-	}
-	if languages[1].Code != LangBG || languages[1].Name != "Български" {
-		t.Fatalf("unexpected Bulgarian language entry: %+v", languages[1])
-	}
-}

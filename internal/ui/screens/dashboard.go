@@ -11,7 +11,7 @@ import (
 )
 
 // NewDashboard создаёт экран сводной статистики и предупреждений о сушке.
-func NewDashboard(ctx context.Context, spoolSvc *service.SpoolService, printSvc *service.PrintService, dryingSvc *service.DryingService) (*gtk.Box, func()) {
+func NewDashboard(ctx context.Context, spoolSvc *service.SpoolService, printSvc *service.PrintService) (*gtk.Box, func()) {
 	t := i18n.L()
 
 	box := gtk.NewBox(gtk.OrientationVertical, 12)

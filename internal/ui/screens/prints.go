@@ -1,13 +1,12 @@
 package screens
 
 import (
-	"context"
-	"fmt"
-
 	"awesomeProject/internal/domain"
 	"awesomeProject/internal/i18n"
 	"awesomeProject/internal/repository"
 	"awesomeProject/internal/service"
+	"context"
+	"fmt"
 
 	"github.com/diamondburned/gotk4/pkg/gio/v2"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
@@ -41,7 +40,7 @@ func NewPrintsScreen(ctx context.Context, printSvc *service.PrintService, printe
 	emptyLabel.SetVisible(false)
 	box.Append(emptyLabel)
 
-	listView, updatePrintsList := newVirtualPrintsList(t, ctx, printSvc, messageLabel, onChanged)
+	listView, updatePrintsList := newVirtualPrintsList(t, ctx, printSvc, messageLabel)
 
 	scrolled := gtk.NewScrolledWindow()
 	scrolled.SetVExpand(true)

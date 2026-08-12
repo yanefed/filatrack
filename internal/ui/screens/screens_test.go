@@ -1,16 +1,15 @@
 package screens
 
 import (
+	"awesomeProject/internal/domain"
+	"awesomeProject/internal/i18n"
+	"awesomeProject/internal/repository/sqlite"
+	"awesomeProject/internal/service"
 	"context"
 	"fmt"
 	"runtime"
 	"testing"
 	"time"
-
-	"awesomeProject/internal/domain"
-	"awesomeProject/internal/i18n"
-	"awesomeProject/internal/repository/sqlite"
-	"awesomeProject/internal/service"
 
 	"github.com/diamondburned/gotk4/pkg/glib/v2"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
@@ -56,7 +55,7 @@ func TestScreenConstructorsWithRealServices(t *testing.T) {
 		t.Fatalf("creating drying session: %v", err)
 	}
 
-	dashboard, refreshDashboard := NewDashboard(ctx, spoolSvc, printSvc, dryingSvc)
+	dashboard, refreshDashboard := NewDashboard(ctx, spoolSvc, printSvc)
 	spools, refreshSpools := NewSpoolsScreen(ctx, spoolSvc, settingsSvc, func() {})
 	prints, refreshPrints, refreshPrintsLive := NewPrintsScreen(ctx, printSvc, printerSvc, spoolSvc, func() {})
 	models, refreshModels := NewModelsScreen(ctx, printerSvc, spoolSvc, settingsSvc, func() {})
@@ -98,7 +97,7 @@ func TestLargeListsAreVirtualized(t *testing.T) {
 	message := gtk.NewLabel("")
 	modelsView, updateModels := newVirtualModelsList(translations, context.Background(), nil, nil, message, nil)
 	updateModels(models, nil, nil)
-	printsView, updatePrints := newVirtualPrintsList(translations, context.Background(), nil, message, nil)
+	printsView, updatePrints := newVirtualPrintsList(translations, context.Background(), nil, message)
 	updatePrints(jobs, nil)
 
 	window := gtk.NewWindow()

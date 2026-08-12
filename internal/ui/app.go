@@ -36,7 +36,7 @@ func NewApp(spools *service.SpoolService, prints *service.PrintService, dryings 
 
 // Run запускает GTK4-приложение.
 func (a *App) Run() error {
-	app := adw.NewApplication("com.filatrack.app", gio.ApplicationFlagsNone)
+	app := adw.NewApplication("com.filatrack.app", gio.ApplicationDefaultFlags)
 	app.ConnectActivate(func() {
 		a.activate(app)
 	})
@@ -142,7 +142,7 @@ func (a *App) activate(app *adw.Application) {
 		refreshSettingsDependencies := func() { markDirty("spools", "drying") }
 		refreshModelDependencies := func() { markDirty("dashboard", "printers") }
 
-		dashboardPage, refreshDashboard := screens.NewDashboard(ctx, a.SpoolService, a.PrintService, a.DryingService)
+		dashboardPage, refreshDashboard := screens.NewDashboard(ctx, a.SpoolService, a.PrintService)
 		stack.AddTitled(dashboardPage, "dashboard", t.Dashboard)
 
 		spoolsPage, refreshSpools := screens.NewSpoolsScreen(ctx, a.SpoolService, a.SettingsService, refreshSpoolDependencies)
