@@ -65,13 +65,7 @@ func NewDryingScreen(ctx context.Context, dryingSvc *service.DryingService, spoo
 
 	var refreshDrying func()
 	refreshDrying = func() {
-		for {
-			row := listBox.RowAtIndex(0)
-			if row == nil {
-				break
-			}
-			listBox.Remove(row)
-		}
+		clearListBox(listBox)
 
 		notArchived := false
 		spools, err := spoolSvc.List(ctx, repository.SpoolFilter{Archived: &notArchived})

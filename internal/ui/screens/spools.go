@@ -66,13 +66,7 @@ func NewSpoolsScreen(ctx context.Context, spoolSvc *service.SpoolService, settin
 	var refreshSpools func()
 	refreshSpools = func() {
 		refreshMaterialChoices()
-		for {
-			row := listBox.RowAtIndex(0)
-			if row == nil {
-				break
-			}
-			listBox.Remove(row)
-		}
+		clearListBox(listBox)
 
 		notArchived := false
 		spools, err := spoolSvc.List(ctx, repository.SpoolFilter{Archived: &notArchived})
@@ -273,7 +267,7 @@ func showEditSpoolDialog(ctx context.Context, spoolSvc *service.SpoolService, se
 		if err := spoolSvc.Update(ctx, &updated); err != nil {
 			return
 		}
-		dialog.Close()
+		dialog.Destroy()
 		if onSave != nil {
 			onSave()
 		}

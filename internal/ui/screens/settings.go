@@ -108,13 +108,7 @@ func NewSettingsScreen(ctx context.Context, settingsSvc *service.SettingsService
 
 	var refreshProfiles func()
 	refreshProfiles = func() {
-		for {
-			row := profilesList.RowAtIndex(0)
-			if row == nil {
-				break
-			}
-			profilesList.Remove(row)
-		}
+		clearListBox(profilesList)
 
 		profiles, err := settingsSvc.ListDryingProfiles(ctx)
 		if err != nil {
@@ -166,13 +160,7 @@ func NewSettingsScreen(ctx context.Context, settingsSvc *service.SettingsService
 
 	var refreshMaterials func()
 	refreshMaterials = func() {
-		for {
-			row := matList.RowAtIndex(0)
-			if row == nil {
-				break
-			}
-			matList.Remove(row)
-		}
+		clearListBox(matList)
 
 		allMats, err := settingsSvc.AllMaterials(ctx)
 		if err != nil {
@@ -338,13 +326,13 @@ func showEditProfileDialog(ctx context.Context, settingsSvc *service.SettingsSer
 			return
 		}
 		onSave()
-		dialog.Close()
+		dialog.Destroy()
 	})
 	btnRow.Append(saveBtn)
 
 	cancelBtn := gtk.NewButtonWithLabel(i18n.L().Close)
 	cancelBtn.ConnectClicked(func() {
-		dialog.Close()
+		dialog.Destroy()
 	})
 	btnRow.Append(cancelBtn)
 

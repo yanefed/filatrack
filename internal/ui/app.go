@@ -8,6 +8,7 @@ import (
 	"os"
 
 	"github.com/diamondburned/gotk4-adwaita/pkg/adw"
+	coreglib "github.com/diamondburned/gotk4/pkg/core/glib"
 	"github.com/diamondburned/gotk4/pkg/gdk/v4"
 	"github.com/diamondburned/gotk4/pkg/gio/v2"
 	"github.com/diamondburned/gotk4/pkg/glib/v2"
@@ -46,7 +47,7 @@ func (a *App) Run() error {
 }
 
 func (a *App) activate(app *adw.Application) {
-	ctx := context.Background()
+	ctx, cancel := context.WithCancel(context.Background())
 
 	installAppCSS()
 
@@ -57,8 +58,22 @@ func (a *App) activate(app *adw.Application) {
 	refreshActive := func(bool) {}
 	refreshLive := func() {}
 	activePage := "dashboard"
+	var currentContent *adw.ToolbarView
+	var currentStack *gtk.Stack
+	var visibleChildHandle coreglib.SignalHandle
 	var rebuildUI func()
 	rebuildUI = func() {
+		// Signal closures hold their Go captures as long as their GObject lives.
+		// Release the previous root before building the translated replacement.
+		if currentStack != nil {
+			currentStack.HandlerDisconnect(visibleChildHandle)
+			currentStack = nil
+		}
+		if currentContent != nil {
+			window.SetContent(nil)
+			currentContent = nil
+		}
+
 		t := i18n.L()
 
 		stack := gtk.NewStack()
@@ -170,8 +185,10 @@ func (a *App) activate(app *adw.Application) {
 		toolbarView.SetContent(splitView)
 
 		window.SetContent(toolbarView)
+		currentContent = toolbarView
+		currentStack = stack
 		stack.SetVisibleChildName(activePage)
-		stack.NotifyProperty("visible-child-name", func() {
+		visibleChildHandle = stack.NotifyProperty("visible-child-name", func() {
 			activePage = stack.VisibleChildName()
 			refreshActive(false)
 		})
@@ -181,13 +198,20 @@ func (a *App) activate(app *adw.Application) {
 	window.SetVisible(true)
 
 	// Периодическое обновление данных каждые 5 минут
-	glib.TimeoutSecondsAdd(300, func() bool {
+	refreshTimer := glib.TimeoutSecondsAdd(300, func() bool {
 		refreshActive(true)
 		return true
 	})
-	glib.TimeoutSecondsAdd(2, func() bool {
+	liveTimer := glib.TimeoutSecondsAdd(2, func() bool {
 		refreshLive()
 		return true
+	})
+	window.ConnectDestroy(func() {
+		cancel()
+		glib.SourceRemove(refreshTimer)
+		glib.SourceRemove(liveTimer)
+		refreshActive = func(bool) {}
+		refreshLive = func() {}
 	})
 }
 

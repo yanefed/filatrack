@@ -274,7 +274,7 @@ func showPrintLaunchDialog(t i18n.T, ctx context.Context, printerSvc *service.Pr
 	actions := gtk.NewBox(gtk.OrientationHorizontal, 8)
 	cancelBtn := gtk.NewButtonWithLabel(t.Cancel)
 	cancelBtn.ConnectClicked(func() {
-		dialog.Close()
+		dialog.Destroy()
 	})
 	actions.Append(cancelBtn)
 
@@ -309,10 +309,13 @@ func showPrintLaunchDialog(t i18n.T, ctx context.Context, printerSvc *service.Pr
 			}
 			result, err = launch(req)
 		}, func() {
+			if closed {
+				return
+			}
 			printBtn.SetSensitive(true)
 			showLaunchResult(t, messageLabel, result, err)
 			if err == nil && result != nil && !result.Filament.Blocked && !result.RequiresUserConfirmation {
-				dialog.Close()
+				dialog.Destroy()
 				if onSuccess != nil {
 					onSuccess()
 				}
