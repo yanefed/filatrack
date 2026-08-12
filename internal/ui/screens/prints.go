@@ -11,7 +11,6 @@ import (
 
 	"github.com/diamondburned/gotk4/pkg/gio/v2"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
-	"github.com/diamondburned/gotk4/pkg/pango"
 )
 
 // NewPrintsScreen создаёт экран истории печатей.
@@ -28,7 +27,6 @@ func NewPrintsScreen(ctx context.Context, printSvc *service.PrintService, printe
 	box.Append(title)
 
 	activeList := newPrintsListBox()
-	listBox := newPrintsListBox()
 
 	messageLabel := gtk.NewLabel("")
 	messageLabel.SetHAlign(gtk.AlignStart)
@@ -36,13 +34,18 @@ func NewPrintsScreen(ctx context.Context, printSvc *service.PrintService, printe
 	messageLabel.SetWrap(true)
 	messageLabel.SetVisible(false)
 	box.Append(messageLabel)
+	box.Append(activeList)
+
+	emptyLabel := gtk.NewLabel(t.NoPrintRecords)
+	emptyLabel.AddCSSClass("dim-label")
+	emptyLabel.SetVisible(false)
+	box.Append(emptyLabel)
+
+	listView, updatePrintsList := newVirtualPrintsList(t, ctx, printSvc, messageLabel, onChanged)
 
 	scrolled := gtk.NewScrolledWindow()
 	scrolled.SetVExpand(true)
-	listContainer := gtk.NewBox(gtk.OrientationVertical, 0)
-	listContainer.Append(activeList)
-	listContainer.Append(listBox)
-	scrolled.SetChild(listContainer)
+	scrolled.SetChild(listView)
 	box.Append(scrolled)
 
 	var printers []domain.Printer
@@ -83,14 +86,6 @@ func NewPrintsScreen(ctx context.Context, printSvc *service.PrintService, printe
 		}
 	}
 	refreshPrints = func() {
-		oldListBox := listBox
-		listBox = newPrintsListBox()
-		listContainer.Remove(oldListBox)
-		listContainer.Append(listBox)
-		if oldListBox != nil {
-			clearListBox(oldListBox)
-		}
-
 		filter := repository.PrintJobFilter{}
 		if len(printers) > 0 {
 			idx := printerCombo.Selected()
@@ -102,100 +97,16 @@ func NewPrintsScreen(ctx context.Context, printSvc *service.PrintService, printe
 		filter.Limit = printsRenderLimit
 		jobs, err := printSvc.List(ctx, filter)
 		if err != nil {
-			label := gtk.NewLabel(fmt.Sprintf("%s: %v", t.ErrorPrefix, err))
-			listBox.Append(label)
+			messageLabel.SetLabel(fmt.Sprintf("%s: %v", t.ErrorPrefix, err))
+			messageLabel.SetVisible(true)
+			updatePrintsList(nil, nil)
+			emptyLabel.SetVisible(false)
 			return
 		}
 		currentSpools := activeSpools(ctx, spoolSvc)
 		activePrintCount = renderActivePrints()
-
-		for _, job := range jobs {
-			job := job
-			statusIcon := "✅"
-			switch job.Status {
-			case "failed":
-				statusIcon = "❌"
-			case "cancelled":
-				statusIcon = "🚫"
-			}
-
-			row := gtk.NewBox(gtk.OrientationHorizontal, 8)
-			row.SetMarginTop(6)
-			row.SetMarginBottom(6)
-
-			if preview := newScaledPreview(job.PreviewImagePath); preview != nil {
-				row.Append(preview)
-			}
-
-			content := gtk.NewBox(gtk.OrientationVertical, 4)
-			content.SetHExpand(true)
-			row.Append(content)
-
-			title := job.ModelName
-			if title == "" {
-				title = job.GcodeFilename
-			}
-			header := gtk.NewLabel(fmt.Sprintf("%s %s", statusIcon, title))
-			header.SetHAlign(gtk.AlignStart)
-			header.SetHExpand(true)
-			header.SetEllipsize(pango.EllipsizeEnd)
-			header.SetMaxWidthChars(80)
-			content.Append(header)
-
-			details := gtk.NewLabel(printJobUsageText(t, job))
-			details.SetHAlign(gtk.AlignStart)
-			details.AddCSSClass("dim-label")
-			content.Append(details)
-
-			if len(currentSpools) > 0 {
-				assignRow := gtk.NewBox(gtk.OrientationHorizontal, 6)
-				assignLabel := gtk.NewLabel(t.SpoolColon)
-				assignLabel.SetHAlign(gtk.AlignStart)
-				assignRow.Append(assignLabel)
-
-				dropdown := gtk.NewDropDown(gtk.NewStringList(spoolChoiceNames(t, currentSpools)), nil)
-				updatingDropdown := true
-				dropdown.SetSelected(selectedSpoolIndex(job.SpoolID, currentSpools))
-				updatingDropdown = false
-				assignRow.Append(dropdown)
-
-				dropdown.NotifyProperty("selected", func() {
-					if updatingDropdown {
-						return
-					}
-					idx := dropdown.Selected()
-					spoolID := ""
-					if idx > 0 {
-						if int(idx-1) >= len(currentSpools) {
-							return
-						}
-						spoolID = currentSpools[idx-1].ID
-					}
-					if spoolID == job.SpoolID {
-						return
-					}
-					if err := printSvc.ChangeSpool(ctx, job.ID, spoolID); err != nil {
-						messageLabel.SetLabel(fmt.Sprintf("%s: %v", t.SaveError, err))
-						messageLabel.SetVisible(true)
-						return
-					}
-					job.SpoolID = spoolID
-					messageLabel.SetVisible(false)
-					if onChanged != nil {
-						onChanged()
-					}
-				})
-				content.Append(assignRow)
-			}
-
-			listBox.Append(row)
-		}
-
-		if activePrintCount == 0 && len(jobs) == 0 {
-			empty := gtk.NewLabel(t.NoPrintRecords)
-			empty.AddCSSClass("dim-label")
-			listBox.Append(empty)
-		}
+		updatePrintsList(jobs, currentSpools)
+		emptyLabel.SetVisible(activePrintCount == 0 && len(jobs) == 0)
 	}
 
 	refreshPrinterChoices := func() {

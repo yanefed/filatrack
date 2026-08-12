@@ -246,7 +246,7 @@ func showEditSpoolDialog(ctx context.Context, spoolSvc *service.SpoolService, se
 	actions := gtk.NewBox(gtk.OrientationHorizontal, 8)
 	cancelBtn := gtk.NewButtonWithLabel(t.Cancel)
 	cancelBtn.ConnectClicked(func() {
-		dialog.Close()
+		dialog.Destroy()
 	})
 	actions.Append(cancelBtn)
 

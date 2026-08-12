@@ -10,7 +10,6 @@ import (
 	"strings"
 
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
-	"github.com/diamondburned/gotk4/pkg/pango"
 )
 
 func NewModelsScreen(ctx context.Context, printerSvc *service.PrinterService, spoolSvc *service.SpoolService, settingsSvc *service.SettingsService, onChanged func()) (*gtk.Box, func()) {
@@ -64,8 +63,11 @@ func NewModelsScreen(ctx context.Context, printerSvc *service.PrinterService, sp
 	refreshModelsBtn := gtk.NewButtonWithLabel(t.RefreshModels)
 	box.Append(refreshModelsBtn)
 
-	modelsList := gtk.NewListBox()
-	modelsList.SetSelectionMode(gtk.SelectionNone)
+	emptyLabel := gtk.NewLabel(t.NoPrinterModels)
+	emptyLabel.AddCSSClass("dim-label")
+	emptyLabel.SetVisible(false)
+	box.Append(emptyLabel)
+	modelsList, updateModelsList := newVirtualModelsList(t, ctx, printerSvc, settingsSvc, messageLabel, onChanged)
 	scrolled := gtk.NewScrolledWindow()
 	scrolled.SetVExpand(true)
 	scrolled.SetChild(modelsList)
@@ -95,10 +97,9 @@ func NewModelsScreen(ctx context.Context, printerSvc *service.PrinterService, sp
 	}
 
 	refreshModels := func() {
-		clearListBox(modelsList)
-		loading := gtk.NewLabel("Loading…")
-		loading.AddCSSClass("dim-label")
-		modelsList.Append(loading)
+		updateModelsList(nil, printers, spools)
+		emptyLabel.SetLabel("Loading…")
+		emptyLabel.SetVisible(true)
 		refreshModelsBtn.SetSensitive(false)
 
 		var models []domain.PrinterModelFile
@@ -107,14 +108,14 @@ func NewModelsScreen(ctx context.Context, printerSvc *service.PrinterService, sp
 			models, err = printerSvc.RefreshAllModels(ctx)
 		}, func() {
 			refreshModelsBtn.SetSensitive(true)
-			clearListBox(modelsList)
 			if err != nil {
-				label := gtk.NewLabel(fmt.Sprintf("%s: %v", t.ErrorPrefix, err))
-				label.SetHAlign(gtk.AlignStart)
-				modelsList.Append(label)
+				emptyLabel.SetLabel(fmt.Sprintf("%s: %v", t.ErrorPrefix, err))
+				emptyLabel.SetVisible(true)
 				return
 			}
-			renderPrinterModels(t, modelsList, messageLabel, printerSvc, settingsSvc, ctx, models, printers, spools, onChanged)
+			emptyLabel.SetLabel(t.NoPrinterModels)
+			emptyLabel.SetVisible(len(models) == 0)
+			updateModelsList(models, printers, spools)
 		})
 	}
 
@@ -140,84 +141,26 @@ func NewModelsScreen(ctx context.Context, printerSvc *service.PrinterService, sp
 	refreshScreen := func() {
 		refreshPrinterChoices()
 		refreshSpoolChoices()
-		clearListBox(modelsList)
-		loading := gtk.NewLabel("Loading…")
-		loading.AddCSSClass("dim-label")
-		modelsList.Append(loading)
+		updateModelsList(nil, printers, spools)
+		emptyLabel.SetLabel("Loading…")
+		emptyLabel.SetVisible(true)
 		var models []domain.PrinterModelFile
 		var err error
 		runAsyncUI(func() {
 			models, err = printerSvc.ListAllModels(ctx)
 		}, func() {
-			clearListBox(modelsList)
 			if err != nil {
-				label := gtk.NewLabel(fmt.Sprintf("%s: %v", t.ErrorPrefix, err))
-				label.SetHAlign(gtk.AlignStart)
-				modelsList.Append(label)
+				emptyLabel.SetLabel(fmt.Sprintf("%s: %v", t.ErrorPrefix, err))
+				emptyLabel.SetVisible(true)
 				return
 			}
-			renderPrinterModels(t, modelsList, messageLabel, printerSvc, settingsSvc, ctx, models, printers, spools, onChanged)
+			emptyLabel.SetLabel(t.NoPrinterModels)
+			emptyLabel.SetVisible(len(models) == 0)
+			updateModelsList(models, printers, spools)
 		})
 	}
 	refreshScreen()
 	return box, refreshScreen
-}
-
-func renderPrinterModels(t i18n.T, list *gtk.ListBox, messageLabel *gtk.Label, printerSvc *service.PrinterService, settingsSvc *service.SettingsService, ctx context.Context, models []domain.PrinterModelFile, printers []domain.Printer, spools []domain.Spool, onChanged func()) {
-	if len(models) == 0 {
-		empty := gtk.NewLabel(t.NoPrinterModels)
-		empty.AddCSSClass("dim-label")
-		list.Append(empty)
-		return
-	}
-	printerNames := printerNamesByID(printers)
-	for _, model := range models {
-		model := model
-		row := gtk.NewBox(gtk.OrientationHorizontal, 8)
-		row.SetMarginTop(4)
-		row.SetMarginBottom(4)
-
-		if preview := newScaledPreview(model.PreviewImagePath); preview != nil {
-			row.Append(preview)
-		}
-
-		textBox := gtk.NewBox(gtk.OrientationVertical, 2)
-		textBox.SetHExpand(true)
-		row.Append(textBox)
-
-		modelName := model.Filename
-		if modelName == "" {
-			modelName = model.Path
-		}
-		nameLabel := gtk.NewLabel(modelName)
-		nameLabel.SetHAlign(gtk.AlignStart)
-		nameLabel.SetHExpand(true)
-		nameLabel.SetEllipsize(pango.EllipsizeEnd)
-		nameLabel.SetMaxWidthChars(80)
-		textBox.Append(nameLabel)
-
-		details := fmt.Sprintf("%s — %.1f g", printerNames[model.PrinterID], model.EstimatedWeightG)
-		if model.PrintDuration > 0 {
-			details = fmt.Sprintf("%s — %s", details, model.PrintDuration.String())
-		}
-		detailsLabel := gtk.NewLabel(details)
-		detailsLabel.SetHAlign(gtk.AlignStart)
-		detailsLabel.AddCSSClass("dim-label")
-		detailsLabel.SetEllipsize(pango.EllipsizeEnd)
-		detailsLabel.SetMaxWidthChars(80)
-		textBox.Append(detailsLabel)
-
-		printBtn := gtk.NewButtonWithLabel(t.PrintModel)
-		printBtn.ConnectClicked(func() {
-			showPrintLaunchDialog(t, ctx, printerSvc, settingsSvc, printers, spools, func(req domain.PrintLaunchRequest) (*domain.PrintLaunchResult, error) {
-				req.SourcePrinterID = model.PrinterID
-				req.GcodeFilename = model.Path
-				return printerSvc.PrintModel(ctx, req)
-			}, messageLabel, onChanged)
-		})
-		row.Append(printBtn)
-		list.Append(row)
-	}
 }
 
 func showPrintLaunchDialog(t i18n.T, ctx context.Context, printerSvc *service.PrinterService, settingsSvc *service.SettingsService, printers []domain.Printer, spools []domain.Spool, launch func(domain.PrintLaunchRequest) (*domain.PrintLaunchResult, error), messageLabel *gtk.Label, onSuccess func()) {
@@ -225,6 +168,10 @@ func showPrintLaunchDialog(t i18n.T, ctx context.Context, printerSvc *service.Pr
 	dialog.SetTitle(t.PrintModelDialog)
 	dialog.SetDefaultSize(360, 220)
 	dialog.SetModal(true)
+	closed := false
+	dialog.ConnectDestroy(func() {
+		closed = true
+	})
 
 	box := gtk.NewBox(gtk.OrientationVertical, 10)
 	box.SetMarginTop(16)

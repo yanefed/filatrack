@@ -5,7 +5,6 @@ import (
 
 	"github.com/diamondburned/gotk4/pkg/gdk/v4"
 	"github.com/diamondburned/gotk4/pkg/gdkpixbuf/v2"
-	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 )
 
 const (
@@ -14,7 +13,7 @@ const (
 	previewHeight     = 72
 )
 
-func newScaledPreview(path string) *gtk.Picture {
+func loadScaledPreviewTexture(path string) *gdk.Texture {
 	if path == "" {
 		return nil
 	}
@@ -26,8 +25,5 @@ func newScaledPreview(path string) *gtk.Picture {
 		return nil
 	}
 	texture := gdk.NewTextureForPixbuf(pixbuf)
-	preview := gtk.NewPictureForPaintable(texture)
-	preview.SetSizeRequest(previewWidth, previewHeight)
-	preview.SetContentFit(gtk.ContentFitContain)
-	return preview
+	return texture
 }
