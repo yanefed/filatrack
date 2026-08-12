@@ -1,14 +1,13 @@
 package screens
 
 import (
-	"context"
-	"fmt"
-	"strconv"
-
 	"awesomeProject/internal/domain"
 	"awesomeProject/internal/i18n"
 	"awesomeProject/internal/repository"
 	"awesomeProject/internal/service"
+	"context"
+	"fmt"
+	"strconv"
 
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 )
@@ -149,10 +148,6 @@ func NewDryingScreen(ctx context.Context, dryingSvc *service.DryingService, spoo
 	durationEntry.SetPlaceholderText(t.DurationHours)
 	formBox.Append(durationEntry)
 
-	notesEntry := gtk.NewEntry()
-	notesEntry.SetPlaceholderText(t.Notes)
-	formBox.Append(notesEntry)
-
 	saveBtn := gtk.NewButtonWithLabel(t.Save)
 	formBox.Append(saveBtn)
 
@@ -176,7 +171,6 @@ func NewDryingScreen(ctx context.Context, dryingSvc *service.DryingService, spoo
 			SpoolID:       spools[idx].ID,
 			TemperatureC:  temp,
 			DurationHours: dur,
-			Notes:         notesEntry.Text(),
 		}
 
 		if err := dryingSvc.Create(ctx, session); err != nil {
@@ -186,7 +180,6 @@ func NewDryingScreen(ctx context.Context, dryingSvc *service.DryingService, spoo
 		formBox.SetVisible(false)
 		tempEntry.SetText("")
 		durationEntry.SetText("")
-		notesEntry.SetText("")
 		refreshDrying()
 		if onChanged != nil {
 			onChanged()

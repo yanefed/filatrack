@@ -61,7 +61,6 @@ type T struct {
 	StatusFailed      string
 	StatusCancelled   string
 	CompletionPercent string
-	Notes             string
 	PrintDate         string
 	EstimatedWeight   string
 	ActualWeight      string
@@ -105,64 +104,66 @@ type T struct {
 	SpoolInfoFmt      string
 
 	// Settings
-	SettingsTitle   string
-	LanguageLabel   string
-	DryingProfiles  string
-	CustomMaterials string
-	AddMaterial     string
-	DeleteMaterial  string
-	MaterialName    string
-	SaveSettings    string
-	BuiltInMaterial string
-	DryingFrequency string
-	Days            string
-	Hours           string
-	Edit            string
-	Delete          string
-	Add             string
-	Close           string
-	RestartNote     string
+	SettingsTitle    string
+	LanguageLabel    string
+	DryingProfiles   string
+	CustomMaterials  string
+	AddMaterial      string
+	DeleteMaterial   string
+	MaterialName     string
+	SaveSettings     string
+	BuiltInMaterial  string
+	DryingFrequency  string
+	Days             string
+	Hours            string
+	Edit             string
+	Delete           string
+	Add              string
+	Close            string
+	DryingRule       string
+	UseDryingRule    string
+	CreateDryingRule string
+	NoDryingRule     string
 
 	// Printers
-	Printers             string
-	AddPrinter           string
-	PrinterName          string
-	MoonrakerURL         string
-	APIKey               string
-	ActiveSpool          string
-	NoPrinters           string
-	UnassignedSpool      string
-	SaveAssignment       string
-	PrinterInfoFmt       string
-	CurrentFileFmt       string
-	AddPrinterError      string
-	AssignPrinterError   string
-	PrinterMonitorNotice string
-	CheckConnection      string
-	ConnectionOK         string
-	ConnectionFailed     string
-	PrinterHistory       string
-	RefreshHistory       string
-	AssignHistoryJob     string
-	StartPrinterFile     string
-	UploadAndPrint       string
-	PrinterFilePath      string
-	LocalGCodePath       string
-	AllowLowFilament     string
-	LaunchBlocked        string
-	LaunchWarning        string
-	LaunchStarted        string
-	LaunchUploaded       string
-	NoPrinterHistory     string
-	HistoryJobFmt        string
-	Jobs                 string
-	Models               string
-	RefreshModels        string
-	NoPrinterModels      string
-	ModelFileFmt         string
-	PrintModel           string
-	PrintModelDialog     string
-	LowFilamentSetting   string
+	Printers           string
+	AddPrinter         string
+	PrinterName        string
+	MoonrakerURL       string
+	APIKey             string
+	ActiveSpool        string
+	NoPrinters         string
+	UnassignedSpool    string
+	SaveAssignment     string
+	PrinterInfoFmt     string
+	CurrentFileFmt     string
+	AddPrinterError    string
+	AssignPrinterError string
+	CheckConnection    string
+	ConnectionOK       string
+	ConnectionFailed   string
+	PrinterHistory     string
+	RefreshHistory     string
+	AssignHistoryJob   string
+	StartPrinterFile   string
+	UploadAndPrint     string
+	PrinterFilePath    string
+	LocalGCodePath     string
+	AllowLowFilament   string
+	LaunchBlocked      string
+	LaunchWarning      string
+	LaunchStarted      string
+	LaunchUploaded     string
+	NoPrinterHistory   string
+	HistoryJobFmt      string
+	Jobs               string
+	Models             string
+	RefreshModels      string
+	NoPrinterModels    string
+	ModelFileFmt       string
+	PrintModel         string
+	PrintModelDialog   string
+	LowFilamentSetting string
 }
 
 var translations = map[Language]T{
@@ -209,7 +210,6 @@ var translations = map[Language]T{
 		StatusFailed:          "Failed",
 		StatusCancelled:       "Cancelled",
 		CompletionPercent:     "Completion %",
-		Notes:                 "Notes",
 		PrintDate:             "Print date",
 		EstimatedWeight:       "Estimated weight",
 		ActualWeight:          "Actual weight",
@@ -260,7 +260,10 @@ var translations = map[Language]T{
 		NetWeightPH:           "Net weight (g)",
 		PricePH:               "Price",
 		SpoolInfoFmt:          "%s — %s %s (%s) — %.0f g / %.0f g (%.0f%%)",
-		RestartNote:           "Language changes apply immediately.",
+		DryingRule:            "Drying rule",
+		UseDryingRule:         "Use selected rule",
+		CreateDryingRule:      "Create a new rule",
+		NoDryingRule:          "No drying rule",
 		Printers:              "Printers",
 		AddPrinter:            "Add Moonraker printer",
 		PrinterName:           "Printer name",
@@ -274,7 +277,6 @@ var translations = map[Language]T{
 		CurrentFileFmt:        "File: %s",
 		AddPrinterError:       "Printer save error",
 		AssignPrinterError:    "Spool assignment error",
-		PrinterMonitorNotice:  "Enabled Moonraker printers are monitored automatically.",
 		CheckConnection:       "Check connection",
 		ConnectionOK:          "Connection OK",
 		ConnectionFailed:      "Connection failed",
@@ -344,7 +346,6 @@ var translations = map[Language]T{
 		StatusFailed:          "Неуспешен",
 		StatusCancelled:       "Отменен",
 		CompletionPercent:     "Завършеност %",
-		Notes:                 "Бележки",
 		PrintDate:             "Дата на печат",
 		EstimatedWeight:       "Очаквано тегло",
 		ActualWeight:          "Действително тегло",
@@ -395,7 +396,10 @@ var translations = map[Language]T{
 		NetWeightPH:           "Тегло нето (г)",
 		PricePH:               "Цена",
 		SpoolInfoFmt:          "%s — %s %s (%s) — %.0f г / %.0f г (%.0f%%)",
-		RestartNote:           "Промените в езика се прилагат веднага.",
+		DryingRule:            "Правило за сушене",
+		UseDryingRule:         "Използвай избраното правило",
+		CreateDryingRule:      "Създай ново правило",
+		NoDryingRule:          "Няма правило за сушене",
 		Printers:              "Принтери",
 		AddPrinter:            "Добави Moonraker принтер",
 		PrinterName:           "Име на принтер",
@@ -409,7 +413,6 @@ var translations = map[Language]T{
 		CurrentFileFmt:        "Файл: %s",
 		AddPrinterError:       "Грешка при запазване на принтер",
 		AssignPrinterError:    "Грешка при свързване на макара",
-		PrinterMonitorNotice:  "Включените Moonraker принтери се наблюдават автоматично.",
 		CheckConnection:       "Провери връзката",
 		ConnectionOK:          "Връзката е успешна",
 		ConnectionFailed:      "Връзката е неуспешна",

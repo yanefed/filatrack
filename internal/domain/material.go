@@ -19,6 +19,11 @@ type DryingProfile struct {
 	MaxDaysNoDry  int
 }
 
+type CustomMaterial struct {
+	Name                  Material
+	DryingProfileMaterial Material
+}
+
 var DefaultDryingProfiles = map[Material]DryingProfile{
 	MaterialPLA:   {Material: MaterialPLA, TemperatureC: 45, DurationHours: 4, MaxDaysNoDry: 30},
 	MaterialPETG:  {Material: MaterialPETG, TemperatureC: 65, DurationHours: 4, MaxDaysNoDry: 14},

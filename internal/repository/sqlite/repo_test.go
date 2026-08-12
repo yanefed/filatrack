@@ -1,11 +1,10 @@
 package sqlite
 
 import (
-	"testing"
-	"time"
-
 	"awesomeProject/internal/domain"
 	"awesomeProject/internal/repository"
+	"testing"
+	"time"
 
 	_ "modernc.org/sqlite"
 )
@@ -234,7 +233,6 @@ func TestDryingRepo_CreateAndGetLast(t *testing.T) {
 		SpoolID:       spool.ID,
 		TemperatureC:  70,
 		DurationHours: 6,
-		Notes:         "test drying",
 		DriedAt:       time.Now(),
 		CreatedAt:     time.Now(),
 	}

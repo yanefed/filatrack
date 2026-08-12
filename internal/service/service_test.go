@@ -133,6 +133,10 @@ type settingsRepoStub struct {
 	addErr          error
 	deletedMaterial string
 	deleteErr       error
+	customBindings  []domain.CustomMaterial
+	boundMaterial   string
+	boundProfile    string
+	ownedProfile    *domain.DryingProfile
 }
 
 func (r *settingsRepoStub) GetSetting(context.Context, string) (string, error) {
@@ -150,12 +154,45 @@ func (r *settingsRepoStub) UpsertDryingProfile(_ context.Context, profile *domai
 	return r.upsertErr
 }
 func (r *settingsRepoStub) DeleteDryingProfile(context.Context, string) error { return nil }
+func (r *settingsRepoStub) GetDryingProfileForMaterial(_ context.Context, material domain.Material) (*domain.DryingProfile, error) {
+	if r.profilesErr != nil {
+		return nil, r.profilesErr
+	}
+	for i := range r.profiles {
+		if r.profiles[i].Material == material {
+			profile := r.profiles[i]
+			return &profile, nil
+		}
+	}
+	for _, binding := range r.customBindings {
+		if binding.Name == material {
+			for i := range r.profiles {
+				if r.profiles[i].Material == binding.DryingProfileMaterial {
+					profile := r.profiles[i]
+					return &profile, nil
+				}
+			}
+		}
+	}
+	return nil, nil
+}
 func (r *settingsRepoStub) ListCustomMaterials(context.Context) ([]string, error) {
 	return r.customMaterials, r.customErr
+}
+func (r *settingsRepoStub) ListCustomMaterialBindings(context.Context) ([]domain.CustomMaterial, error) {
+	return r.customBindings, r.customErr
 }
 func (r *settingsRepoStub) AddCustomMaterial(_ context.Context, name string) error {
 	r.addedMaterial = name
 	return r.addErr
+}
+func (r *settingsRepoStub) SetCustomMaterialDryingProfile(_ context.Context, name, profile string) error {
+	r.boundMaterial, r.boundProfile = name, profile
+	return r.upsertErr
+}
+func (r *settingsRepoStub) UpsertCustomMaterialDryingProfile(_ context.Context, name string, profile *domain.DryingProfile) error {
+	r.boundMaterial, r.boundProfile, r.ownedProfile = name, name, profile
+	return r.upsertErr
 }
 func (r *settingsRepoStub) DeleteCustomMaterial(_ context.Context, name string) error {
 	r.deletedMaterial = name
@@ -411,6 +448,13 @@ func TestSpoolServiceNeedsDrying(t *testing.T) {
 
 	dryings.lastErr = nil
 	dryings.last = nil
+	settings.customBindings = []domain.CustomMaterial{{Name: "Custom", DryingProfileMaterial: domain.MaterialPLA}}
+	customSpool := &domain.Spool{ID: "custom", Material: "Custom"}
+	need, err = service.NeedsDrying(t.Context(), customSpool)
+	if err != nil || !need {
+		t.Fatalf("bound custom material NeedsDrying() = (%v, %v), want true", need, err)
+	}
+	settings.customBindings = nil
 	settings.profilesErr = errors.New("settings unavailable")
 	need, err = service.NeedsDrying(t.Context(), spool)
 	if err != nil || !need {
@@ -1079,6 +1123,10 @@ func TestDryingServiceListAndRecommendations(t *testing.T) {
 	if got := service.GetRecommendation(t.Context(), domain.MaterialPLA); got == nil || got.TemperatureC != 99 {
 		t.Fatalf("custom recommendation = %+v", got)
 	}
+	settings.customBindings = []domain.CustomMaterial{{Name: "Wood", DryingProfileMaterial: domain.MaterialPLA}}
+	if got := service.GetRecommendation(t.Context(), "Wood"); got == nil || got.Material != domain.MaterialPLA || got.TemperatureC != 99 {
+		t.Fatalf("bound custom material recommendation = %+v", got)
+	}
 	settings.profilesErr = errors.New("settings failed")
 	if got := service.GetRecommendation(t.Context(), domain.MaterialPETG); got == nil || got.Material != domain.MaterialPETG {
 		t.Fatalf("fallback recommendation = %+v", got)
@@ -1217,5 +1265,28 @@ func TestSettingsServiceCustomMaterials(t *testing.T) {
 	}
 	if !strings.Contains(service.DeleteCustomMaterial(t.Context(), "PLA").Error(), "built-in") {
 		t.Fatal("built-in deletion error should be descriptive")
+	}
+
+	repo.customErr = nil
+	repo.customBindings = []domain.CustomMaterial{{Name: "Wood", DryingProfileMaterial: domain.MaterialPLA}}
+	repo.profiles = []domain.DryingProfile{{Material: domain.MaterialPLA, TemperatureC: 45, DurationHours: 4, MaxDaysNoDry: 30}}
+	repo.upsertErr = nil
+	if bindings, err := service.ListCustomMaterialBindings(t.Context()); err != nil || len(bindings) != 1 {
+		t.Fatalf("ListCustomMaterialBindings() = (%+v, %v)", bindings, err)
+	}
+	if err := service.BindCustomMaterialDryingProfile(t.Context(), "Wood", domain.MaterialPLA); err != nil || repo.boundMaterial != "Wood" || repo.boundProfile != "PLA" {
+		t.Fatalf("BindCustomMaterialDryingProfile() = %v, binding=%q->%q", err, repo.boundMaterial, repo.boundProfile)
+	}
+	if err := service.BindCustomMaterialDryingProfile(t.Context(), "Wood", "Missing"); err == nil {
+		t.Fatal("expected missing drying profile error")
+	}
+	if err := service.BindCustomMaterialDryingProfile(t.Context(), domain.MaterialPLA, domain.MaterialPETG); err == nil {
+		t.Fatal("expected built-in material binding error")
+	}
+	if err := service.CreateCustomMaterialDryingProfile(t.Context(), "Wood", &domain.DryingProfile{TemperatureC: 48, DurationHours: 7, MaxDaysNoDry: 4}); err != nil {
+		t.Fatalf("CreateCustomMaterialDryingProfile: %v", err)
+	}
+	if repo.ownedProfile == nil || repo.ownedProfile.Material != "Wood" || repo.ownedProfile.TemperatureC != 48 {
+		t.Fatalf("owned profile = %+v", repo.ownedProfile)
 	}
 }

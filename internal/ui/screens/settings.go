@@ -8,6 +8,7 @@ import (
 	"context"
 	"fmt"
 	"strconv"
+	"strings"
 
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 )
@@ -69,12 +70,6 @@ func NewSettingsScreen(ctx context.Context, settingsSvc *service.SettingsService
 	langRow.Append(langDropdown)
 	langRow.Append(langSaveBtn)
 	langSection.Append(langRow)
-
-	langNote := gtk.NewLabel(i18n.L().RestartNote)
-	langNote.SetHAlign(gtk.AlignStart)
-	langNote.AddCSSClass("dim-label")
-	langSection.Append(langNote)
-
 	content.Append(langSection)
 
 	// === Print launch settings ===
@@ -166,6 +161,14 @@ func NewSettingsScreen(ctx context.Context, settingsSvc *service.SettingsService
 		if err != nil {
 			return
 		}
+		bindings, err := settingsSvc.ListCustomMaterialBindings(ctx)
+		if err != nil {
+			return
+		}
+		bindingByMaterial := make(map[domain.Material]domain.Material, len(bindings))
+		for _, binding := range bindings {
+			bindingByMaterial[binding.Name] = binding.DryingProfileMaterial
+		}
 
 		for _, m := range allMats {
 			mat := m
@@ -183,6 +186,27 @@ func NewSettingsScreen(ctx context.Context, settingsSvc *service.SettingsService
 				builtIn.AddCSSClass("dim-label")
 				row.Append(builtIn)
 			} else {
+				profileMaterial := bindingByMaterial[mat]
+				profileText := i18n.L().NoDryingRule
+				if profileMaterial != "" {
+					profileText = fmt.Sprintf("%s: %s", i18n.L().DryingRule, profileMaterial)
+				}
+				profileLabel := gtk.NewLabel(profileText)
+				profileLabel.AddCSSClass("dim-label")
+				row.Append(profileLabel)
+
+				ruleBtn := gtk.NewButtonWithLabel(i18n.L().DryingRule)
+				ruleBtn.ConnectClicked(func() {
+					showCustomMaterialDryingDialog(ctx, settingsSvc, mat, profileMaterial, func() {
+						refreshProfiles()
+						refreshMaterials()
+						if onChanged != nil {
+							onChanged()
+						}
+					})
+				})
+				row.Append(ruleBtn)
+
 				delBtn := gtk.NewButtonWithLabel(i18n.L().Delete)
 				delBtn.ConnectClicked(func() {
 					_ = settingsSvc.DeleteCustomMaterial(ctx, string(mat))
@@ -210,7 +234,7 @@ func NewSettingsScreen(ctx context.Context, settingsSvc *service.SettingsService
 
 	addBtn := gtk.NewButtonWithLabel(i18n.L().AddMaterial)
 	addBtn.ConnectClicked(func() {
-		name := matEntry.Text()
+		name := strings.TrimSpace(matEntry.Text())
 		if name == "" {
 			return
 		}
@@ -222,6 +246,13 @@ func NewSettingsScreen(ctx context.Context, settingsSvc *service.SettingsService
 		if onChanged != nil {
 			onChanged()
 		}
+		showCustomMaterialDryingDialog(ctx, settingsSvc, domain.Material(name), "", func() {
+			refreshProfiles()
+			refreshMaterials()
+			if onChanged != nil {
+				onChanged()
+			}
+		})
 	})
 	addRow.Append(addBtn)
 	matSection.Append(addRow)
@@ -337,6 +368,108 @@ func showEditProfileDialog(ctx context.Context, settingsSvc *service.SettingsSer
 	btnRow.Append(cancelBtn)
 
 	box.Append(btnRow)
+	dialog.SetChild(box)
+	dialog.SetVisible(true)
+}
+
+func showCustomMaterialDryingDialog(ctx context.Context, settingsSvc *service.SettingsService, material, currentProfile domain.Material, onSave func()) {
+	t := i18n.L()
+	dialog := gtk.NewWindow()
+	dialog.SetTitle(fmt.Sprintf("%s — %s", t.DryingRule, material))
+	dialog.SetDefaultSize(440, 360)
+	dialog.SetModal(true)
+
+	box := gtk.NewBox(gtk.OrientationVertical, 10)
+	box.SetMarginTop(16)
+	box.SetMarginBottom(16)
+	box.SetMarginStart(16)
+	box.SetMarginEnd(16)
+
+	profiles, err := settingsSvc.ListDryingProfiles(ctx)
+	if err != nil {
+		profiles = nil
+	}
+	profileNames := make([]string, len(profiles))
+	selected := uint(0)
+	for i, profile := range profiles {
+		profileNames[i] = fmt.Sprintf("%s — %d°C, %.1f %s, %d %s",
+			profile.Material, profile.TemperatureC, profile.DurationHours, t.Hours, profile.MaxDaysNoDry, t.Days)
+		if profile.Material == currentProfile {
+			selected = uint(i)
+		}
+	}
+	existingLabel := gtk.NewLabel(t.UseDryingRule)
+	existingLabel.SetHAlign(gtk.AlignStart)
+	existingLabel.AddCSSClass("title-3")
+	box.Append(existingLabel)
+	profileDropdown := gtk.NewDropDown(gtk.NewStringList(profileNames), nil)
+	profileDropdown.SetSelected(selected)
+	profileDropdown.SetSensitive(len(profiles) > 0)
+	box.Append(profileDropdown)
+	bindBtn := gtk.NewButtonWithLabel(t.UseDryingRule)
+	bindBtn.SetSensitive(len(profiles) > 0)
+	box.Append(bindBtn)
+
+	separator := gtk.NewSeparator(gtk.OrientationHorizontal)
+	box.Append(separator)
+	createLabel := gtk.NewLabel(t.CreateDryingRule)
+	createLabel.SetHAlign(gtk.AlignStart)
+	createLabel.AddCSSClass("title-3")
+	box.Append(createLabel)
+
+	tempEntry := gtk.NewEntry()
+	tempEntry.SetPlaceholderText(t.TemperatureC)
+	box.Append(tempEntry)
+	durationEntry := gtk.NewEntry()
+	durationEntry.SetPlaceholderText(t.DurationHours)
+	box.Append(durationEntry)
+	daysEntry := gtk.NewEntry()
+	daysEntry.SetPlaceholderText(t.MaxDaysNoDry)
+	box.Append(daysEntry)
+	errorLabel := gtk.NewLabel("")
+	errorLabel.SetHAlign(gtk.AlignStart)
+	errorLabel.SetWrap(true)
+	errorLabel.AddCSSClass("dim-label")
+	errorLabel.SetVisible(false)
+	box.Append(errorLabel)
+
+	finish := func(err error) {
+		if err != nil {
+			errorLabel.SetLabel(fmt.Sprintf("%s: %v", t.ErrorPrefix, err))
+			errorLabel.SetVisible(true)
+			return
+		}
+		dialog.Destroy()
+		if onSave != nil {
+			onSave()
+		}
+	}
+	bindBtn.ConnectClicked(func() {
+		idx := profileDropdown.Selected()
+		if int(idx) >= len(profiles) {
+			return
+		}
+		finish(settingsSvc.BindCustomMaterialDryingProfile(ctx, material, profiles[idx].Material))
+	})
+
+	actions := gtk.NewBox(gtk.OrientationHorizontal, 8)
+	createBtn := gtk.NewButtonWithLabel(t.CreateDryingRule)
+	createBtn.ConnectClicked(func() {
+		temperature, _ := strconv.Atoi(tempEntry.Text())
+		duration, _ := strconv.ParseFloat(durationEntry.Text(), 64)
+		days, _ := strconv.Atoi(daysEntry.Text())
+		finish(settingsSvc.CreateCustomMaterialDryingProfile(ctx, material, &domain.DryingProfile{
+			TemperatureC:  temperature,
+			DurationHours: duration,
+			MaxDaysNoDry:  days,
+		}))
+	})
+	actions.Append(createBtn)
+	cancelBtn := gtk.NewButtonWithLabel(t.Cancel)
+	cancelBtn.ConnectClicked(dialog.Destroy)
+	actions.Append(cancelBtn)
+	box.Append(actions)
+
 	dialog.SetChild(box)
 	dialog.SetVisible(true)
 }

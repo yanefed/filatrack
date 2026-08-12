@@ -485,12 +485,34 @@ func TestSettingsRepoCRUD(t *testing.T) {
 	if err != nil || len(materials) != 2 || materials[0] != "HIPS" || materials[1] != "Wood" {
 		t.Fatalf("custom materials = (%+v, %v)", materials, err)
 	}
+	if err := repo.SetCustomMaterialDryingProfile(ctx, "HIPS", "PLA"); err != nil {
+		t.Fatalf("binding existing drying profile: %v", err)
+	}
+	resolved, err := repo.GetDryingProfileForMaterial(ctx, "HIPS")
+	if err != nil || resolved == nil || resolved.Material != domain.MaterialPLA {
+		t.Fatalf("resolved shared profile = (%+v, %v)", resolved, err)
+	}
+	woodProfile := &domain.DryingProfile{Material: "ignored", TemperatureC: 42, DurationHours: 6, MaxDaysNoDry: 5}
+	if err := repo.UpsertCustomMaterialDryingProfile(ctx, "Wood", woodProfile); err != nil {
+		t.Fatalf("creating custom drying profile: %v", err)
+	}
+	resolved, err = repo.GetDryingProfileForMaterial(ctx, "Wood")
+	if err != nil || resolved == nil || resolved.Material != "Wood" || resolved.TemperatureC != 42 {
+		t.Fatalf("resolved owned profile = (%+v, %v)", resolved, err)
+	}
+	bindings, err := repo.ListCustomMaterialBindings(ctx)
+	if err != nil || len(bindings) != 2 || bindings[0].DryingProfileMaterial != "PLA" || bindings[1].DryingProfileMaterial != "Wood" {
+		t.Fatalf("custom material bindings = (%+v, %v)", bindings, err)
+	}
 	if err := repo.DeleteCustomMaterial(ctx, "Wood"); err != nil {
 		t.Fatalf("deleting material: %v", err)
 	}
 	materials, err = repo.ListCustomMaterials(ctx)
 	if err != nil || len(materials) != 1 || materials[0] != "HIPS" {
 		t.Fatalf("materials after delete = (%+v, %v)", materials, err)
+	}
+	if profile, err := repo.GetDryingProfileForMaterial(ctx, "Wood"); err != nil || profile != nil {
+		t.Fatalf("owned profile after material deletion = (%+v, %v)", profile, err)
 	}
 }
 

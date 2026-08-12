@@ -85,21 +85,17 @@ func (s *SpoolService) List(ctx context.Context, filter repository.SpoolFilter) 
 func (s *SpoolService) NeedsDrying(ctx context.Context, spool *domain.Spool) (bool, error) {
 	// Try DB profiles first
 	if s.settings != nil {
-		profiles, err := s.settings.ListDryingProfiles(ctx)
-		if err == nil {
-			for _, p := range profiles {
-				if p.Material == spool.Material {
-					last, err := s.dryings.GetLastDrying(ctx, spool.ID)
-					if err != nil {
-						return false, err
-					}
-					var lastDried time.Time
-					if last != nil {
-						lastDried = last.DriedAt
-					}
-					return domain.NeedsDrying(lastDried, p), nil
-				}
+		profile, err := s.settings.GetDryingProfileForMaterial(ctx, spool.Material)
+		if err == nil && profile != nil {
+			last, err := s.dryings.GetLastDrying(ctx, spool.ID)
+			if err != nil {
+				return false, err
 			}
+			var lastDried time.Time
+			if last != nil {
+				lastDried = last.DriedAt
+			}
+			return domain.NeedsDrying(lastDried, *profile), nil
 		}
 	}
 

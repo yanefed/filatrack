@@ -81,7 +81,11 @@ type SettingsRepository interface {
 	ListDryingProfiles(ctx context.Context) ([]domain.DryingProfile, error)
 	UpsertDryingProfile(ctx context.Context, p *domain.DryingProfile) error
 	DeleteDryingProfile(ctx context.Context, material string) error
+	GetDryingProfileForMaterial(ctx context.Context, material domain.Material) (*domain.DryingProfile, error)
 	ListCustomMaterials(ctx context.Context) ([]string, error)
+	ListCustomMaterialBindings(ctx context.Context) ([]domain.CustomMaterial, error)
 	AddCustomMaterial(ctx context.Context, name string) error
+	SetCustomMaterialDryingProfile(ctx context.Context, name, profileMaterial string) error
+	UpsertCustomMaterialDryingProfile(ctx context.Context, name string, profile *domain.DryingProfile) error
 	DeleteCustomMaterial(ctx context.Context, name string) error
 }

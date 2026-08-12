@@ -69,6 +69,16 @@ func (s *SettingsService) ListDryingProfiles(ctx context.Context) ([]domain.Dryi
 }
 
 func (s *SettingsService) SaveDryingProfile(ctx context.Context, p *domain.DryingProfile) error {
+	if err := validateDryingProfile(p); err != nil {
+		return err
+	}
+	return s.settings.UpsertDryingProfile(ctx, p)
+}
+
+func validateDryingProfile(p *domain.DryingProfile) error {
+	if p == nil {
+		return fmt.Errorf("drying profile is required")
+	}
 	if p.Material == "" {
 		return fmt.Errorf("material is required")
 	}
@@ -81,7 +91,7 @@ func (s *SettingsService) SaveDryingProfile(ctx context.Context, p *domain.Dryin
 	if p.MaxDaysNoDry <= 0 {
 		return fmt.Errorf("max days must be positive")
 	}
-	return s.settings.UpsertDryingProfile(ctx, p)
+	return nil
 }
 
 func (s *SettingsService) AllMaterials(ctx context.Context) ([]domain.Material, error) {
@@ -115,19 +125,46 @@ func (s *SettingsService) DeleteCustomMaterial(ctx context.Context, name string)
 	return s.settings.DeleteCustomMaterial(ctx, name)
 }
 
+func (s *SettingsService) ListCustomMaterialBindings(ctx context.Context) ([]domain.CustomMaterial, error) {
+	return s.settings.ListCustomMaterialBindings(ctx)
+}
+
+func (s *SettingsService) BindCustomMaterialDryingProfile(ctx context.Context, material, profileMaterial domain.Material) error {
+	if s.IsBuiltIn(material) {
+		return fmt.Errorf("material %s is built-in", material)
+	}
+	if profileMaterial == "" {
+		return fmt.Errorf("drying profile is required")
+	}
+	profile, err := s.settings.GetDryingProfileForMaterial(ctx, profileMaterial)
+	if err != nil {
+		return err
+	}
+	if profile == nil {
+		return fmt.Errorf("drying profile %s not found", profileMaterial)
+	}
+	return s.settings.SetCustomMaterialDryingProfile(ctx, string(material), string(profile.Material))
+}
+
+func (s *SettingsService) CreateCustomMaterialDryingProfile(ctx context.Context, material domain.Material, profile *domain.DryingProfile) error {
+	if s.IsBuiltIn(material) {
+		return fmt.Errorf("material %s is built-in", material)
+	}
+	if profile == nil {
+		return fmt.Errorf("drying profile is required")
+	}
+	owned := *profile
+	owned.Material = material
+	if err := validateDryingProfile(&owned); err != nil {
+		return err
+	}
+	return s.settings.UpsertCustomMaterialDryingProfile(ctx, string(material), &owned)
+}
+
 func (s *SettingsService) IsBuiltIn(material domain.Material) bool {
 	return slices.Contains(BuiltInMaterials, material)
 }
 
 func (s *SettingsService) GetDryingProfile(ctx context.Context, material domain.Material) (*domain.DryingProfile, error) {
-	profiles, err := s.settings.ListDryingProfiles(ctx)
-	if err != nil {
-		return nil, err
-	}
-	for _, p := range profiles {
-		if p.Material == material {
-			return &p, nil
-		}
-	}
-	return nil, nil
+	return s.settings.GetDryingProfileForMaterial(ctx, material)
 }

@@ -38,13 +38,9 @@ func (s *DryingService) ListForSpool(ctx context.Context, spoolID string) ([]dom
 
 func (s *DryingService) GetRecommendation(ctx context.Context, material domain.Material) *domain.DryingProfile {
 	if s.settings != nil {
-		profiles, err := s.settings.ListDryingProfiles(ctx)
-		if err == nil {
-			for _, p := range profiles {
-				if p.Material == material {
-					return &p
-				}
-			}
+		profile, err := s.settings.GetDryingProfileForMaterial(ctx, material)
+		if err == nil && profile != nil {
+			return profile
 		}
 	}
 	// Fallback to defaults

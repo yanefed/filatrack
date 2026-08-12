@@ -35,10 +35,9 @@ func (r *DryingRepo) Create(ctx context.Context, session *domain.DryingSession) 
 		session.ID = uuid.New().String()
 	}
 	_, err := r.db.Conn().ExecContext(ctx,
-		`INSERT INTO drying_sessions (id, spool_id, temperature_c, duration_hours, notes, dried_at, created_at)
-		 VALUES (?, ?, ?, ?, ?, ?, ?)`,
-		session.ID, session.SpoolID, session.TemperatureC, session.DurationHours,
-		session.Notes, session.DriedAt, session.CreatedAt,
+		`INSERT INTO drying_sessions (id, spool_id, temperature_c, duration_hours, dried_at, created_at)
+		 VALUES (?, ?, ?, ?, ?, ?)`,
+		session.ID, session.SpoolID, session.TemperatureC, session.DurationHours, session.DriedAt, session.CreatedAt,
 	)
 	if err != nil {
 		return fmt.Errorf("inserting drying session: %w", err)
@@ -48,7 +47,7 @@ func (r *DryingRepo) Create(ctx context.Context, session *domain.DryingSession) 
 
 func (r *DryingRepo) List(ctx context.Context, spoolID string) ([]domain.DryingSession, error) {
 	rows, err := r.db.Conn().QueryContext(ctx,
-		`SELECT id, spool_id, temperature_c, duration_hours, notes, dried_at, created_at
+		`SELECT id, spool_id, temperature_c, duration_hours, dried_at, created_at
 		 FROM drying_sessions WHERE spool_id = ? ORDER BY dried_at DESC`, spoolID)
 	if err != nil {
 		return nil, fmt.Errorf("listing drying sessions: %w", err)
@@ -64,7 +63,7 @@ func (r *DryingRepo) List(ctx context.Context, spoolID string) ([]domain.DryingS
 	for rows.Next() {
 		var s domain.DryingSession
 		if err := rows.Scan(&s.ID, &s.SpoolID, &s.TemperatureC, &s.DurationHours,
-			&s.Notes, &s.DriedAt, &s.CreatedAt); err != nil {
+			&s.DriedAt, &s.CreatedAt); err != nil {
 			return nil, fmt.Errorf("scanning drying session: %w", err)
 		}
 		sessions = append(sessions, s)
@@ -74,12 +73,11 @@ func (r *DryingRepo) List(ctx context.Context, spoolID string) ([]domain.DryingS
 
 func (r *DryingRepo) GetLastDrying(ctx context.Context, spoolID string) (*domain.DryingSession, error) {
 	row := r.db.Conn().QueryRowContext(ctx,
-		`SELECT id, spool_id, temperature_c, duration_hours, notes, dried_at, created_at
+		`SELECT id, spool_id, temperature_c, duration_hours, dried_at, created_at
 		 FROM drying_sessions WHERE spool_id = ? ORDER BY dried_at DESC LIMIT 1`, spoolID)
 
 	var s domain.DryingSession
-	err := row.Scan(&s.ID, &s.SpoolID, &s.TemperatureC, &s.DurationHours,
-		&s.Notes, &s.DriedAt, &s.CreatedAt)
+	err := row.Scan(&s.ID, &s.SpoolID, &s.TemperatureC, &s.DurationHours, &s.DriedAt, &s.CreatedAt)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, nil

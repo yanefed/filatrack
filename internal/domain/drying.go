@@ -7,7 +7,6 @@ type DryingSession struct {
 	SpoolID       string
 	TemperatureC  int
 	DurationHours float64
-	Notes         string
 	DriedAt       time.Time
 	CreatedAt     time.Time
 }

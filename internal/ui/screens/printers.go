@@ -1,13 +1,12 @@
 package screens
 
 import (
-	"context"
-	"fmt"
-	"strings"
-
 	"awesomeProject/internal/domain"
 	"awesomeProject/internal/i18n"
 	"awesomeProject/internal/service"
+	"context"
+	"fmt"
+	"strings"
 
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 )
@@ -25,12 +24,6 @@ func NewPrintersScreen(ctx context.Context, printerSvc *service.PrinterService, 
 	title := gtk.NewLabel(t.Printers)
 	title.AddCSSClass("title-1")
 	box.Append(title)
-
-	notice := gtk.NewLabel(t.PrinterMonitorNotice)
-	notice.SetHAlign(gtk.AlignStart)
-	notice.AddCSSClass("dim-label")
-	notice.SetWrap(true)
-	box.Append(notice)
 
 	list := gtk.NewListBox()
 	list.SetSelectionMode(gtk.SelectionNone)
