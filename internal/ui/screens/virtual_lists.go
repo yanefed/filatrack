@@ -1,12 +1,11 @@
 package screens
 
 import (
-	"context"
-	"fmt"
-
 	"awesomeProject/internal/domain"
 	"awesomeProject/internal/i18n"
 	"awesomeProject/internal/service"
+	"context"
+	"fmt"
 
 	coreglib "github.com/diamondburned/gotk4/pkg/core/glib"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
@@ -158,12 +157,83 @@ type printRowWidgets struct {
 	assignBtn *gtk.Button
 }
 
-func newVirtualPrintsList(t i18n.T, ctx context.Context, printSvc *service.PrintService, messageLabel *gtk.Label, onChanged func()) (*gtk.ListView, func([]domain.PrintJob, []domain.Spool)) {
+func newVirtualPrintsList(t i18n.T, ctx context.Context, printSvc *service.PrintService, messageLabel *gtk.Label) (*gtk.ListView, func([]domain.PrintJob, []domain.Spool)) {
 	state := &printListState{}
 	model := gtk.NewStringList(nil)
 	selection := gtk.NewNoSelection(model)
 	factory := gtk.NewSignalListItemFactory()
 	rows := make(map[uintptr]*printRowWidgets)
+	var activeJobID string
+	var activeButton *gtk.Button
+	var activeRow *gtk.Box
+	chooserModel := gtk.NewStringList(nil)
+	chooser := gtk.NewDropDown(chooserModel, nil)
+	changingSelection := false
+	finishChoosing := func() {
+		if activeRow != nil && chooser.Parent() != nil {
+			activeRow.Remove(chooser)
+			if activeButton != nil {
+				activeRow.Append(activeButton)
+			}
+		}
+		activeJobID = ""
+		activeButton = nil
+		activeRow = nil
+	}
+	chooser.NotifyProperty("selected", func() {
+		if changingSelection || activeJobID == "" {
+			return
+		}
+		idx := chooser.Selected()
+		if idx == gtk.InvalidListPosition || int(idx) > len(state.spools) {
+			return
+		}
+		spoolID := ""
+		if idx > 0 {
+			spoolID = state.spools[idx-1].ID
+		}
+		jobIndex := -1
+		for i := range state.jobs {
+			if state.jobs[i].ID == activeJobID {
+				jobIndex = i
+				break
+			}
+		}
+		if jobIndex < 0 {
+			finishChoosing()
+			return
+		}
+
+		job := &state.jobs[jobIndex]
+		if spoolID == job.SpoolID {
+			finishChoosing()
+			return
+		}
+		if err := printSvc.ChangeSpool(ctx, job.ID, spoolID); err != nil {
+			messageLabel.SetLabel(fmt.Sprintf("%s: %v", t.SaveError, err))
+			messageLabel.SetVisible(true)
+			return
+		}
+		job.SpoolID = spoolID
+		if activeButton != nil {
+			activeButton.SetLabel(printSpoolButtonLabel(t, spoolID, state.spools))
+		}
+		messageLabel.SetVisible(false)
+		finishChoosing()
+	})
+	focus := gtk.NewEventControllerFocus()
+	focus.ConnectLeave(func() {
+		coreglib.IdleAdd(func() {
+			if activeRow != nil && !focus.ContainsFocus() {
+				finishChoosing()
+			}
+		})
+	})
+	chooser.AddController(focus)
+	setChooserSpools := func(spools []domain.Spool) {
+		names := spoolChoiceNames(t, spools)
+		chooserModel.Splice(0, chooserModel.NItems(), names)
+	}
 
 	factory.ConnectSetup(func(object *coreglib.Object) {
 		item := object.Cast().(*gtk.ListItem)
@@ -196,21 +266,39 @@ func newVirtualPrintsList(t i18n.T, ctx context.Context, printSvc *service.Print
 		assignBtn := gtk.NewButtonWithLabel(t.SpoolColon)
 		assignRow.Append(assignBtn)
 		content.Append(assignRow)
+
 		row.Append(content)
 		item.SetChild(row)
 
 		widgets := &printRowWidgets{picture: picture, header: header, details: details, assignRow: assignRow, assignBtn: assignBtn}
 		rows[item.Native()] = widgets
+
 		assignBtn.ConnectClicked(func() {
-			position := item.Position()
-			if int(position) >= len(state.jobs) {
+			widgets := rows[item.Native()]
+			if widgets == nil {
 				return
 			}
-			job := &state.jobs[position]
-			showPrintSpoolPopover(assignBtn, t, ctx, printSvc, job, state.spools, messageLabel, func() {
-				assignBtn.SetLabel(printSpoolButtonLabel(t, job.SpoolID, state.spools))
-				if onChanged != nil {
-					onChanged()
+			position := item.Position()
+			if position == gtk.InvalidListPosition || int(position) >= len(state.jobs) {
+				return
+			}
+
+			if activeRow != nil {
+				finishChoosing()
+			}
+			activeJobID = state.jobs[position].ID
+			activeButton = assignBtn
+			activeRow = widgets.assignRow
+			changingSelection = true
+			chooser.SetSelected(selectedSpoolIndex(state.jobs[position].SpoolID, state.spools))
+			changingSelection = false
+			widgets.assignRow.Remove(assignBtn)
+			widgets.assignRow.Append(chooser)
+			chooser.GrabFocus()
+			coreglib.IdleAdd(func() {
+				if activeRow == widgets.assignRow {
+					chooser.Activate()
+					limitDropDownHeight(chooser, 320)
 				}
 			})
 		})
@@ -246,6 +334,9 @@ func newVirtualPrintsList(t i18n.T, ctx context.Context, printSvc *service.Print
 			widgets.picture.SetVisible(false)
 		}
 		widgets.assignRow.SetVisible(len(state.spools) > 0)
+		if activeButton == widgets.assignBtn {
+			finishChoosing()
+		}
 		widgets.assignBtn.SetLabel(printSpoolButtonLabel(t, job.SpoolID, state.spools))
 	})
 
@@ -264,8 +355,10 @@ func newVirtualPrintsList(t i18n.T, ctx context.Context, printSvc *service.Print
 	view := gtk.NewListView(selection, &factory.ListItemFactory)
 	view.SetVExpand(true)
 	update := func(jobs []domain.PrintJob, spools []domain.Spool) {
+		finishChoosing()
 		state.jobs = jobs
 		state.spools = spools
+		setChooserSpools(spools)
 		keys := make([]string, len(jobs))
 		for i := range jobs {
 			keys[i] = jobs[i].ID
@@ -278,65 +371,19 @@ func newVirtualPrintsList(t i18n.T, ctx context.Context, printSvc *service.Print
 func printSpoolButtonLabel(t i18n.T, spoolID string, spools []domain.Spool) string {
 	for _, spool := range spools {
 		if spool.ID == spoolID {
-			return fmt.Sprintf("%s %s", t.SpoolColon, spoolDisplayName(spool))
+			return fmt.Sprintf(" %s", spoolDisplayName(spool))
 		}
 	}
 	return fmt.Sprintf("%s %s", t.SpoolColon, t.UnassignedSpool)
 }
 
-func showPrintSpoolPopover(anchor *gtk.Button, t i18n.T, ctx context.Context, printSvc *service.PrintService, job *domain.PrintJob, spools []domain.Spool, messageLabel *gtk.Label, onSave func()) {
-	popover := gtk.NewPopover()
-	popover.SetAutohide(true)
-	popover.SetCascadePopdown(false)
-	popover.SetHasArrow(true)
-	popover.SetPosition(gtk.PosBottom)
-	popover.SetParent(anchor)
-	popover.ConnectClosed(popover.Unparent)
-
-	box := gtk.NewBox(gtk.OrientationVertical, 10)
-	box.SetSizeRequest(388, -1)
-	box.SetMarginTop(16)
-	box.SetMarginBottom(16)
-	box.SetMarginStart(16)
-	box.SetMarginEnd(16)
-	title := gtk.NewLabel(t.AssignHistoryJob)
-	title.SetHAlign(gtk.AlignStart)
-	title.AddCSSClass("heading")
-	box.Append(title)
-	dropdown := gtk.NewDropDown(gtk.NewStringList(spoolChoiceNames(t, spools)), nil)
-	dropdown.SetSelected(selectedSpoolIndex(job.SpoolID, spools))
-	box.Append(dropdown)
-
-	actions := gtk.NewBox(gtk.OrientationHorizontal, 8)
-	cancel := gtk.NewButtonWithLabel(t.Cancel)
-	cancel.ConnectClicked(popover.Popdown)
-	actions.Append(cancel)
-	save := gtk.NewButtonWithLabel(t.Save)
-	save.ConnectClicked(func() {
-		idx := dropdown.Selected()
-		spoolID := ""
-		if idx > 0 {
-			if int(idx-1) >= len(spools) {
-				return
-			}
-			spoolID = spools[idx-1].ID
-		}
-		if spoolID != job.SpoolID {
-			if err := printSvc.ChangeSpool(ctx, job.ID, spoolID); err != nil {
-				messageLabel.SetLabel(fmt.Sprintf("%s: %v", t.SaveError, err))
-				messageLabel.SetVisible(true)
-				return
-			}
-			job.SpoolID = spoolID
-			messageLabel.SetVisible(false)
-		}
-		popover.Popdown()
-		if onSave != nil {
-			onSave()
-		}
-	})
-	actions.Append(save)
-	box.Append(actions)
-	popover.SetChild(box)
-	popover.Popup()
+func limitDropDownHeight(root gtk.Widgetter, maxHeight int) {
+	if scrolled, ok := root.(*gtk.ScrolledWindow); ok {
+		scrolled.SetPolicy(gtk.PolicyNever, gtk.PolicyAutomatic)
+		scrolled.SetPropagateNaturalHeight(true)
+		scrolled.SetMaxContentHeight(maxHeight)
+	}
+	for child := gtk.BaseWidget(root).FirstChild(); child != nil; child = gtk.BaseWidget(child).NextSibling() {
+		limitDropDownHeight(child, maxHeight)
+	}
 }

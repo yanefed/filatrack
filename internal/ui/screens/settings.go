@@ -294,7 +294,7 @@ func selectedSpoolIndex(activeSpoolID string, spools []domain.Spool) uint {
 			return uint(i + 1)
 		}
 	}
-	return 0
+	return gtk.InvalidListPosition
 }
 
 func clearListBox(list *gtk.ListBox) {
