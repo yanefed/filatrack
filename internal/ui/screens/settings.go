@@ -21,7 +21,7 @@ func NewSettingsScreen(ctx context.Context, settingsSvc *service.SettingsService
 	box.SetMarginStart(24)
 	box.SetMarginEnd(24)
 
-	title := gtk.NewLabel(i18n.L().SettingsTitle)
+	title := gtk.NewLabel(i18n.L().Settings)
 	title.AddCSSClass("title-1")
 	box.Append(title)
 

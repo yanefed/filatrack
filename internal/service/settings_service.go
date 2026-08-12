@@ -1,15 +1,14 @@
 package service
 
 import (
+	"awesomeProject/internal/domain"
+	"awesomeProject/internal/i18n"
+	"awesomeProject/internal/repository"
 	"context"
 	"fmt"
 	"slices"
 	"strconv"
 	"strings"
-
-	"awesomeProject/internal/domain"
-	"awesomeProject/internal/i18n"
-	"awesomeProject/internal/repository"
 )
 
 // BuiltInMaterials are the default material types that cannot be deleted.
@@ -34,14 +33,14 @@ func (s *SettingsService) GetLanguage(ctx context.Context) i18n.Language {
 		return i18n.LangEN
 	}
 	lang := i18n.Language(val)
-	if lang != i18n.LangEN && lang != i18n.LangBG {
+	if !i18n.IsSupportedLanguage(lang) {
 		return i18n.LangEN
 	}
 	return lang
 }
 
 func (s *SettingsService) SetLanguage(ctx context.Context, lang i18n.Language) error {
-	if lang != i18n.LangEN && lang != i18n.LangBG {
+	if !i18n.IsSupportedLanguage(lang) {
 		return fmt.Errorf("unsupported language: %s", lang)
 	}
 	i18n.SetLanguage(lang)

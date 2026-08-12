@@ -22,7 +22,7 @@ func NewDryingScreen(ctx context.Context, dryingSvc *service.DryingService, spoo
 	box.SetMarginStart(24)
 	box.SetMarginEnd(24)
 
-	title := gtk.NewLabel(t.DryingTitle)
+	title := gtk.NewLabel(t.Drying)
 	title.AddCSSClass("title-1")
 	box.Append(title)
 

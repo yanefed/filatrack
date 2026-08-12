@@ -1,12 +1,11 @@
 package screens
 
 import (
-	"context"
-	"fmt"
-
 	"awesomeProject/internal/i18n"
 	"awesomeProject/internal/repository"
 	"awesomeProject/internal/service"
+	"context"
+	"fmt"
 
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 )
@@ -21,7 +20,7 @@ func NewDashboard(ctx context.Context, spoolSvc *service.SpoolService, printSvc 
 	box.SetMarginStart(24)
 	box.SetMarginEnd(24)
 
-	title := gtk.NewLabel(t.DashboardTitle)
+	title := gtk.NewLabel(t.Dashboard)
 	title.AddCSSClass("title-1")
 	box.Append(title)
 

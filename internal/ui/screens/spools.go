@@ -22,7 +22,7 @@ func NewSpoolsScreen(ctx context.Context, spoolSvc *service.SpoolService, settin
 
 	t := i18n.L()
 
-	title := gtk.NewLabel(t.SpoolsScreenTitle)
+	title := gtk.NewLabel(t.SpoolsTitle)
 	title.AddCSSClass("title-1")
 	box.Append(title)
 
