@@ -207,7 +207,7 @@ func newVirtualPrintsList(t i18n.T, ctx context.Context, printSvc *service.Print
 				return
 			}
 			job := &state.jobs[position]
-			showPrintSpoolDialog(t, ctx, printSvc, job, state.spools, messageLabel, func() {
+			showPrintSpoolPopover(assignBtn, t, ctx, printSvc, job, state.spools, messageLabel, func() {
 				assignBtn.SetLabel(printSpoolButtonLabel(t, job.SpoolID, state.spools))
 				if onChanged != nil {
 					onChanged()
@@ -284,24 +284,32 @@ func printSpoolButtonLabel(t i18n.T, spoolID string, spools []domain.Spool) stri
 	return fmt.Sprintf("%s %s", t.SpoolColon, t.UnassignedSpool)
 }
 
-func showPrintSpoolDialog(t i18n.T, ctx context.Context, printSvc *service.PrintService, job *domain.PrintJob, spools []domain.Spool, messageLabel *gtk.Label, onSave func()) {
-	dialog := gtk.NewWindow()
-	dialog.SetTitle(t.AssignHistoryJob)
-	dialog.SetDefaultSize(420, 140)
-	dialog.SetModal(true)
+func showPrintSpoolPopover(anchor *gtk.Button, t i18n.T, ctx context.Context, printSvc *service.PrintService, job *domain.PrintJob, spools []domain.Spool, messageLabel *gtk.Label, onSave func()) {
+	popover := gtk.NewPopover()
+	popover.SetAutohide(true)
+	popover.SetCascadePopdown(false)
+	popover.SetHasArrow(true)
+	popover.SetPosition(gtk.PosBottom)
+	popover.SetParent(anchor)
+	popover.ConnectClosed(popover.Unparent)
 
 	box := gtk.NewBox(gtk.OrientationVertical, 10)
+	box.SetSizeRequest(388, -1)
 	box.SetMarginTop(16)
 	box.SetMarginBottom(16)
 	box.SetMarginStart(16)
 	box.SetMarginEnd(16)
+	title := gtk.NewLabel(t.AssignHistoryJob)
+	title.SetHAlign(gtk.AlignStart)
+	title.AddCSSClass("heading")
+	box.Append(title)
 	dropdown := gtk.NewDropDown(gtk.NewStringList(spoolChoiceNames(t, spools)), nil)
 	dropdown.SetSelected(selectedSpoolIndex(job.SpoolID, spools))
 	box.Append(dropdown)
 
 	actions := gtk.NewBox(gtk.OrientationHorizontal, 8)
 	cancel := gtk.NewButtonWithLabel(t.Cancel)
-	cancel.ConnectClicked(dialog.Destroy)
+	cancel.ConnectClicked(popover.Popdown)
 	actions.Append(cancel)
 	save := gtk.NewButtonWithLabel(t.Save)
 	save.ConnectClicked(func() {
@@ -322,13 +330,13 @@ func showPrintSpoolDialog(t i18n.T, ctx context.Context, printSvc *service.Print
 			job.SpoolID = spoolID
 			messageLabel.SetVisible(false)
 		}
-		dialog.Destroy()
+		popover.Popdown()
 		if onSave != nil {
 			onSave()
 		}
 	})
 	actions.Append(save)
 	box.Append(actions)
-	dialog.SetChild(box)
-	dialog.SetVisible(true)
+	popover.SetChild(box)
+	popover.Popup()
 }
