@@ -43,6 +43,7 @@ if ($InstallDependencies) {
         "mingw-w64-ucrt-x86_64-gcc",
         "mingw-w64-ucrt-x86_64-binutils",
         "mingw-w64-ucrt-x86_64-pkgconf",
+        "mingw-w64-ucrt-x86_64-gobject-introspection",
         "mingw-w64-ucrt-x86_64-gtk4",
         "mingw-w64-ucrt-x86_64-libadwaita"
     )
