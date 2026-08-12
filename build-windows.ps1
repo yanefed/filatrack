@@ -7,6 +7,9 @@ Builds a portable 64-bit Windows bundle of FilaTrack with GTK 4/libadwaita.
 
 .EXAMPLE
 .\build-windows.ps1 -Console
+
+.EXAMPLE
+.\build-windows.ps1 -InstallDependencies -Installer
 #>
 [CmdletBinding()]
 param(
@@ -15,7 +18,8 @@ param(
     [switch]$InstallDependencies,
     [switch]$IncludeLocales,
     [switch]$Console,
-    [switch]$Archive
+    [switch]$Archive,
+    [switch]$Installer
 )
 
 $ErrorActionPreference = "Stop"
@@ -28,10 +32,15 @@ $UcrtBin = Join-Path $UcrtRoot "bin"
 $Bash = Join-Path $MSYS2Root "usr\bin\bash.exe"
 $Pacman = Join-Path $MSYS2Root "usr\bin\pacman.exe"
 $Go = Join-Path $UcrtBin "go.exe"
+$GoRoot = Join-Path $UcrtRoot "lib\go"
 $Gcc = Join-Path $UcrtBin "gcc.exe"
 $PkgConfig = Join-Path $UcrtBin "pkg-config.exe"
 $ObjDump = Join-Path $UcrtBin "objdump.exe"
 $PixbufQuery = Join-Path $UcrtBin "gdk-pixbuf-query-loaders.exe"
+$RsvgConvert = Join-Path $UcrtBin "rsvg-convert.exe"
+$IcoTool = Join-Path $UcrtBin "icotool.exe"
+$WindRes = Join-Path $UcrtBin "windres.exe"
+$MakeNsis = Join-Path $UcrtBin "makensis.exe"
 
 if (-not (Test-Path $Pacman)) {
     throw "MSYS2 was not found in '$MSYS2Root'. Install it from https://www.msys2.org/ or pass -MSYS2Root."
@@ -44,6 +53,9 @@ if ($InstallDependencies) {
         "mingw-w64-ucrt-x86_64-binutils",
         "mingw-w64-ucrt-x86_64-pkgconf",
         "mingw-w64-ucrt-x86_64-gobject-introspection",
+        "mingw-w64-ucrt-x86_64-librsvg",
+        "mingw-w64-ucrt-x86_64-icoutils",
+        "mingw-w64-ucrt-x86_64-nsis",
         "mingw-w64-ucrt-x86_64-gtk4",
         "mingw-w64-ucrt-x86_64-libadwaita"
     )
@@ -54,7 +66,10 @@ if ($InstallDependencies) {
     }
 }
 
-$RequiredTools = @($Go, $Gcc, $PkgConfig, $ObjDump, $PixbufQuery)
+$RequiredTools = @($Go, $Gcc, $PkgConfig, $ObjDump, $PixbufQuery, $RsvgConvert, $IcoTool, $WindRes)
+if ($Installer) {
+    $RequiredTools += $MakeNsis
+}
 foreach ($Tool in $RequiredTools) {
     if (-not (Test-Path $Tool)) {
         throw "Required tool '$Tool' is missing. Run this script once with -InstallDependencies."
@@ -77,17 +92,46 @@ if (Test-Path $OutputPath) {
 New-Item -ItemType Directory -Path $OutputPath | Out-Null
 
 $OldPath = $env:PATH
+$OldGOROOT = $env:GOROOT
 $OldCGO = $env:CGO_ENABLED
 $OldGOOS = $env:GOOS
 $OldGOARCH = $env:GOARCH
 $OldCC = $env:CC
 $OldPKGConfigPath = $env:PKG_CONFIG_PATH
 
+$BuildTemp = Join-Path $DistRoot ".build-windows"
+$IconPath = Join-Path $BuildTemp "FilaTrack.ico"
+$ResourceObject = Join-Path $ProjectRoot "cmd\filatrack\filatrack_windows.syso"
 try {
+    # windres invokes GCC as its preprocessor, so UCRT64 must already be on PATH.
+    $env:PATH = "$UcrtBin;$($env:PATH)"
+    if (Test-Path $BuildTemp) {
+        Remove-Item -LiteralPath $BuildTemp -Recurse -Force
+    }
+    New-Item -ItemType Directory -Path $BuildTemp | Out-Null
+
+# Render the existing application artwork at several native Windows icon sizes.
+$IconPngs = @()
+foreach ($Size in @(16, 32, 48, 64, 128, 256)) {
+    $PngPath = Join-Path $BuildTemp "icon-$Size.png"
+    & $RsvgConvert -w $Size -h $Size -o $PngPath (Join-Path $ProjectRoot "packaging\com.filatrack.app.svg")
+    if ($LASTEXITCODE -ne 0) { throw "rsvg-convert failed with exit code $LASTEXITCODE" }
+    $IconPngs += $PngPath
+}
+& $IcoTool -c -o $IconPath @IconPngs
+if ($LASTEXITCODE -ne 0) { throw "icotool failed with exit code $LASTEXITCODE" }
+
+$ResourceScript = Join-Path $BuildTemp "filatrack.rc"
+$ResourceIconPath = $IconPath.Replace("\", "/")
+[IO.File]::WriteAllText($ResourceScript, "1 ICON `"$ResourceIconPath`"`r`n", [Text.UTF8Encoding]::new($false))
+& $WindRes --target=pe-x86-64 -i $ResourceScript -o $ResourceObject
+if ($LASTEXITCODE -ne 0) { throw "windres failed with exit code $LASTEXITCODE" }
+
     $env:PATH = "$UcrtBin;$($env:PATH)"
     $env:CGO_ENABLED = "1"
     $env:GOOS = "windows"
     $env:GOARCH = "amd64"
+    $env:GOROOT = $GoRoot
     $env:CC = $Gcc
     $env:PKG_CONFIG_PATH = (Join-Path $UcrtRoot "lib\pkgconfig") + ";" + (Join-Path $UcrtRoot "share\pkgconfig")
 
@@ -222,6 +266,49 @@ exit /b !ERRORLEVEL!
 '@
     [IO.File]::WriteAllText($LauncherPath, $Launcher, [Text.UTF8Encoding]::new($false))
 
+    # GUI launcher for installed shortcuts. Unlike the CMD launcher, WScript can
+    # prepare the GTK environment and start the app without flashing a console.
+    $GuiLauncherPath = Join-Path $OutputPath "Run-FilaTrack.vbs"
+    $GuiLauncher = @'
+Option Explicit
+
+Dim shell, fso, appDir, env, pixbufRoot, folder, subfolder, cacheDir, command, argument
+Set shell = CreateObject("WScript.Shell")
+Set fso = CreateObject("Scripting.FileSystemObject")
+appDir = fso.GetParentFolderName(WScript.ScriptFullName)
+Set env = shell.Environment("Process")
+
+env("XDG_DATA_DIRS") = appDir & "\share;" & env("XDG_DATA_DIRS")
+env("GSETTINGS_SCHEMA_DIR") = appDir & "\share\glib-2.0\schemas"
+env("FONTCONFIG_PATH") = appDir & "\etc\fonts"
+
+pixbufRoot = appDir & "\lib\gdk-pixbuf-2.0"
+If fso.FolderExists(pixbufRoot) Then
+    Set folder = fso.GetFolder(pixbufRoot)
+    For Each subfolder In folder.SubFolders
+        If fso.FolderExists(subfolder.Path & "\loaders") Then
+            env("GDK_PIXBUF_MODULEDIR") = subfolder.Path & "\loaders"
+            Exit For
+        End If
+    Next
+End If
+
+If env("GDK_PIXBUF_MODULEDIR") <> "" Then
+    cacheDir = env("LOCALAPPDATA") & "\FilaTrack"
+    If env("LOCALAPPDATA") = "" Then cacheDir = env("TEMP") & "\FilaTrack"
+    If Not fso.FolderExists(cacheDir) Then fso.CreateFolder(cacheDir)
+    env("GDK_PIXBUF_MODULE_FILE") = cacheDir & "\loaders.cache"
+    shell.Run Chr(34) & appDir & "\gdk-pixbuf-query-loaders.exe" & Chr(34) & " --update-cache", 0, True
+End If
+
+command = Chr(34) & appDir & "\FilaTrack.exe" & Chr(34)
+For Each argument In WScript.Arguments
+    command = command & " " & Chr(34) & Replace(argument, Chr(34), Chr(34) & Chr(34)) & Chr(34)
+Next
+shell.Run command, 0, False
+'@
+    [IO.File]::WriteAllText($GuiLauncherPath, $GuiLauncher, [Text.UTF8Encoding]::new($false))
+
     if ($Archive) {
         $ArchivePath = Join-Path $DistRoot "FilaTrack-windows-amd64.zip"
         if (Test-Path $ArchivePath) {
@@ -231,9 +318,26 @@ exit /b !ERRORLEVEL!
         Write-Host "Archive created: $ArchivePath"
     }
 
+    if ($Installer) {
+        $InstallerPath = Join-Path $DistRoot "FilaTrack-Setup.exe"
+        $NsisScript = Join-Path $ProjectRoot "packaging\windows-installer.nsi"
+        & $MakeNsis "/DAPP_DIR=$OutputPath" "/DOUTPUT_FILE=$InstallerPath" "/DAPP_ICON=$IconPath" $NsisScript
+        if ($LASTEXITCODE -ne 0) {
+            throw "makensis failed with exit code $LASTEXITCODE"
+        }
+        Write-Host "Installer created: $InstallerPath"
+    }
+
     Write-Host "Windows bundle created: $OutputPath"
 } finally {
+    if (Test-Path $ResourceObject) {
+        Remove-Item -LiteralPath $ResourceObject -Force
+    }
+    if (Test-Path $BuildTemp) {
+        Remove-Item -LiteralPath $BuildTemp -Recurse -Force
+    }
     $env:PATH = $OldPath
+    $env:GOROOT = $OldGOROOT
     $env:CGO_ENABLED = $OldCGO
     $env:GOOS = $OldGOOS
     $env:GOARCH = $OldGOARCH
