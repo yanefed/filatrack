@@ -8,6 +8,7 @@ type Language string
 const (
 	LangEN Language = "en"
 	LangBG Language = "bg"
+	LangRU Language = "ru"
 )
 
 // T holds all translatable strings.
@@ -111,6 +112,7 @@ type T struct {
 var translations = map[Language]T{
 	LangEN: langEn,
 	LangBG: langBg,
+	LangRU: langRu,
 }
 
 var (
@@ -153,6 +155,7 @@ func SupportedLanguages() []struct {
 	}{
 		{LangEN, "English"},
 		{LangBG, "Български"},
+		{LangRU, "Русский"},
 	}
 }
 func IsSupportedLanguage(lang Language) bool {
