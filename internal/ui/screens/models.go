@@ -206,11 +206,18 @@ func showPrintLaunchDialog(t i18n.T, ctx context.Context, printerSvc *service.Pr
 	}
 	spoolCombo := gtk.NewDropDown(gtk.NewStringList(spoolNames), nil)
 	setSpoolFromSelectedPrinter := func() {
-		idx := printerCombo.Selected()
-		if int(idx) >= len(printers) {
+		printerIndex := printerCombo.Selected()
+		if int(printerIndex) >= len(printers) {
 			return
 		}
-		spoolCombo.SetSelected(selectedSpoolIndex(printers[idx].ActiveSpoolID, spools))
+		activeSpoolID := printers[printerIndex].ActiveSpoolID
+		for spoolIndex, spool := range spools {
+			if spool.ID == activeSpoolID {
+				spoolCombo.SetSelected(uint(spoolIndex))
+				return
+			}
+		}
+		spoolCombo.SetSelected(gtk.InvalidListPosition)
 	}
 	setSpoolFromSelectedPrinter()
 	printerCombo.NotifyProperty("selected", func() {
