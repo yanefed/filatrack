@@ -14,7 +14,6 @@ var langRu = T{
 	SpoolNeedsDrying:      "требует сушки",
 	DryingWarnings:        "Напоминания о сушке",
 	StatsUnavailable:      "Статистика недоступна",
-	SpoolsTitle:           "Катушки",
 	Save:                  "Сохранить",
 	Cancel:                "Отмена",
 	Archive:               "Удалить",

@@ -14,7 +14,6 @@ var langEn = T{
 	SpoolNeedsDrying:      "needs drying",
 	DryingWarnings:        "Drying warnings",
 	StatsUnavailable:      "Statistics unavailable",
-	SpoolsTitle:           "Spools",
 	Save:                  "Save",
 	Cancel:                "Cancel",
 	Archive:               "Archive",

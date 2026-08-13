@@ -14,7 +14,6 @@ var langBg = T{
 	SpoolNeedsDrying:      "нуждае се от сушене",
 	DryingWarnings:        "Предупреждения за сушене",
 	StatsUnavailable:      "Статистиката не е налична",
-	SpoolsTitle:           "Макари",
 	Save:                  "Запази",
 	Cancel:                "Отказ",
 	Archive:               "Архивирай",

@@ -31,7 +31,6 @@ type T struct {
 	StatsUnavailable string
 
 	// Spools
-	SpoolsTitle    string
 	Save           string
 	Cancel         string
 	Archive        string
