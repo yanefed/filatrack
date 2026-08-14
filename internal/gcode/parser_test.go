@@ -315,6 +315,16 @@ func TestParseFilamentWeightAlt(t *testing.T) {
 	}
 }
 
+func TestParseElegooMalformedFilamentWeight(t *testing.T) {
+	meta, err := Parse(strings.NewReader("; Filament weight = .20.84.\n"))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if meta.FilamentWeightG != 20.84 {
+		t.Fatalf("filament weight: got %f, want 20.84", meta.FilamentWeightG)
+	}
+}
+
 func TestParseDurationWithDays(t *testing.T) {
 	got := parseDuration("1d 5h 30m 10s")
 	want := 29*time.Hour + 30*time.Minute + 10*time.Second

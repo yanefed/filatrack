@@ -235,6 +235,7 @@ type printerJobClientStub struct {
 	startErr      error
 	downloaded    string
 	downloadErr   error
+	downloadData  []byte
 	uploadedPath  string
 	uploadedLocal string
 	uploadErr     error
@@ -281,7 +282,11 @@ func (c *printerJobClientStub) DownloadFile(_ context.Context, _ domain.Printer,
 	if c.downloadErr != nil {
 		return c.downloadErr
 	}
-	return os.WriteFile(localPath, []byte("G28\n"), 0o644)
+	data := c.downloadData
+	if data == nil {
+		data = []byte("G28\n")
+	}
+	return os.WriteFile(localPath, data, 0o644)
 }
 
 func (c *printerJobClientStub) UploadAndStart(_ context.Context, _ domain.Printer, localPath string) (domain.PrinterUploadResult, error) {
@@ -292,6 +297,7 @@ func (c *printerJobClientStub) UploadAndStart(_ context.Context, _ domain.Printe
 func (r *printerModelRepoStub) SaveForPrinter(_ context.Context, printerID string, models []domain.PrinterModelFile) error {
 	r.savedPrinterID = printerID
 	r.saved = append([]domain.PrinterModelFile(nil), models...)
+	r.list = append([]domain.PrinterModelFile(nil), models...)
 	return r.saveErr
 }
 
@@ -788,6 +794,49 @@ func TestPrinterServiceRefreshModelsSavesCache(t *testing.T) {
 	}
 }
 
+func TestPrinterServiceRefreshModelsCalculatesWeightFromLength(t *testing.T) {
+	printers := &printerRepoStub{printer: &domain.Printer{ID: "printer-1", ActiveSpoolID: "spool-1"}}
+	spools := &spoolRepoStub{spool: &domain.Spool{ID: "spool-1", DiameterMM: 1.75, DensityGCM3: 1.25}}
+	client := &printerJobClientStub{
+		models:   []domain.PrinterModelFile{{PrinterID: "printer-1", Path: "from-app.gcode", Filename: "from-app.gcode"}},
+		metadata: &domain.GcodeMetadata{Filename: "from-app.gcode", FilamentLengthMM: 6931.39},
+	}
+	service := NewPrinterService(printers, spools, &printRepoStub{})
+	service.SetJobClient(client)
+
+	models, err := service.RefreshModels(t.Context(), "printer-1")
+	if err != nil {
+		t.Fatalf("RefreshModels: %v", err)
+	}
+	want := gcode.WeightFromLength(6931.39, 1.75, 1.25)
+	if len(models) != 1 || math.Abs(models[0].EstimatedWeightG-want) > 0.001 {
+		t.Fatalf("models = %+v, want weight %.3f", models, want)
+	}
+}
+
+func TestPrinterServiceRefreshModelsParsesDownloadedFileWhenMoonrakerHasNoFilamentMetadata(t *testing.T) {
+	printers := &printerRepoStub{printer: &domain.Printer{ID: "printer-1"}}
+	client := &printerJobClientStub{
+		models:   []domain.PrinterModelFile{{PrinterID: "printer-1", Path: "elegoo.gcode", Filename: "elegoo.gcode"}},
+		metadata: &domain.GcodeMetadata{Filename: "elegoo.gcode", PrintDuration: time.Hour},
+		downloadData: []byte("; CURA_FILAMENT_WEIGHT_PLACEHOLDER\n" +
+			"G28\n" +
+			"; filament used [mm] = 19323.08\n" +
+			"; filament used [g] = 58.10\n" +
+			"; estimated printing time (normal mode) = 1h 43m 7s\n"),
+	}
+	service := NewPrinterService(printers, &spoolRepoStub{}, &printRepoStub{})
+	service.SetJobClient(client)
+
+	models, err := service.RefreshModels(t.Context(), "printer-1")
+	if err != nil {
+		t.Fatalf("RefreshModels: %v", err)
+	}
+	if len(models) != 1 || models[0].EstimatedWeightG != 58.10 || !strings.HasPrefix(client.downloaded, "elegoo.gcode>") {
+		t.Fatalf("models=%+v downloaded=%q", models, client.downloaded)
+	}
+}
+
 func TestPrinterServiceListModelsReadsCache(t *testing.T) {
 	cache := &printerModelRepoStub{list: []domain.PrinterModelFile{{PrinterID: "printer-1", Path: "cached.gcode"}}}
 	client := &printerJobClientStub{modelsErr: errors.New("remote must not be called")}
@@ -1069,7 +1118,9 @@ func TestPrinterServiceUploadAndStartLocalFileChecksFilament(t *testing.T) {
 	spools := &spoolRepoStub{spool: &domain.Spool{ID: "spool-1", TotalWeightG: 100, DiameterMM: 1.75, DensityGCM3: 1.24}, used: 10}
 	client := &printerJobClientStub{uploadedPath: "small.gcode"}
 	service := NewPrinterService(printers, spools, &printRepoStub{})
+	cache := &printerModelRepoStub{}
 	service.SetJobClient(client)
+	service.SetModelCache(cache)
 
 	result, err := service.UploadAndStartLocalFile(t.Context(), domain.PrintLaunchRequest{PrinterID: "printer-1", LocalPath: path})
 	if err != nil {
@@ -1077,6 +1128,9 @@ func TestPrinterServiceUploadAndStartLocalFileChecksFilament(t *testing.T) {
 	}
 	if !result.Uploaded || !result.Started || client.uploadedLocal != path || result.Filament.RequiredWeightG != 10 {
 		t.Fatalf("upload result=%+v client=%+v", result, client)
+	}
+	if len(cache.saved) != 1 || cache.saved[0].Path != "small.gcode" || cache.saved[0].EstimatedWeightG != 10 {
+		t.Fatalf("cached models = %+v", cache.saved)
 	}
 }
 

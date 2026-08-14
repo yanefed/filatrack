@@ -261,15 +261,49 @@ func (s *PrinterService) RefreshModels(ctx context.Context, printerID string) ([
 	if err != nil {
 		return nil, err
 	}
-	for i := range models {
-		metadata, err := s.jobClient.FetchMetadata(ctx, *printer, models[i].Path)
-		if err != nil || metadata == nil {
-			continue
+	cachedByPath := make(map[string]domain.PrinterModelFile)
+	if s.models != nil {
+		cached, cacheErr := s.models.List(ctx, &printerID)
+		if cacheErr == nil {
+			for _, model := range cached {
+				cachedByPath[model.Path] = model
+			}
 		}
-		models[i].EstimatedWeightG = metadata.FilamentWeightG
-		models[i].PrintDuration = metadata.PrintDuration
-		models[i].Slicer = metadata.Slicer
-		models[i].PreviewImagePath = metadata.PreviewImagePath
+	}
+	diameterMM, densityGCM3 := s.modelFilamentProperties(ctx, printer)
+	for i := range models {
+		if cached, ok := cachedByPath[models[i].Path]; ok {
+			models[i].EstimatedWeightG = cached.EstimatedWeightG
+			models[i].PrintDuration = cached.PrintDuration
+			models[i].Slicer = cached.Slicer
+			models[i].PreviewImagePath = cached.PreviewImagePath
+		}
+		metadata, _ := s.jobClient.FetchMetadata(ctx, *printer, models[i].Path)
+		if metadata == nil {
+			metadata = &domain.GcodeMetadata{Filename: models[i].Path}
+		}
+		if metadata.FilamentWeightG <= 0 && metadata.FilamentLengthMM <= 0 && models[i].EstimatedWeightG <= 0 {
+			localMetadata, downloadErr := s.downloadModelMetadata(ctx, *printer, models[i].Path)
+			if downloadErr == nil {
+				mergeMissingGcodeMetadata(metadata, localMetadata)
+			}
+		}
+		weightG := metadata.FilamentWeightG
+		if weightG <= 0 && metadata.FilamentLengthMM > 0 {
+			weightG = gcode.WeightFromLength(metadata.FilamentLengthMM, diameterMM, densityGCM3)
+		}
+		if weightG > 0 {
+			models[i].EstimatedWeightG = weightG
+		}
+		if metadata.PrintDuration > 0 {
+			models[i].PrintDuration = metadata.PrintDuration
+		}
+		if metadata.Slicer != "" {
+			models[i].Slicer = metadata.Slicer
+		}
+		if metadata.PreviewImagePath != "" {
+			models[i].PreviewImagePath = metadata.PreviewImagePath
+		}
 	}
 	if s.models != nil {
 		if err := s.models.SaveForPrinter(ctx, printerID, models); err != nil {
@@ -278,6 +312,65 @@ func (s *PrinterService) RefreshModels(ctx context.Context, printerID string) ([
 		return s.models.List(ctx, &printerID)
 	}
 	return models, nil
+}
+
+func (s *PrinterService) modelFilamentProperties(ctx context.Context, printer *domain.Printer) (float64, float64) {
+	diameterMM := 1.75
+	densityGCM3 := domain.DefaultDensities[domain.MaterialPLA]
+	if printer.ActiveSpoolID == "" {
+		return diameterMM, densityGCM3
+	}
+
+	spool, err := s.spools.GetByID(ctx, printer.ActiveSpoolID)
+	if err != nil || spool == nil {
+		return diameterMM, densityGCM3
+	}
+	if spool.DiameterMM > 0 {
+		diameterMM = spool.DiameterMM
+	}
+	if spool.DensityGCM3 > 0 {
+		densityGCM3 = spool.DensityGCM3
+	}
+	return diameterMM, densityGCM3
+}
+
+func (s *PrinterService) downloadModelMetadata(ctx context.Context, printer domain.Printer, filename string) (*domain.GcodeMetadata, error) {
+	tmpDir, err := os.MkdirTemp("", "filatrack-model-metadata-*")
+	if err != nil {
+		return nil, fmt.Errorf("creating model metadata cache: %w", err)
+	}
+	defer func() {
+		if removeErr := os.RemoveAll(tmpDir); removeErr != nil {
+			s.logger.Warn("removing model metadata cache failed", "path", tmpDir, "error", removeErr)
+		}
+	}()
+
+	localPath := filepath.Join(tmpDir, filepath.Base(filename))
+	if err := s.jobClient.DownloadFile(ctx, printer, filename, localPath); err != nil {
+		return nil, err
+	}
+	return gcode.ParseFile(localPath)
+}
+
+func mergeMissingGcodeMetadata(target, fallback *domain.GcodeMetadata) {
+	if target == nil || fallback == nil {
+		return
+	}
+	if target.FilamentWeightG <= 0 {
+		target.FilamentWeightG = fallback.FilamentWeightG
+	}
+	if target.FilamentLengthMM <= 0 {
+		target.FilamentLengthMM = fallback.FilamentLengthMM
+	}
+	if target.PrintDuration <= 0 {
+		target.PrintDuration = fallback.PrintDuration
+	}
+	if target.Slicer == "" {
+		target.Slicer = fallback.Slicer
+	}
+	if target.PreviewImagePath == "" {
+		target.PreviewImagePath = fallback.PreviewImagePath
+	}
 }
 
 func (s *PrinterService) ListAllModels(ctx context.Context) ([]domain.PrinterModelFile, error) {
@@ -570,7 +663,49 @@ func (s *PrinterService) UploadAndStartLocalFile(ctx context.Context, req domain
 	result.Uploaded = true
 	result.Started = uploaded.PrintStarted
 	result.Queued = uploaded.PrintQueued
+	if err := s.cacheUploadedModel(ctx, printer.ID, uploaded.Path, req.LocalPath, metadata); err != nil {
+		s.logger.Warn("caching uploaded model metadata failed", "printer_id", printer.ID, "path", uploaded.Path, "error", err)
+	}
 	return result, nil
+}
+
+func (s *PrinterService) cacheUploadedModel(ctx context.Context, printerID, uploadedPath, localPath string, metadata *domain.GcodeMetadata) error {
+	if s.models == nil || metadata == nil {
+		return nil
+	}
+	if uploadedPath == "" {
+		uploadedPath = filepath.Base(localPath)
+	}
+	models, err := s.models.List(ctx, &printerID)
+	if err != nil {
+		return err
+	}
+	model := domain.PrinterModelFile{
+		PrinterID:        printerID,
+		Path:             uploadedPath,
+		Filename:         filepath.Base(uploadedPath),
+		EstimatedWeightG: metadata.FilamentWeightG,
+		PrintDuration:    metadata.PrintDuration,
+		Slicer:           metadata.Slicer,
+		PreviewImagePath: metadata.PreviewImagePath,
+		CachedAt:         time.Now(),
+	}
+	if info, statErr := os.Stat(localPath); statErr == nil {
+		model.ModifiedAt = info.ModTime()
+		model.SizeBytes = info.Size()
+	}
+	updated := false
+	for i := range models {
+		if models[i].Path == uploadedPath {
+			models[i] = model
+			updated = true
+			break
+		}
+	}
+	if !updated {
+		models = append(models, model)
+	}
+	return s.models.SaveForPrinter(ctx, printerID, models)
 }
 
 func (s *PrinterService) updateExistingHistoryUsage(ctx context.Context, local domain.PrintJob, item domain.PrinterHistoryJob) error {

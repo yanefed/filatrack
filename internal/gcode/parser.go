@@ -26,7 +26,7 @@ var (
 
 	// Вес филамента: "filament used [g] = 20.5" или "Filament weight = 20.5" или "filament_weight = 20.5"
 	reFilamentWeightG    = regexp.MustCompile(`(?i)filament\s+used\s*\[g\]\s*=\s*([\d.]+)`)
-	reFilamentWeightAlt  = regexp.MustCompile(`(?i)filament[\s_]weight\s*=\s*([\d.]+)`)
+	reFilamentWeightAlt  = regexp.MustCompile(`(?i)filament[\s_]weight\s*=\s*\.?([\d]+(?:\.[\d]+)?)`)
 	reFilamentUsedGCura  = regexp.MustCompile(`(?i)filament\s+used\s*:\s*([\d.]+)\s*g`)
 	reFilamentCostWeight = regexp.MustCompile(`(?i)filament\s+weight\s*=\s*([\d.]+)`)
 
