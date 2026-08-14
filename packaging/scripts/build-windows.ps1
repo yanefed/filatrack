@@ -3,18 +3,18 @@
 Builds a portable 64-bit Windows bundle of FilaTrack with GTK 4/libadwaita.
 
 .EXAMPLE
-.\build-windows.ps1 -InstallDependencies -Archive
+go run ./cmd/build windows -InstallDependencies -Archive
 
 .EXAMPLE
-.\build-windows.ps1 -Console
+go run ./cmd/build windows -Console
 
 .EXAMPLE
-.\build-windows.ps1 -InstallDependencies -Installer
+go run ./cmd/build windows -InstallDependencies -Installer
 #>
 [CmdletBinding()]
 param(
     [string]$MSYS2Root = $(if ($env:MSYS2_ROOT) { $env:MSYS2_ROOT } else { "C:\msys64" }),
-    [string]$OutputDir = "dist\FilaTrack-windows-amd64",
+    [string]$OutputDir = "",
     [switch]$InstallDependencies,
     [switch]$IncludeLocales,
     [switch]$Console,
@@ -25,7 +25,23 @@ param(
 $ErrorActionPreference = "Stop"
 Set-StrictMode -Version Latest
 
-$ProjectRoot = $PSScriptRoot
+$ProjectRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot "..\.."))
+if (-not $env:FILATRACK_BUILD_MANAGED) {
+    throw "Run this script through: go run ./cmd/build windows"
+}
+$AppName = $env:FILATRACK_APP_NAME
+$AppId = $env:FILATRACK_APP_ID
+$Version = $env:FILATRACK_VERSION
+$WindowsVersion = $env:FILATRACK_WINDOWS_VERSION
+if (-not $AppName -or -not $AppId -or -not $Version -or -not $WindowsVersion) {
+    throw "Application metadata is missing from the build environment."
+}
+$ExeName = "$AppName.exe"
+$LauncherName = "Run-$AppName.cmd"
+$GuiLauncherName = "Run-$AppName.vbs"
+if (-not $OutputDir) {
+    $OutputDir = "dist\$AppName-$Version-windows-amd64"
+}
 $MSYS2Root = [IO.Path]::GetFullPath($MSYS2Root)
 $UcrtRoot = Join-Path $MSYS2Root "ucrt64"
 $UcrtBin = Join-Path $UcrtRoot "bin"
@@ -100,7 +116,7 @@ $OldCC = $env:CC
 $OldPKGConfigPath = $env:PKG_CONFIG_PATH
 
 $BuildTemp = Join-Path $DistRoot ".build-windows"
-$IconPath = Join-Path $BuildTemp "FilaTrack.ico"
+$IconPath = Join-Path $BuildTemp "$AppName.ico"
 $ResourceObject = Join-Path $ProjectRoot "cmd\filatrack\filatrack_windows.syso"
 try {
     # windres invokes GCC as its preprocessor, so UCRT64 must already be on PATH.
@@ -114,7 +130,7 @@ try {
 $IconPngs = @()
 foreach ($Size in @(16, 32, 48, 64, 128, 256)) {
     $PngPath = Join-Path $BuildTemp "icon-$Size.png"
-    & $RsvgConvert -w $Size -h $Size -o $PngPath (Join-Path $ProjectRoot "packaging\com.filatrack.app.svg")
+    & $RsvgConvert -w $Size -h $Size -o $PngPath (Join-Path $ProjectRoot "packaging\$AppId.svg")
     if ($LASTEXITCODE -ne 0) { throw "rsvg-convert failed with exit code $LASTEXITCODE" }
     $IconPngs += $PngPath
 }
@@ -135,9 +151,9 @@ if ($LASTEXITCODE -ne 0) { throw "windres failed with exit code $LASTEXITCODE" }
     $env:CC = $Gcc
     $env:PKG_CONFIG_PATH = (Join-Path $UcrtRoot "lib\pkgconfig") + ";" + (Join-Path $UcrtRoot "share\pkgconfig")
 
-    $ExePath = Join-Path $OutputPath "FilaTrack.exe"
+    $ExePath = Join-Path $OutputPath $ExeName
     $LdFlags = if ($Console) { "-s -w" } else { "-s -w -H=windowsgui" }
-    Write-Host "Building FilaTrack.exe..."
+    Write-Host "Building $ExeName..."
     Push-Location $ProjectRoot
     try {
         & $Go build -trimpath -ldflags $LdFlags -o $ExePath ./cmd/filatrack
@@ -241,7 +257,7 @@ if ($LASTEXITCODE -ne 0) { throw "windres failed with exit code $LASTEXITCODE" }
 
     # The pixbuf loader cache contains absolute paths. Generate it on the target
     # machine so the bundle remains relocatable after extracting the archive.
-    $LauncherPath = Join-Path $OutputPath "Run-FilaTrack.cmd"
+    $LauncherPath = Join-Path $OutputPath $LauncherName
     $Launcher = @'
 @echo off
 setlocal EnableExtensions EnableDelayedExpansion
@@ -255,20 +271,21 @@ for /d %%D in ("!APPDIR!lib\gdk-pixbuf-2.0\*") do (
 )
 
 if defined GDK_PIXBUF_MODULEDIR (
-    if defined LOCALAPPDATA (set "FILATRACK_CACHE=!LOCALAPPDATA!\FilaTrack") else (set "FILATRACK_CACHE=!TEMP!\FilaTrack")
+    if defined LOCALAPPDATA (set "FILATRACK_CACHE=!LOCALAPPDATA!\__APP_NAME__") else (set "FILATRACK_CACHE=!TEMP!\__APP_NAME__")
     if not exist "!FILATRACK_CACHE!" mkdir "!FILATRACK_CACHE!" >nul 2>&1
     set "GDK_PIXBUF_MODULE_FILE=!FILATRACK_CACHE!\loaders.cache"
     "!APPDIR!gdk-pixbuf-query-loaders.exe" --update-cache >nul 2>&1
 )
 
-"!APPDIR!FilaTrack.exe" %*
+"!APPDIR!__APP_EXE__" %*
 exit /b !ERRORLEVEL!
 '@
+    $Launcher = $Launcher.Replace("__APP_NAME__", $AppName).Replace("__APP_EXE__", $ExeName)
     [IO.File]::WriteAllText($LauncherPath, $Launcher, [Text.UTF8Encoding]::new($false))
 
     # GUI launcher for installed shortcuts. Unlike the CMD launcher, WScript can
     # prepare the GTK environment and start the app without flashing a console.
-    $GuiLauncherPath = Join-Path $OutputPath "Run-FilaTrack.vbs"
+    $GuiLauncherPath = Join-Path $OutputPath $GuiLauncherName
     $GuiLauncher = @'
 Option Explicit
 
@@ -294,23 +311,24 @@ If fso.FolderExists(pixbufRoot) Then
 End If
 
 If env("GDK_PIXBUF_MODULEDIR") <> "" Then
-    cacheDir = env("LOCALAPPDATA") & "\FilaTrack"
-    If env("LOCALAPPDATA") = "" Then cacheDir = env("TEMP") & "\FilaTrack"
+    cacheDir = env("LOCALAPPDATA") & "\__APP_NAME__"
+    If env("LOCALAPPDATA") = "" Then cacheDir = env("TEMP") & "\__APP_NAME__"
     If Not fso.FolderExists(cacheDir) Then fso.CreateFolder(cacheDir)
     env("GDK_PIXBUF_MODULE_FILE") = cacheDir & "\loaders.cache"
     shell.Run Chr(34) & appDir & "\gdk-pixbuf-query-loaders.exe" & Chr(34) & " --update-cache", 0, True
 End If
 
-command = Chr(34) & appDir & "\FilaTrack.exe" & Chr(34)
+command = Chr(34) & appDir & "\__APP_EXE__" & Chr(34)
 For Each argument In WScript.Arguments
     command = command & " " & Chr(34) & Replace(argument, Chr(34), Chr(34) & Chr(34)) & Chr(34)
 Next
 shell.Run command, 0, False
 '@
+    $GuiLauncher = $GuiLauncher.Replace("__APP_NAME__", $AppName).Replace("__APP_EXE__", $ExeName)
     [IO.File]::WriteAllText($GuiLauncherPath, $GuiLauncher, [Text.UTF8Encoding]::new($false))
 
     if ($Archive) {
-        $ArchivePath = Join-Path $DistRoot "FilaTrack-windows-amd64.zip"
+        $ArchivePath = Join-Path $DistRoot "$AppName-$Version-windows-amd64.zip"
         if (Test-Path $ArchivePath) {
             Remove-Item -LiteralPath $ArchivePath -Force
         }
@@ -319,9 +337,9 @@ shell.Run command, 0, False
     }
 
     if ($Installer) {
-        $InstallerPath = Join-Path $DistRoot "FilaTrack-Setup.exe"
+        $InstallerPath = Join-Path $DistRoot "$AppName-$Version-Setup.exe"
         $NsisScript = Join-Path $ProjectRoot "packaging\windows-installer.nsi"
-        & $MakeNsis "/DAPP_DIR=$OutputPath" "/DOUTPUT_FILE=$InstallerPath" "/DAPP_ICON=$IconPath" $NsisScript
+        & $MakeNsis "/DAPP_DIR=$OutputPath" "/DOUTPUT_FILE=$InstallerPath" "/DAPP_ICON=$IconPath" "/DAPP_NAME=$AppName" "/DAPP_EXE=$ExeName" "/DAPP_LAUNCHER=$GuiLauncherName" "/DAPP_VERSION=$WindowsVersion" "/DAPP_SEMVER=$Version" $NsisScript
         if ($LASTEXITCODE -ne 0) {
             throw "makensis failed with exit code $LASTEXITCODE"
         }

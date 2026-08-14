@@ -1,9 +1,16 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-APP_NAME="FilaTrack"
-APP_ID="com.filatrack.app"
-VERSION="0.1.0"
+: "${FILATRACK_BUILD_MANAGED:?Run this script through: go run ./cmd/build macos}"
+: "${FILATRACK_APP_NAME:?Missing application metadata}"
+: "${FILATRACK_APP_ID:?Missing application metadata}"
+: "${FILATRACK_VERSION:?Missing application metadata}"
+: "${FILATRACK_MACOS_MIN_VERSION:?Missing application metadata}"
+
+APP_NAME="$FILATRACK_APP_NAME"
+APP_ID="$FILATRACK_APP_ID"
+VERSION="$FILATRACK_VERSION"
+MACOS_MIN_VERSION="$FILATRACK_MACOS_MIN_VERSION"
 INSTALL_DEPS=0
 CREATE_DMG=0
 SIGN_IDENTITY="-"
@@ -13,19 +20,18 @@ usage() {
   cat <<'EOF'
 Build a standalone FilaTrack.app bundle for macOS.
 
-Usage: ./build-macos.sh [options]
+Usage: go run ./cmd/build macos [options]
 
 Options:
   --install-deps       Install build dependencies with Homebrew
   --dmg                Also create dist/FilaTrack-<version>-macos-<arch>.dmg
   --sign IDENTITY      Sign with an Apple Developer ID (default: ad-hoc signing)
-  --version VERSION    Set the application version (default: 0.1.0)
   --binary PATH        Package an existing binary instead of running go build
   -h, --help           Show this help
 
 Examples:
-  ./build-macos.sh --install-deps --dmg
-  ./build-macos.sh --version 1.2.0 --sign "Developer ID Application: Example (TEAMID)" --dmg
+  go run ./cmd/build macos --install-deps --dmg
+  go run ./cmd/build macos --sign "Developer ID Application: Example (TEAMID)" --dmg
 EOF
 }
 
@@ -36,9 +42,6 @@ while [[ $# -gt 0 ]]; do
     --sign)
       [[ $# -ge 2 ]] || { echo "--sign requires an identity" >&2; exit 2; }
       SIGN_IDENTITY="$2"; shift 2 ;;
-    --version)
-      [[ $# -ge 2 ]] || { echo "--version requires a value" >&2; exit 2; }
-      VERSION="$2"; shift 2 ;;
     --binary)
       [[ $# -ge 2 ]] || { echo "--binary requires a path" >&2; exit 2; }
       PREBUILT_BINARY="$2"; shift 2 ;;
@@ -46,11 +49,6 @@ while [[ $# -gt 0 ]]; do
     *) echo "Unknown option: $1" >&2; usage >&2; exit 2 ;;
   esac
 done
-
-if [[ ! "$VERSION" =~ ^[0-9]+(\.[0-9]+){0,2}$ ]]; then
-  echo "Version must contain one to three numeric components, for example 1.2.0" >&2
-  exit 2
-fi
 
 command -v brew >/dev/null 2>&1 || {
   echo "Homebrew is required: https://brew.sh" >&2
@@ -67,17 +65,17 @@ if [[ -z "$PREBUILT_BINARY" ]]; then
 fi
 for tool in "${required_tools[@]}"; do
   command -v "$tool" >/dev/null 2>&1 || {
-    echo "Required tool '$tool' is missing. Try: ./build-macos.sh --install-deps" >&2
+    echo "Required tool '$tool' is missing. Try: go run ./cmd/build macos --install-deps" >&2
     exit 1
   }
 done
 
 pkg-config --exists gtk4 libadwaita-1 || {
-  echo "GTK4 and libadwaita development files are required. Try: ./build-macos.sh --install-deps" >&2
+  echo "GTK4 and libadwaita development files are required. Try: go run ./cmd/build macos --install-deps" >&2
   exit 1
 }
 
-PROJECT_ROOT="$(cd "$(dirname "$0")" && pwd -P)"
+PROJECT_ROOT="$(cd "$(dirname "$0")/../.." && pwd -P)"
 DIST_DIR="$PROJECT_ROOT/dist"
 APP="$DIST_DIR/$APP_NAME.app"
 CONTENTS="$APP/Contents"
@@ -120,21 +118,21 @@ cat > "$CONTENTS/Info.plist" <<EOF
   <key>CFBundleDevelopmentRegion</key><string>en</string>
   <key>CFBundleDisplayName</key><string>$APP_NAME</string>
   <key>CFBundleExecutable</key><string>$APP_NAME</string>
-  <key>CFBundleIconFile</key><string>FilaTrack.icns</string>
+  <key>CFBundleIconFile</key><string>$APP_NAME.icns</string>
   <key>CFBundleIdentifier</key><string>$APP_ID</string>
   <key>CFBundleInfoDictionaryVersion</key><string>6.0</string>
   <key>CFBundleName</key><string>$APP_NAME</string>
   <key>CFBundlePackageType</key><string>APPL</string>
   <key>CFBundleShortVersionString</key><string>$VERSION</string>
   <key>CFBundleVersion</key><string>$VERSION</string>
-  <key>LSMinimumSystemVersion</key><string>12.0</string>
+  <key>LSMinimumSystemVersion</key><string>$MACOS_MIN_VERSION</string>
   <key>NSHighResolutionCapable</key><true/>
 </dict>
 </plist>
 EOF
 
 echo "Creating application icon..."
-ICONSET="$DIST_DIR/.FilaTrack.iconset"
+ICONSET="$DIST_DIR/.$APP_NAME.iconset"
 rm -rf -- "$ICONSET"
 mkdir -p "$ICONSET"
 for spec in "16:16x16" "32:16x16@2x" "32:32x32" "64:32x32@2x" \
@@ -145,7 +143,7 @@ for spec in "16:16x16" "32:16x16@2x" "32:32x32" "64:32x32@2x" \
   rsvg-convert -w "$pixels" -h "$pixels" \
     -o "$ICONSET/icon_${name}.png" "$PROJECT_ROOT/packaging/$APP_ID.svg"
 done
-if ! iconutil -c icns "$ICONSET" -o "$RESOURCES/FilaTrack.icns" 2>/dev/null; then
+if ! iconutil -c icns "$ICONSET" -o "$RESOURCES/$APP_NAME.icns" 2>/dev/null; then
   # Some macOS releases reject otherwise valid iconsets produced by librsvg.
   # An ICNS file is a simple typed container, so assemble the same PNGs directly.
   echo "iconutil rejected the generated iconset; using the compatible ICNS packer..."
@@ -168,7 +166,7 @@ if ! iconutil -c icns "$ICONSET" -o "$RESOURCES/FilaTrack.icns" 2>/dev/null; the
     "$ICONSET/icon_128x128.png" "$ICONSET/icon_128x128@2x.png" \
     "$ICONSET/icon_256x256.png" "$ICONSET/icon_256x256@2x.png" \
     "$ICONSET/icon_512x512.png" "$ICONSET/icon_512x512@2x.png" \
-    "$RESOURCES/FilaTrack.icns"
+    "$RESOURCES/$APP_NAME.icns"
 fi
 rm -rf -- "$ICONSET"
 

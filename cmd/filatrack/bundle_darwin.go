@@ -7,10 +7,12 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+
+	"awesomeProject/packaging/metadata"
 )
 
 // configureBundleEnvironment makes the native binary self-sufficient when it
-// is launched as Contents/MacOS/FilaTrack from a macOS application bundle.
+// is launched from Contents/MacOS inside a macOS application bundle.
 func configureBundleEnvironment() {
 	executable, err := os.Executable()
 	if err != nil {
@@ -30,7 +32,7 @@ func configureBundleEnvironment() {
 	dataDir := os.Getenv("FILATRACK_DATA_DIR")
 	if dataDir == "" {
 		if userConfigDir, configErr := os.UserConfigDir(); configErr == nil {
-			dataDir = filepath.Join(userConfigDir, "FilaTrack")
+			dataDir = filepath.Join(userConfigDir, metadata.Current.Name)
 			_ = os.Setenv("FILATRACK_DATA_DIR", dataDir)
 		}
 	}

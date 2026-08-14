@@ -3,11 +3,28 @@ RequestExecutionLevel user
 
 !include "MUI2.nsh"
 
-!define APP_NAME "FilaTrack"
-!define APP_EXE "FilaTrack.exe"
+!ifndef APP_NAME
+  !error "APP_NAME is required"
+!endif
+!ifndef APP_EXE
+  !error "APP_EXE is required"
+!endif
+!ifndef APP_LAUNCHER
+  !error "APP_LAUNCHER is required"
+!endif
+!ifndef APP_VERSION
+  !error "APP_VERSION is required"
+!endif
+!ifndef APP_SEMVER
+  !error "APP_SEMVER is required"
+!endif
 
 Name "${APP_NAME}"
 OutFile "${OUTPUT_FILE}"
+VIProductVersion "${APP_VERSION}"
+VIAddVersionKey "ProductName" "${APP_NAME}"
+VIAddVersionKey "FileVersion" "${APP_SEMVER}"
+VIAddVersionKey "ProductVersion" "${APP_SEMVER}"
 InstallDir "$LOCALAPPDATA\Programs\${APP_NAME}"
 InstallDirRegKey HKCU "Software\${APP_NAME}" "InstallDir"
 Icon "${APP_ICON}"
@@ -28,20 +45,21 @@ UninstallIcon "${APP_ICON}"
 !insertmacro MUI_LANGUAGE "English"
 !insertmacro MUI_LANGUAGE "Russian"
 
-Section "FilaTrack" SecMain
+Section "${APP_NAME}" SecMain
     SetOutPath "$INSTDIR"
     File /r "${APP_DIR}\*"
 
     WriteRegStr HKCU "Software\${APP_NAME}" "InstallDir" "$INSTDIR"
     WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\${APP_NAME}" "DisplayName" "${APP_NAME}"
     WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\${APP_NAME}" "DisplayIcon" "$INSTDIR\${APP_EXE}"
+    WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\${APP_NAME}" "DisplayVersion" "${APP_SEMVER}"
     WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\${APP_NAME}" "UninstallString" '"$INSTDIR\Uninstall.exe"'
     WriteRegDWORD HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\${APP_NAME}" "NoModify" 1
     WriteRegDWORD HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\${APP_NAME}" "NoRepair" 1
 
     WriteUninstaller "$INSTDIR\Uninstall.exe"
     CreateDirectory "$SMPROGRAMS\${APP_NAME}"
-    CreateShortcut "$SMPROGRAMS\${APP_NAME}\${APP_NAME}.lnk" "$WINDIR\System32\wscript.exe" '$\"$INSTDIR\Run-FilaTrack.vbs$\"' "$INSTDIR\${APP_EXE}" 0
+    CreateShortcut "$SMPROGRAMS\${APP_NAME}\${APP_NAME}.lnk" "$WINDIR\System32\wscript.exe" '$\"$INSTDIR\${APP_LAUNCHER}$\"' "$INSTDIR\${APP_EXE}" 0
     CreateShortcut "$SMPROGRAMS\${APP_NAME}\Uninstall ${APP_NAME}.lnk" "$INSTDIR\Uninstall.exe"
 SectionEnd
 

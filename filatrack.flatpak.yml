@@ -1,3 +1,4 @@
+# Generated from packaging/metadata/app.json; do not edit.
 app-id: com.filatrack.app
 runtime: org.gnome.Platform
 runtime-version: '50'
@@ -36,8 +37,8 @@ modules:
           - .flatpak-builder
           - build-dir
           - repo
+          - dist
           - '*.db'
           - '*.db-shm'
           - '*.db-wal'
           - cache
-

@@ -1,4 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
+<!-- Generated from packaging/metadata/app.json; do not edit. -->
 <component type="desktop-application">
   <id>com.filatrack.app</id>
   <name>FilaTrack</name>
@@ -6,6 +7,10 @@
   <summary xml:lang="ru">Учёт катушек филамента и заданий 3D-принтеров</summary>
   <metadata_license>CC0-1.0</metadata_license>
   <project_license>MIT</project_license>
+  <developer id="com.github.yanefed">
+    <name>Ivan Bogatyrev</name>
+  </developer>
+  <url type="homepage">https://github.com/yanefed/filatrack</url>
   <description>
     <p>FilaTrack keeps track of filament inventory, drying sessions, print history, and Moonraker printers.</p>
     <p xml:lang="ru">FilaTrack ведёт учёт филамента, сессий сушки, истории печати и принтеров Moonraker.</p>
@@ -16,6 +21,6 @@
   </provides>
   <content_rating type="oars-1.1"/>
   <releases>
-    <release version="0.2.0" date="2026-08-12"/>
+    <release version="0.3.0" date="2026-08-14"/>
   </releases>
 </component>

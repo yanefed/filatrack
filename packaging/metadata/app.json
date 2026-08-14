@@ -1,0 +1,31 @@
+{
+  "id": "com.filatrack.app",
+  "name": "FilaTrack",
+  "executable": "filatrack",
+  "version": "0.3.0",
+  "release_date": "2026-08-14",
+  "summary": {
+    "en": "Track filament spools and 3D printer jobs",
+    "ru": "Учёт катушек филамента и заданий 3D-принтеров"
+  },
+  "description": {
+    "en": "FilaTrack keeps track of filament inventory, drying sessions, print history, and Moonraker printers.",
+    "ru": "FilaTrack ведёт учёт филамента, сессий сушки, истории печати и принтеров Moonraker."
+  },
+  "project_license": "MIT",
+  "metadata_license": "CC0-1.0",
+  "homepage": "https://github.com/yanefed/filatrack",
+  "developer": {
+    "id": "com.github.yanefed",
+    "name": "Ivan Bogatyrev"
+  },
+  "categories": ["Utility"],
+  "keywords": ["3D", "printer", "filament", "spool", "Moonraker"],
+  "macos": {
+    "minimum_version": "15.0"
+  },
+  "flatpak": {
+    "runtime_version": "50",
+    "golang_sdk_version": "25.08"
+  }
+}

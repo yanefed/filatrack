@@ -32,24 +32,21 @@ FILATRACK_DATA_DIR=/path/to/data go run ./cmd/filatrack
 
 ## Build
 
-macOS application bundle (requires Homebrew):
+Application identity, version, localized descriptions, licenses, and platform
+versions are configured in `packaging/metadata/app.json`. Generate/check derived
+Flatpak and AppStream files with:
 
 ```bash
-./build-macos.sh --install-deps --dmg
+go run ./cmd/build metadata
+go run ./cmd/build check
+go run ./cmd/build version
 ```
 
-The script creates `dist/FilaTrack.app`, bundles the GTK runtime, applies ad-hoc
-signing by default, and optionally creates a DMG. For distribution, pass an Apple
-Developer ID with `--sign`.
-
-Windows bundle:
-
-```powershell
-.\build-windows.ps1 -InstallDependencies -Archive
-```
-
-Flatpak:
+Build the package native to the current host with `auto`, or select it explicitly:
 
 ```bash
-./build-flatpak.sh
+go run ./cmd/build auto
+go run ./cmd/build macos --install-deps --dmg
+go run ./cmd/build windows -InstallDependencies -Archive -Installer
+go run ./cmd/build flatpak
 ```

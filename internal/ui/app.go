@@ -4,6 +4,7 @@ import (
 	"awesomeProject/internal/i18n"
 	"awesomeProject/internal/service"
 	"awesomeProject/internal/ui/screens"
+	"awesomeProject/packaging/metadata"
 	"context"
 	"os"
 
@@ -36,7 +37,7 @@ func NewApp(spools *service.SpoolService, prints *service.PrintService, dryings 
 
 // Run запускает GTK4-приложение.
 func (a *App) Run() error {
-	app := adw.NewApplication("com.filatrack.app", gio.ApplicationDefaultFlags)
+	app := adw.NewApplication(metadata.Current.ID, gio.ApplicationDefaultFlags)
 	app.ConnectActivate(func() {
 		a.activate(app)
 	})
@@ -52,7 +53,7 @@ func (a *App) activate(app *adw.Application) {
 	installAppCSS()
 
 	window := adw.NewApplicationWindow(&app.Application)
-	window.SetTitle("FilaTrack")
+	window.SetTitle(metadata.Current.Name)
 	window.SetDefaultSize(1000, 700)
 
 	refreshActive := func(bool) {}
