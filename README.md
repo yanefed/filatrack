@@ -32,6 +32,16 @@ FILATRACK_DATA_DIR=/path/to/data go run ./cmd/filatrack
 
 ## Build
 
+macOS application bundle (requires Homebrew):
+
+```bash
+./build-macos.sh --install-deps --dmg
+```
+
+The script creates `dist/FilaTrack.app`, bundles the GTK runtime, applies ad-hoc
+signing by default, and optionally creates a DMG. For distribution, pass an Apple
+Developer ID with `--sign`.
+
 Windows bundle:
 
 ```powershell
