@@ -180,6 +180,7 @@ func (a *App) activate(app *adw.Application) {
 
 		headerBar := adw.NewHeaderBar()
 		headerBar.SetShowEndTitleButtons(true)
+		headerBar.PackEnd(newAboutButton(t, window))
 
 		toolbarView := adw.NewToolbarView()
 		toolbarView.AddTopBar(headerBar)

@@ -82,4 +82,5 @@ var langRu = T{
 	PrintModelDialog:      "Печатать",
 	LowFilamentSetting:    "Разрешить печать при малом остатке филамента",
 	LowFilamentLevel:      "Низкий уровень филамента (г)",
+	AboutProgram:          "О программе",
 }

@@ -107,6 +107,9 @@ type T struct {
 	PrintModelDialog   string
 	LowFilamentSetting string
 	LowFilamentLevel   string
+
+	// About
+	AboutProgram string
 }
 
 var translations = map[Language]T{
