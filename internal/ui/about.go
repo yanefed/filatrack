@@ -29,6 +29,17 @@ var openSourceComponents = []openSourceComponent{
 	{name: "Uber Fx", version: "1.24.0", license: "MIT", copyright: "Copyright © 2016–2018 Uber Technologies, Inc.", sourceURL: "https://github.com/uber-go/fx"},
 }
 
+func newSettingsButton(t i18n.T, showSettings func()) *gtk.Button {
+	button := gtk.NewButtonFromIconName("preferences-system-symbolic")
+	button.SetTooltipText(t.Settings)
+	button.ConnectClicked(func() {
+		if showSettings != nil {
+			showSettings()
+		}
+	})
+	return button
+}
+
 func newAboutButton(t i18n.T, parent gtk.Widgetter) *gtk.Button {
 	button := gtk.NewButtonFromIconName("help-about-symbolic")
 	button.SetTooltipText(t.AboutProgram)

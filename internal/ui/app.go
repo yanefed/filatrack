@@ -169,7 +169,7 @@ func (a *App) activate(app *adw.Application) {
 		stack.AddTitled(printersPage, "printers", t.Printers)
 
 		settingsPage, refreshSettings := screens.NewSettingsScreen(ctx, a.SettingsService, refreshSettingsDependencies, rebuildUI)
-		stack.AddTitled(settingsPage, "settings", t.Settings)
+		stack.AddNamed(settingsPage, "settings")
 
 		sidebar := gtk.NewStackSidebar()
 		sidebar.SetStack(stack)
@@ -188,6 +188,9 @@ func (a *App) activate(app *adw.Application) {
 		headerBar := adw.NewHeaderBar()
 		headerBar.SetShowEndTitleButtons(true)
 		headerBar.PackEnd(newAboutButton(t, window))
+		headerBar.PackEnd(newSettingsButton(t, func() {
+			stack.SetVisibleChildName("settings")
+		}))
 
 		toolbarView := adw.NewToolbarView()
 		toolbarView.AddTopBar(headerBar)
