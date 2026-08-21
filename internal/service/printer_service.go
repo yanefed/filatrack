@@ -115,6 +115,25 @@ func (s *PrinterService) CheckMoonrakerConnection(ctx context.Context, printer *
 	return s.checker.Check(ctx, candidate)
 }
 
+func (s *PrinterService) UpdateMoonrakerPrinter(ctx context.Context, printer *domain.Printer) error {
+	if printer == nil {
+		return fmt.Errorf("printer is required")
+	}
+	if strings.TrimSpace(printer.Name) == "" {
+		return fmt.Errorf("printer name is required")
+	}
+	if err := validateMoonrakerURL(printer.MoonrakerURL); err != nil {
+		return err
+	}
+
+	printer.Name = strings.TrimSpace(printer.Name)
+	printer.MoonrakerURL = strings.TrimRight(strings.TrimSpace(printer.MoonrakerURL), "/")
+	if err := s.CheckMoonrakerConnection(ctx, printer); err != nil {
+		return fmt.Errorf("checking printer connection: %w", err)
+	}
+	return s.printers.Update(ctx, printer)
+}
+
 func (s *PrinterService) AssignSpool(ctx context.Context, printerID, spoolID string) error {
 	if _, err := s.spools.GetByID(ctx, spoolID); err != nil {
 		return fmt.Errorf("getting spool: %w", err)

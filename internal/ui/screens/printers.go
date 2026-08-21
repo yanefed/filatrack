@@ -101,7 +101,6 @@ func NewPrintersScreen(ctx context.Context, printerSvc *service.PrinterService, 
 		}
 
 		for _, printer := range printers {
-			printer := printer
 			row := gtk.NewBox(gtk.OrientationVertical, 4)
 			row.SetMarginTop(6)
 			row.SetMarginBottom(8)
@@ -149,6 +148,17 @@ func NewPrintersScreen(ctx context.Context, printerSvc *service.PrinterService, 
 				}
 			})
 			assignRow.Append(saveBtn)
+
+			editBtn := gtk.NewButtonWithLabel(t.Edit)
+			editBtn.ConnectClicked(func() {
+				showEditPrinterDialog(ctx, printerSvc, printer, func() {
+					refreshPrinters()
+					if onChanged != nil {
+						onChanged()
+					}
+				})
+			})
+			assignRow.Append(editBtn)
 			row.Append(assignRow)
 
 			list.Append(row)
@@ -192,4 +202,89 @@ func NewPrintersScreen(ctx context.Context, printerSvc *service.PrinterService, 
 
 	refreshPrinters()
 	return box, refreshPrinters, refreshPrinterStatuses
+}
+
+func showEditPrinterDialog(ctx context.Context, printerSvc *service.PrinterService, printer domain.Printer, onSave func()) {
+	t := i18n.L()
+	dialog := gtk.NewWindow()
+	dialog.SetTitle(fmt.Sprintf("%s — %s", t.Edit, printer.Name))
+	dialog.SetDefaultSize(440, 260)
+	dialog.SetModal(true)
+
+	box := gtk.NewBox(gtk.OrientationVertical, 8)
+	box.SetMarginTop(16)
+	box.SetMarginBottom(16)
+	box.SetMarginStart(16)
+	box.SetMarginEnd(16)
+
+	nameEntry := gtk.NewEntry()
+	nameEntry.SetPlaceholderText(t.PrinterName)
+	nameEntry.SetText(printer.Name)
+	box.Append(nameEntry)
+
+	urlEntry := gtk.NewEntry()
+	urlEntry.SetPlaceholderText(t.MoonrakerURL)
+	urlEntry.SetText(printer.MoonrakerURL)
+	box.Append(urlEntry)
+
+	statusLabel := gtk.NewLabel("")
+	statusLabel.SetHAlign(gtk.AlignStart)
+	statusLabel.SetWrap(true)
+	statusLabel.AddCSSClass("dim-label")
+	statusLabel.SetVisible(false)
+	box.Append(statusLabel)
+
+	actions := gtk.NewBox(gtk.OrientationHorizontal, 8)
+	checkBtn := gtk.NewButtonWithLabel(t.CheckConnection)
+	saveBtn := gtk.NewButtonWithLabel(t.Save)
+	saveBtn.SetSensitive(false)
+	cancelBtn := gtk.NewButtonWithLabel(t.Cancel)
+	actions.Append(checkBtn)
+	actions.Append(saveBtn)
+	actions.Append(cancelBtn)
+	box.Append(actions)
+
+	updatedPrinter := func() domain.Printer {
+		updated := printer
+		updated.Name = nameEntry.Text()
+		updated.MoonrakerURL = urlEntry.Text()
+		return updated
+	}
+	invalidateCheck := func() {
+		saveBtn.SetSensitive(false)
+		statusLabel.SetVisible(false)
+	}
+	nameEntry.NotifyProperty("text", invalidateCheck)
+	urlEntry.NotifyProperty("text", invalidateCheck)
+
+	checkBtn.ConnectClicked(func() {
+		updated := updatedPrinter()
+		if err := printerSvc.CheckMoonrakerConnection(ctx, &updated); err != nil {
+			statusLabel.SetLabel(fmt.Sprintf("%s: %v", t.ConnectionFailed, err))
+			statusLabel.SetVisible(true)
+			saveBtn.SetSensitive(false)
+			return
+		}
+		statusLabel.SetLabel(t.ConnectionOK)
+		statusLabel.SetVisible(true)
+		saveBtn.SetSensitive(true)
+	})
+
+	saveBtn.ConnectClicked(func() {
+		updated := updatedPrinter()
+		if err := printerSvc.UpdateMoonrakerPrinter(ctx, &updated); err != nil {
+			statusLabel.SetLabel(fmt.Sprintf("%s: %v", t.AddPrinterError, err))
+			statusLabel.SetVisible(true)
+			saveBtn.SetSensitive(false)
+			return
+		}
+		dialog.Destroy()
+		if onSave != nil {
+			onSave()
+		}
+	})
+	cancelBtn.ConnectClicked(dialog.Destroy)
+
+	dialog.SetChild(box)
+	dialog.SetVisible(true)
 }

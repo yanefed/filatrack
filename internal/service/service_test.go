@@ -679,6 +679,60 @@ func TestPrinterServiceCheckMoonrakerConnection(t *testing.T) {
 	}
 }
 
+func TestPrinterServiceUpdateMoonrakerPrinter(t *testing.T) {
+	printers := &printerRepoStub{}
+	checker := &checkerStub{}
+	service := newTestPrinterService(printers, &spoolRepoStub{}, &printRepoStub{})
+	service.SetConnectionChecker(checker)
+
+	printer := &domain.Printer{
+		ID:            "printer-1",
+		Name:          "  Voron  ",
+		MoonrakerURL:  " http://printer.local/ ",
+		APIKey:        "secret",
+		Kind:          domain.PrinterKindMoonraker,
+		Enabled:       true,
+		ActiveSpoolID: "spool-1",
+	}
+	if err := service.UpdateMoonrakerPrinter(t.Context(), printer); err != nil {
+		t.Fatalf("UpdateMoonrakerPrinter: %v", err)
+	}
+	if printer.Name != "Voron" || printer.MoonrakerURL != "http://printer.local" {
+		t.Fatalf("normalized printer = %+v", printer)
+	}
+	if checker.printer.Name != "Voron" || checker.printer.MoonrakerURL != "http://printer.local" {
+		t.Fatalf("checked printer = %+v", checker.printer)
+	}
+	if printers.updated != printer {
+		t.Fatalf("updated printer = %+v, want %+v", printers.updated, printer)
+	}
+
+	printers.updated = nil
+	checker.err = errors.New("connection failed")
+	if err := service.UpdateMoonrakerPrinter(t.Context(), printer); !errors.Is(err, checker.err) {
+		t.Fatalf("connection error = %v, want %v", err, checker.err)
+	}
+	if printers.updated != nil {
+		t.Fatalf("printer was updated after failed connection check: %+v", printers.updated)
+	}
+
+	checker.err = nil
+	if err := service.UpdateMoonrakerPrinter(t.Context(), &domain.Printer{Name: " ", MoonrakerURL: "http://printer.local"}); err == nil {
+		t.Fatal("expected blank printer name error")
+	}
+	if err := service.UpdateMoonrakerPrinter(t.Context(), &domain.Printer{Name: "Voron", MoonrakerURL: "ftp://printer"}); err == nil {
+		t.Fatal("expected invalid URL error")
+	}
+	if err := service.UpdateMoonrakerPrinter(t.Context(), nil); err == nil {
+		t.Fatal("expected nil printer error")
+	}
+
+	printers.updateErr = errors.New("update failed")
+	if err := service.UpdateMoonrakerPrinter(t.Context(), printer); !errors.Is(err, printers.updateErr) {
+		t.Fatalf("repository error = %v, want %v", err, printers.updateErr)
+	}
+}
+
 func TestPrinterServiceRecordPrinterPrint(t *testing.T) {
 	printers := &printerRepoStub{printer: &domain.Printer{ID: "printer-1", Name: "Voron", ActiveSpoolID: "spool-1"}}
 	spools := &spoolRepoStub{spool: &domain.Spool{ID: "spool-1", DiameterMM: 1.75, DensityGCM3: 1.24}}
