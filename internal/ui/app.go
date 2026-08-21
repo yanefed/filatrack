@@ -6,6 +6,7 @@ import (
 	"awesomeProject/internal/ui/screens"
 	"awesomeProject/packaging/metadata"
 	"context"
+	"log/slog"
 	"os"
 
 	"github.com/diamondburned/gotk4-adwaita/pkg/adw"
@@ -37,6 +38,9 @@ func NewApp(spools *service.SpoolService, prints *service.PrintService, dryings 
 
 // Run запускает GTK4-приложение.
 func (a *App) Run() error {
+	if err := i18n.ConfigureToolkitLanguage(i18n.GetLanguage()); err != nil {
+		slog.Warn("configuring GTK language", "language", i18n.GetLanguage(), "error", err)
+	}
 	app := adw.NewApplication(metadata.Current.ID, gio.ApplicationDefaultFlags)
 	app.ConnectActivate(func() {
 		a.activate(app)
@@ -64,6 +68,9 @@ func (a *App) activate(app *adw.Application) {
 	var visibleChildHandle coreglib.SignalHandle
 	var rebuildUI func()
 	rebuildUI = func() {
+		if err := i18n.ConfigureToolkitLanguage(i18n.GetLanguage()); err != nil {
+			slog.Warn("updating GTK language", "language", i18n.GetLanguage(), "error", err)
+		}
 		// Signal closures hold their Go captures as long as their GObject lives.
 		// Release the previous root before building the translated replacement.
 		if currentStack != nil {

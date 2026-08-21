@@ -2,6 +2,15 @@ package i18n
 
 import "testing"
 
+func TestToolkitLocaleCandidatesCoverSupportedLanguages(t *testing.T) {
+	for _, language := range SupportedLanguages() {
+		candidates := toolkitLocaleCandidates[language.Code]
+		if len(candidates) == 0 {
+			t.Errorf("no toolkit locale candidates for %q", language.Code)
+		}
+	}
+}
+
 func TestLanguageSelectionAndFallback(t *testing.T) {
 	original := GetLanguage()
 	t.Cleanup(func() { SetLanguage(original) })
