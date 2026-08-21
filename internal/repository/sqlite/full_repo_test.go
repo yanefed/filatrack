@@ -450,6 +450,9 @@ func TestSettingsRepoCRUD(t *testing.T) {
 	if value, err := repo.GetSetting(ctx, "language"); err != nil || value != "en" {
 		t.Fatalf("default language = (%q, %v)", value, err)
 	}
+	if value, err := repo.GetSetting(ctx, "low_filament_level"); err != nil || value != "50" {
+		t.Fatalf("default low filament level = (%q, %v)", value, err)
+	}
 	if err := repo.SetSetting(ctx, "language", "bg"); err != nil {
 		t.Fatalf("updating language: %v", err)
 	}

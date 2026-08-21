@@ -22,6 +22,7 @@ type SettingsService struct {
 }
 
 const allowLowFilamentSettingKey = "allow_low_filament_warning"
+const lowFilamentLevelSettingKey = "low_filament_level"
 
 func NewSettingsService(settings repository.SettingsRepository) *SettingsService {
 	return &SettingsService{settings: settings}
@@ -61,6 +62,25 @@ func (s *SettingsService) AllowLowFilamentWarning(ctx context.Context) bool {
 
 func (s *SettingsService) SetAllowLowFilamentWarning(ctx context.Context, enabled bool) error {
 	return s.settings.SetSetting(ctx, allowLowFilamentSettingKey, strconv.FormatBool(enabled))
+}
+
+func (s *SettingsService) GetLowFilamentLevel(ctx context.Context) int {
+	val, err := s.settings.GetSetting(ctx, lowFilamentLevelSettingKey)
+	if err != nil {
+		return 0
+	}
+	level, err := strconv.Atoi(val)
+	if err != nil || level < 0 {
+		return 0
+	}
+	return level
+}
+
+func (s *SettingsService) SetLowFilamentLevel(ctx context.Context, value int) error {
+	if value < 0 {
+		return fmt.Errorf("low filament level must not be negative")
+	}
+	return s.settings.SetSetting(ctx, lowFilamentLevelSettingKey, strconv.Itoa(value))
 }
 
 func (s *SettingsService) ListDryingProfiles(ctx context.Context) ([]domain.DryingProfile, error) {

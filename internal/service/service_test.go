@@ -146,6 +146,15 @@ func (r *settingsRepoStub) SetSetting(_ context.Context, key, value string) erro
 	r.setKey, r.setValue = key, value
 	return r.setSettingErr
 }
+
+func newTestPrinterService(
+	printers repository.PrinterRepository,
+	spools repository.SpoolRepository,
+	prints repository.PrintJobRepository,
+) *PrinterService {
+	return NewPrinterService(printers, spools, prints, &settingsRepoStub{setting: "50"})
+}
+
 func (r *settingsRepoStub) ListDryingProfiles(context.Context) ([]domain.DryingProfile, error) {
 	return r.profiles, r.profilesErr
 }
@@ -604,7 +613,7 @@ func TestPrintServiceChangeSpool(t *testing.T) {
 func TestPrinterServiceCreateAssignStatusAndList(t *testing.T) {
 	printers := &printerRepoStub{list: []domain.Printer{{ID: "printer-1"}}}
 	spools := &spoolRepoStub{spool: &domain.Spool{ID: "spool-1"}}
-	service := NewPrinterService(printers, spools, &printRepoStub{})
+	service := newTestPrinterService(printers, spools, &printRepoStub{})
 
 	if err := service.CreateMoonrakerPrinter(t.Context(), &domain.Printer{Name: "   "}); err == nil {
 		t.Fatal("expected blank printer name error")
@@ -650,7 +659,7 @@ func TestPrinterServiceCreateAssignStatusAndList(t *testing.T) {
 
 func TestPrinterServiceCheckMoonrakerConnection(t *testing.T) {
 	checker := &checkerStub{}
-	service := NewPrinterService(&printerRepoStub{}, &spoolRepoStub{}, &printRepoStub{})
+	service := newTestPrinterService(&printerRepoStub{}, &spoolRepoStub{}, &printRepoStub{})
 	service.SetConnectionChecker(checker)
 
 	printer := &domain.Printer{MoonrakerURL: "http://printer.local/"}
@@ -674,7 +683,7 @@ func TestPrinterServiceRecordPrinterPrint(t *testing.T) {
 	printers := &printerRepoStub{printer: &domain.Printer{ID: "printer-1", Name: "Voron", ActiveSpoolID: "spool-1"}}
 	spools := &spoolRepoStub{spool: &domain.Spool{ID: "spool-1", DiameterMM: 1.75, DensityGCM3: 1.24}}
 	prints := &printRepoStub{}
-	service := NewPrinterService(printers, spools, prints)
+	service := newTestPrinterService(printers, spools, prints)
 
 	event := domain.PrinterPrintEvent{
 		PrinterID:         "printer-1",
@@ -710,7 +719,7 @@ func TestPrinterServiceListCombinedHistoryMarksLocalJobs(t *testing.T) {
 		{PrinterID: "printer-1", ExternalPrintID: "remote-1", GcodeFilename: "one.gcode"},
 		{PrinterID: "printer-1", ExternalPrintID: "remote-2", GcodeFilename: "two.gcode"},
 	}}
-	service := NewPrinterService(printers, &spoolRepoStub{}, prints)
+	service := newTestPrinterService(printers, &spoolRepoStub{}, prints)
 	service.SetJobClient(client)
 
 	history, err := service.ListCombinedHistory(t.Context(), "printer-1", 50)
@@ -739,7 +748,7 @@ func TestPrinterServiceAssignHistoryJobSpoolCreatesPrintJob(t *testing.T) {
 		PreviewImagePath: "/tmp/benchy.png",
 		EndedAt:          time.Unix(1000, 0),
 	}}}
-	service := NewPrinterService(printers, spools, prints)
+	service := newTestPrinterService(printers, spools, prints)
 	service.SetJobClient(client)
 
 	job, err := service.AssignHistoryJobSpool(t.Context(), "printer-1", "remote-1", "spool-1")
@@ -757,7 +766,7 @@ func TestPrinterServiceListModelsEnrichesMetadata(t *testing.T) {
 		models:   []domain.PrinterModelFile{{PrinterID: "printer-1", Path: "folder/cube.gcode", Filename: "cube.gcode"}},
 		metadata: &domain.GcodeMetadata{Filename: "folder/cube.gcode", FilamentWeightG: 12.5, PrintDuration: time.Minute, Slicer: "OrcaSlicer", PreviewImagePath: "/tmp/cube.png"},
 	}
-	service := NewPrinterService(printers, &spoolRepoStub{}, &printRepoStub{})
+	service := newTestPrinterService(printers, &spoolRepoStub{}, &printRepoStub{})
 	service.SetJobClient(client)
 
 	models, err := service.ListModels(t.Context(), "printer-1")
@@ -778,7 +787,7 @@ func TestPrinterServiceRefreshModelsSavesCache(t *testing.T) {
 	cache := &printerModelRepoStub{
 		list: []domain.PrinterModelFile{{PrinterID: "printer-1", Path: "folder/cube.gcode", Filename: "cube.gcode", EstimatedWeightG: 12.5, PreviewImagePath: "/tmp/cube.png"}},
 	}
-	service := NewPrinterService(printers, &spoolRepoStub{}, &printRepoStub{})
+	service := newTestPrinterService(printers, &spoolRepoStub{}, &printRepoStub{})
 	service.SetJobClient(client)
 	service.SetModelCache(cache)
 
@@ -801,7 +810,7 @@ func TestPrinterServiceRefreshModelsCalculatesWeightFromLength(t *testing.T) {
 		models:   []domain.PrinterModelFile{{PrinterID: "printer-1", Path: "from-app.gcode", Filename: "from-app.gcode"}},
 		metadata: &domain.GcodeMetadata{Filename: "from-app.gcode", FilamentLengthMM: 6931.39},
 	}
-	service := NewPrinterService(printers, spools, &printRepoStub{})
+	service := newTestPrinterService(printers, spools, &printRepoStub{})
 	service.SetJobClient(client)
 
 	models, err := service.RefreshModels(t.Context(), "printer-1")
@@ -825,7 +834,7 @@ func TestPrinterServiceRefreshModelsParsesDownloadedFileWhenMoonrakerHasNoFilame
 			"; filament used [g] = 58.10\n" +
 			"; estimated printing time (normal mode) = 1h 43m 7s\n"),
 	}
-	service := NewPrinterService(printers, &spoolRepoStub{}, &printRepoStub{})
+	service := newTestPrinterService(printers, &spoolRepoStub{}, &printRepoStub{})
 	service.SetJobClient(client)
 
 	models, err := service.RefreshModels(t.Context(), "printer-1")
@@ -840,7 +849,7 @@ func TestPrinterServiceRefreshModelsParsesDownloadedFileWhenMoonrakerHasNoFilame
 func TestPrinterServiceListModelsReadsCache(t *testing.T) {
 	cache := &printerModelRepoStub{list: []domain.PrinterModelFile{{PrinterID: "printer-1", Path: "cached.gcode"}}}
 	client := &printerJobClientStub{modelsErr: errors.New("remote must not be called")}
-	service := NewPrinterService(&printerRepoStub{}, &spoolRepoStub{}, &printRepoStub{})
+	service := newTestPrinterService(&printerRepoStub{}, &spoolRepoStub{}, &printRepoStub{})
 	service.SetJobClient(client)
 	service.SetModelCache(cache)
 
@@ -867,7 +876,7 @@ func TestPrinterServiceSyncPrinterHistoryBackfillsWithoutSpool(t *testing.T) {
 			EstimatedWeightG: 15,
 			EndedAt:          time.Unix(1000, 0),
 		}}}
-	service := NewPrinterService(printers, spools, prints)
+	service := newTestPrinterService(printers, spools, prints)
 	service.SetJobClient(client)
 
 	created, err := service.SyncPrinterHistory(t.Context(), "printer-1", 50)
@@ -898,7 +907,7 @@ func TestPrinterServiceSyncPrinterHistoryUsesActiveSpoolForNewJobs(t *testing.T)
 		EstimatedWeightG: 15,
 		EndedAt:          boundary.Add(time.Minute),
 	}}}
-	service := NewPrinterService(printers, spools, prints)
+	service := newTestPrinterService(printers, spools, prints)
 	service.SetJobClient(client)
 
 	created, err := service.SyncPrinterHistory(t.Context(), "printer-1", 50)
@@ -931,7 +940,7 @@ func TestPrinterServiceSyncPrinterHistoryUsesFilamentUsedForCancelledJobs(t *tes
 		EstimatedWeightG: 20,
 		EndedAt:          boundary.Add(time.Minute),
 	}}}
-	service := NewPrinterService(printers, spools, prints)
+	service := newTestPrinterService(printers, spools, prints)
 	service.SetJobClient(client)
 
 	created, err := service.SyncPrinterHistory(t.Context(), "printer-1", 50)
@@ -970,7 +979,7 @@ func TestPrinterServiceSyncPrinterHistoryUpdatesExistingZeroUsage(t *testing.T) 
 		EstimatedWeightG: 20,
 		EndedAt:          time.Unix(1000, 0),
 	}}}
-	service := NewPrinterService(printers, spools, prints)
+	service := newTestPrinterService(printers, spools, prints)
 	service.SetJobClient(client)
 
 	created, err := service.SyncPrinterHistory(t.Context(), "printer-1", 50)
@@ -998,7 +1007,7 @@ func TestPrinterServiceSyncPrinterHistoryImportsHistoryPages(t *testing.T) {
 			},
 		},
 	}
-	service := NewPrinterService(printers, &spoolRepoStub{}, prints)
+	service := newTestPrinterService(printers, &spoolRepoStub{}, prints)
 	service.SetJobClient(client)
 
 	created, err := service.SyncPrinterHistory(t.Context(), "printer-1", 0)
@@ -1032,7 +1041,7 @@ func TestPrinterServiceSyncPrinterHistorySkipsLiveMonitorDuplicate(t *testing.T)
 		EstimatedWeightG: 15,
 		EndedAt:          endedAt.Add(20 * time.Second),
 	}}}
-	service := NewPrinterService(printers, spools, prints)
+	service := newTestPrinterService(printers, spools, prints)
 	service.SetJobClient(client)
 
 	created, err := service.SyncPrinterHistory(t.Context(), "printer-1", 50)
@@ -1062,7 +1071,7 @@ func TestPrinterServicePrintModelTransfersBetweenPrinters(t *testing.T) {
 	}
 	spools := &spoolRepoStub{spool: &domain.Spool{ID: "spool-1", TotalWeightG: 100, DiameterMM: 1.75, DensityGCM3: 1.24}, used: 10}
 	client := &printerJobClientStub{metadata: &domain.GcodeMetadata{Filename: "cube.gcode", FilamentWeightG: 20}, uploadedPath: "cube.gcode"}
-	service := NewPrinterService(printers, spools, &printRepoStub{})
+	service := newTestPrinterService(printers, spools, &printRepoStub{})
 	service.SetJobClient(client)
 
 	result, err := service.PrintModel(t.Context(), domain.PrintLaunchRequest{SourcePrinterID: "source", PrinterID: "target", GcodeFilename: "cube.gcode"})
@@ -1078,7 +1087,8 @@ func TestPrinterServiceStartPrinterFileChecksFilament(t *testing.T) {
 	printers := &printerRepoStub{printer: &domain.Printer{ID: "printer-1", ActiveSpoolID: "spool-1"}}
 	spools := &spoolRepoStub{spool: &domain.Spool{ID: "spool-1", TotalWeightG: 100, DiameterMM: 1.75, DensityGCM3: 1.24}, used: 60}
 	client := &printerJobClientStub{metadata: &domain.GcodeMetadata{Filename: "big.gcode", FilamentWeightG: 50}}
-	service := NewPrinterService(printers, spools, &printRepoStub{})
+	settings := &settingsRepoStub{setting: "50"}
+	service := NewPrinterService(printers, spools, &printRepoStub{}, settings)
 	service.SetJobClient(client)
 
 	result, err := service.StartPrinterFile(t.Context(), domain.PrintLaunchRequest{PrinterID: "printer-1", GcodeFilename: "big.gcode"})
@@ -1099,6 +1109,17 @@ func TestPrinterServiceStartPrinterFileChecksFilament(t *testing.T) {
 		t.Fatalf("expected confirmation before low-filament launch, result=%+v started=%q", result, client.startedFile)
 	}
 
+	settings.setting = "30"
+	result, err = service.StartPrinterFile(t.Context(), domain.PrintLaunchRequest{PrinterID: "printer-1", GcodeFilename: "warn.gcode"})
+	if err != nil {
+		t.Fatalf("StartPrinterFile with lower threshold: %v", err)
+	}
+	if result.RequiresUserConfirmation || !result.Started || client.startedFile != "warn.gcode" {
+		t.Fatalf("expected launch without warning at lower threshold, result=%+v started=%q", result, client.startedFile)
+	}
+
+	settings.setting = "50"
+	client.startedFile = ""
 	result, err = service.StartPrinterFile(t.Context(), domain.PrintLaunchRequest{PrinterID: "printer-1", GcodeFilename: "warn.gcode", AllowLowFilament: true})
 	if err != nil {
 		t.Fatalf("StartPrinterFile allowed warning: %v", err)
@@ -1117,7 +1138,7 @@ func TestPrinterServiceUploadAndStartLocalFileChecksFilament(t *testing.T) {
 	printers := &printerRepoStub{printer: &domain.Printer{ID: "printer-1", ActiveSpoolID: "spool-1"}}
 	spools := &spoolRepoStub{spool: &domain.Spool{ID: "spool-1", TotalWeightG: 100, DiameterMM: 1.75, DensityGCM3: 1.24}, used: 10}
 	client := &printerJobClientStub{uploadedPath: "small.gcode"}
-	service := NewPrinterService(printers, spools, &printRepoStub{})
+	service := newTestPrinterService(printers, spools, &printRepoStub{})
 	cache := &printerModelRepoStub{}
 	service.SetJobClient(client)
 	service.SetModelCache(cache)
@@ -1240,6 +1261,48 @@ func TestSettingsServiceAllowLowFilamentWarning(t *testing.T) {
 	repo.setting = "not-bool"
 	if service.AllowLowFilamentWarning(t.Context()) {
 		t.Fatal("invalid bool setting should fall back to false")
+	}
+}
+
+func TestSettingsServiceLowFilamentLevel(t *testing.T) {
+	repo := &settingsRepoStub{setting: "50"}
+	settingsService := NewSettingsService(repo)
+
+	if got := settingsService.GetLowFilamentLevel(t.Context()); got != 50 {
+		t.Fatalf("GetLowFilamentLevel() = %d, want 50", got)
+	}
+
+	for _, invalid := range []string{"invalid", "-1"} {
+		repo.setting = invalid
+		if got := settingsService.GetLowFilamentLevel(t.Context()); got != 0 {
+			t.Errorf("GetLowFilamentLevel() for %q = %d, want 0", invalid, got)
+		}
+	}
+	repo.getSettingErr = errors.New("read failed")
+	if got := settingsService.GetLowFilamentLevel(t.Context()); got != 0 {
+		t.Errorf("GetLowFilamentLevel() on repository error = %d, want 0", got)
+	}
+	repo.getSettingErr = nil
+
+	if err := settingsService.SetLowFilamentLevel(t.Context(), 75); err != nil {
+		t.Fatalf("SetLowFilamentLevel(): %v", err)
+	}
+	if repo.setKey != lowFilamentLevelSettingKey || repo.setValue != "75" {
+		t.Fatalf("saved setting = (%q, %q), want (%q, %q)",
+			repo.setKey, repo.setValue, lowFilamentLevelSettingKey, "75")
+	}
+
+	repo.setKey, repo.setValue = "", ""
+	if err := settingsService.SetLowFilamentLevel(t.Context(), -1); err == nil {
+		t.Fatal("SetLowFilamentLevel(-1) returned nil error")
+	}
+	if repo.setKey != "" || repo.setValue != "" {
+		t.Fatalf("negative level was persisted as (%q, %q)", repo.setKey, repo.setValue)
+	}
+
+	repo.setSettingErr = errors.New("write failed")
+	if err := settingsService.SetLowFilamentLevel(t.Context(), 100); !errors.Is(err, repo.setSettingErr) {
+		t.Fatalf("SetLowFilamentLevel() error = %v, want %v", err, repo.setSettingErr)
 	}
 }
 

@@ -88,6 +88,28 @@ func NewSettingsScreen(ctx context.Context, settingsSvc *service.SettingsService
 		}
 	})
 	printSection.Append(allowLowFilament)
+
+	lowFilamentRow := gtk.NewBox(gtk.OrientationHorizontal, 6)
+	lowFilamentLabel := gtk.NewLabel(i18n.L().LowFilamentLevel)
+	lowFilamentLabel.SetHAlign(gtk.AlignStart)
+	lowFilamentLabel.SetHExpand(true)
+	lowFilamentRow.Append(lowFilamentLabel)
+
+	lowFilamentLevel := gtk.NewSpinButtonWithRange(0, 1_000_000, 1)
+	lowFilamentLevel.SetValue(float64(settingsSvc.GetLowFilamentLevel(ctx)))
+	lowFilamentRow.Append(lowFilamentLevel)
+
+	lowFilamentSaveBtn := gtk.NewButtonWithLabel(i18n.L().Save)
+	lowFilamentSaveBtn.ConnectClicked(func() {
+		if err := settingsSvc.SetLowFilamentLevel(ctx, lowFilamentLevel.ValueAsInt()); err != nil {
+			return
+		}
+		if onChanged != nil {
+			onChanged()
+		}
+	})
+	lowFilamentRow.Append(lowFilamentSaveBtn)
+	printSection.Append(lowFilamentRow)
 	content.Append(printSection)
 
 	// === Drying profiles ===

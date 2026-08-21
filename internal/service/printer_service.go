@@ -10,6 +10,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -20,6 +21,7 @@ type PrinterService struct {
 	spools    repository.SpoolRepository
 	prints    repository.PrintJobRepository
 	models    repository.PrinterModelRepository
+	settings  repository.SettingsRepository
 	checker   ConnectionChecker
 	jobClient PrinterJobClient
 }
@@ -41,14 +43,15 @@ type printerHistoryPageClient interface {
 	ListHistoryPage(ctx context.Context, printer domain.Printer, start, limit int) ([]domain.PrinterHistoryJob, int, error)
 }
 
-func NewPrinterService(printers repository.PrinterRepository, spools repository.SpoolRepository, prints repository.PrintJobRepository) *PrinterService {
-	return NewPrinterServiceWithLogger(printers, spools, prints, slog.Default())
+func NewPrinterService(printers repository.PrinterRepository, spools repository.SpoolRepository, prints repository.PrintJobRepository, settings repository.SettingsRepository) *PrinterService {
+	return NewPrinterServiceWithLogger(printers, spools, prints, settings, slog.Default())
 }
 
 func NewPrinterServiceWithLogger(
 	printers repository.PrinterRepository,
 	spools repository.SpoolRepository,
 	prints repository.PrintJobRepository,
+	settings repository.SettingsRepository,
 	logger *slog.Logger,
 ) *PrinterService {
 	if logger == nil {
@@ -59,6 +62,7 @@ func NewPrinterServiceWithLogger(
 		printers: printers,
 		spools:   spools,
 		prints:   prints,
+		settings: settings,
 	}
 }
 
@@ -874,13 +878,27 @@ func (s *PrinterService) checkFilament(ctx context.Context, printer domain.Print
 		check.Warning = fmt.Sprintf("not enough filament: need %.1fg, remaining %.1fg", required, remaining)
 		return check, nil
 	}
-	if remaining-required < lowFilamentWarningG {
-		check.Warning = fmt.Sprintf("low filament after print: %.1fg remaining", remaining-required)
+	rawLevel, err := s.settings.GetSetting(ctx, lowFilamentLevelSettingKey)
+	if err != nil {
+		return check, fmt.Errorf("getting low filament level: %w", err)
+	}
+
+	lowLevelValue, err := strconv.ParseFloat(rawLevel, 64)
+	if err != nil {
+		return check, fmt.Errorf("parsing low filament level %q: %w", rawLevel, err)
+	}
+	if lowLevelValue < 0 {
+		return check, fmt.Errorf("low filament level must not be negative")
+	}
+
+	if check.RemainingAfterG < lowLevelValue {
+		check.Warning = fmt.Sprintf(
+			"low filament after print: %.1fg remaining",
+			check.RemainingAfterG,
+		)
 	}
 	return check, nil
 }
-
-const lowFilamentWarningG = 50.0
 
 func validateMoonrakerURL(raw string) error {
 	parsed, err := url.Parse(strings.TrimSpace(raw))

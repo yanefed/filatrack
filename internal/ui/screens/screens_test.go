@@ -41,7 +41,7 @@ func TestScreenConstructorsWithRealServices(t *testing.T) {
 	printSvc := service.NewPrintService(printRepo, spoolRepo)
 	dryingSvc := service.NewDryingService(dryingRepo, settingsRepo)
 	settingsSvc := service.NewSettingsService(settingsRepo)
-	printerSvc := service.NewPrinterService(printerRepo, spoolRepo, printRepo)
+	printerSvc := service.NewPrinterService(printerRepo, spoolRepo, printRepo, settingsRepo)
 	ctx := t.Context()
 
 	spool := &domain.Spool{Manufacturer: "UI Test", Material: domain.MaterialPLA, Color: "Black", TotalWeightG: 1000}

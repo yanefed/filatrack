@@ -81,4 +81,5 @@ var langEn = T{
 	PrintModel:            "Print",
 	PrintModelDialog:      "Print model",
 	LowFilamentSetting:    "Allow starting prints with low-filament warning",
+	LowFilamentLevel:      "Low filament level (g)",
 }

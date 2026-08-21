@@ -81,4 +81,5 @@ var langBg = T{
 	PrintModel:            "Печатай",
 	PrintModelDialog:      "Печатай модел",
 	LowFilamentSetting:    "Позволи стартиране при предупреждение за малко филамент",
+	LowFilamentLevel:      "Ниско ниво на филамента (г)",
 }
