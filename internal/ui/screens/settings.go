@@ -14,7 +14,7 @@ import (
 )
 
 // NewSettingsScreen создаёт экран настроек приложения.
-func NewSettingsScreen(ctx context.Context, settingsSvc *service.SettingsService, onChanged func(), onLanguageChanged func()) (*gtk.Box, func()) {
+func NewSettingsScreen(ctx context.Context, parent *gtk.Window, settingsSvc *service.SettingsService, onChanged func(), onLanguageChanged func()) (*gtk.Box, func()) {
 	box := gtk.NewBox(gtk.OrientationVertical, 12)
 	box.SetMarginTop(24)
 	box.SetMarginBottom(24)
@@ -148,7 +148,7 @@ func NewSettingsScreen(ctx context.Context, settingsSvc *service.SettingsService
 
 			editBtn := gtk.NewButtonWithLabel(i18n.L().Edit)
 			editBtn.ConnectClicked(func() {
-				showEditProfileDialog(ctx, settingsSvc, &profile, func() {
+				showEditProfileDialog(ctx, parent, settingsSvc, &profile, func() {
 					refreshProfiles()
 					if onChanged != nil {
 						onChanged()
@@ -219,7 +219,7 @@ func NewSettingsScreen(ctx context.Context, settingsSvc *service.SettingsService
 
 				ruleBtn := gtk.NewButtonWithLabel(i18n.L().DryingRule)
 				ruleBtn.ConnectClicked(func() {
-					showCustomMaterialDryingDialog(ctx, settingsSvc, mat, profileMaterial, func() {
+					showCustomMaterialDryingDialog(ctx, parent, settingsSvc, mat, profileMaterial, func() {
 						refreshProfiles()
 						refreshMaterials()
 						if onChanged != nil {
@@ -268,7 +268,7 @@ func NewSettingsScreen(ctx context.Context, settingsSvc *service.SettingsService
 		if onChanged != nil {
 			onChanged()
 		}
-		showCustomMaterialDryingDialog(ctx, settingsSvc, domain.Material(name), "", func() {
+		showCustomMaterialDryingDialog(ctx, parent, settingsSvc, domain.Material(name), "", func() {
 			refreshProfiles()
 			refreshMaterials()
 			if onChanged != nil {
@@ -330,11 +330,10 @@ func clearListBox(list *gtk.ListBox) {
 }
 
 // showEditProfileDialog opens a window for editing a drying profile.
-func showEditProfileDialog(ctx context.Context, settingsSvc *service.SettingsService, profile *domain.DryingProfile, onSave func()) {
-	dialog := gtk.NewWindow()
+func showEditProfileDialog(ctx context.Context, parent *gtk.Window, settingsSvc *service.SettingsService, profile *domain.DryingProfile, onSave func()) {
+	dialog := newModalWindow(parent)
 	dialog.SetTitle(fmt.Sprintf("%s — %s", i18n.L().Edit, string(profile.Material)))
 	dialog.SetDefaultSize(350, 250)
-	dialog.SetModal(true)
 
 	box := gtk.NewBox(gtk.OrientationVertical, 8)
 	box.SetMarginTop(16)
@@ -394,12 +393,11 @@ func showEditProfileDialog(ctx context.Context, settingsSvc *service.SettingsSer
 	dialog.SetVisible(true)
 }
 
-func showCustomMaterialDryingDialog(ctx context.Context, settingsSvc *service.SettingsService, material, currentProfile domain.Material, onSave func()) {
+func showCustomMaterialDryingDialog(ctx context.Context, parent *gtk.Window, settingsSvc *service.SettingsService, material, currentProfile domain.Material, onSave func()) {
 	t := i18n.L()
-	dialog := gtk.NewWindow()
+	dialog := newModalWindow(parent)
 	dialog.SetTitle(fmt.Sprintf("%s — %s", t.DryingRule, material))
 	dialog.SetDefaultSize(440, 360)
-	dialog.SetModal(true)
 
 	box := gtk.NewBox(gtk.OrientationVertical, 10)
 	box.SetMarginTop(16)

@@ -12,7 +12,7 @@ import (
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 )
 
-func NewModelsScreen(ctx context.Context, printerSvc *service.PrinterService, spoolSvc *service.SpoolService, settingsSvc *service.SettingsService, onChanged func()) (*gtk.Box, func()) {
+func NewModelsScreen(ctx context.Context, parent *gtk.Window, printerSvc *service.PrinterService, spoolSvc *service.SpoolService, settingsSvc *service.SettingsService, onChanged func()) (*gtk.Box, func()) {
 	t := i18n.L()
 
 	box := gtk.NewBox(gtk.OrientationVertical, 12)
@@ -47,7 +47,7 @@ func NewModelsScreen(ctx context.Context, printerSvc *service.PrinterService, sp
 	pathRow.Append(pathEntry)
 	chooseFileBtn := gtk.NewButtonWithLabel(t.SelectGCode)
 	chooseFileBtn.ConnectClicked(func() {
-		showGCodeFileChooser(pathEntry)
+		showGCodeFileChooser(parent, pathEntry)
 	})
 	pathRow.Append(chooseFileBtn)
 	box.Append(pathRow)
@@ -67,7 +67,7 @@ func NewModelsScreen(ctx context.Context, printerSvc *service.PrinterService, sp
 	emptyLabel.AddCSSClass("dim-label")
 	emptyLabel.SetVisible(false)
 	box.Append(emptyLabel)
-	modelsList, updateModelsList := newVirtualModelsList(t, ctx, printerSvc, settingsSvc, messageLabel, onChanged)
+	modelsList, updateModelsList := newVirtualModelsList(t, ctx, parent, printerSvc, settingsSvc, messageLabel, onChanged)
 	scrolled := gtk.NewScrolledWindow()
 	scrolled.SetVExpand(true)
 	scrolled.SetChild(modelsList)
@@ -124,7 +124,7 @@ func NewModelsScreen(ctx context.Context, printerSvc *service.PrinterService, sp
 		if localPath == "" {
 			return
 		}
-		showPrintLaunchDialog(t, ctx, printerSvc, settingsSvc, printers, spools, func(req domain.PrintLaunchRequest) (*domain.PrintLaunchResult, error) {
+		showPrintLaunchDialog(t, ctx, parent, printerSvc, settingsSvc, printers, spools, func(req domain.PrintLaunchRequest) (*domain.PrintLaunchResult, error) {
 			req.LocalPath = localPath
 			return printerSvc.UploadAndStartLocalFile(ctx, req)
 		}, messageLabel, func() {
@@ -163,11 +163,10 @@ func NewModelsScreen(ctx context.Context, printerSvc *service.PrinterService, sp
 	return box, refreshScreen
 }
 
-func showPrintLaunchDialog(t i18n.T, ctx context.Context, printerSvc *service.PrinterService, settingsSvc *service.SettingsService, printers []domain.Printer, spools []domain.Spool, launch func(domain.PrintLaunchRequest) (*domain.PrintLaunchResult, error), messageLabel *gtk.Label, onSuccess func()) {
-	dialog := gtk.NewWindow()
+func showPrintLaunchDialog(t i18n.T, ctx context.Context, parent *gtk.Window, printerSvc *service.PrinterService, settingsSvc *service.SettingsService, printers []domain.Printer, spools []domain.Spool, launch func(domain.PrintLaunchRequest) (*domain.PrintLaunchResult, error), messageLabel *gtk.Label, onSuccess func()) {
+	dialog := newModalWindow(parent)
 	dialog.SetTitle(t.PrintModelDialog)
 	dialog.SetDefaultSize(360, 220)
-	dialog.SetModal(true)
 	closed := false
 	dialog.ConnectDestroy(func() {
 		closed = true

@@ -59,6 +59,7 @@ func (a *App) activate(app *adw.Application) {
 	window := adw.NewApplicationWindow(&app.Application)
 	window.SetTitle(metadata.Current.Name)
 	window.SetDefaultSize(1000, 700)
+	parentWindow := &window.ApplicationWindow.Window
 
 	refreshActive := func(bool) {}
 	refreshLive := func() {}
@@ -153,22 +154,22 @@ func (a *App) activate(app *adw.Application) {
 		dashboardPage, refreshDashboard := screens.NewDashboard(ctx, a.SpoolService, a.PrintService)
 		stack.AddTitled(dashboardPage, "dashboard", t.Dashboard)
 
-		spoolsPage, refreshSpools := screens.NewSpoolsScreen(ctx, a.SpoolService, a.SettingsService, refreshSpoolDependencies)
+		spoolsPage, refreshSpools := screens.NewSpoolsScreen(ctx, parentWindow, a.SpoolService, a.DryingService, a.SettingsService, refreshSpoolDependencies)
 		stack.AddTitled(spoolsPage, "spools", t.Spools)
 
-		printsPage, refreshPrints, refreshPrintsLive := screens.NewPrintsScreen(ctx, a.PrintService, a.PrinterService, a.SpoolService, refreshPrintDependencies)
+		printsPage, refreshPrints, refreshPrintsLive := screens.NewPrintsScreen(ctx, parentWindow, a.PrintService, a.PrinterService, a.SpoolService, refreshPrintDependencies)
 		stack.AddTitled(printsPage, "prints", t.Prints)
 
-		modelsPage, refreshModels := screens.NewModelsScreen(ctx, a.PrinterService, a.SpoolService, a.SettingsService, refreshModelDependencies)
+		modelsPage, refreshModels := screens.NewModelsScreen(ctx, parentWindow, a.PrinterService, a.SpoolService, a.SettingsService, refreshModelDependencies)
 		stack.AddTitled(modelsPage, "models", t.Models)
 
 		dryingPage, refreshDrying := screens.NewDryingScreen(ctx, a.DryingService, a.SpoolService, refreshDryingDependencies)
 		stack.AddTitled(dryingPage, "drying", t.Drying)
 
-		printersPage, refreshPrinters, refreshPrintersLive := screens.NewPrintersScreen(ctx, a.PrinterService, a.SpoolService, refreshPrinterDependencies)
+		printersPage, refreshPrinters, refreshPrintersLive := screens.NewPrintersScreen(ctx, parentWindow, a.PrinterService, a.SpoolService, refreshPrinterDependencies)
 		stack.AddTitled(printersPage, "printers", t.Printers)
 
-		settingsPage, refreshSettings := screens.NewSettingsScreen(ctx, a.SettingsService, refreshSettingsDependencies, rebuildUI)
+		settingsPage, refreshSettings := screens.NewSettingsScreen(ctx, parentWindow, a.SettingsService, refreshSettingsDependencies, rebuildUI)
 		stack.AddNamed(settingsPage, "settings")
 
 		sidebar := gtk.NewStackSidebar()

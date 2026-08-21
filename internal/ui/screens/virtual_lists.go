@@ -25,7 +25,7 @@ type modelRowWidgets struct {
 	details *gtk.Label
 }
 
-func newVirtualModelsList(t i18n.T, ctx context.Context, printerSvc *service.PrinterService, settingsSvc *service.SettingsService, messageLabel *gtk.Label, onChanged func()) (*gtk.ListView, func([]domain.PrinterModelFile, []domain.Printer, []domain.Spool)) {
+func newVirtualModelsList(t i18n.T, ctx context.Context, parent *gtk.Window, printerSvc *service.PrinterService, settingsSvc *service.SettingsService, messageLabel *gtk.Label, onChanged func()) (*gtk.ListView, func([]domain.PrinterModelFile, []domain.Printer, []domain.Spool)) {
 	state := &modelListState{}
 	model := gtk.NewStringList(nil)
 	selection := gtk.NewNoSelection(model)
@@ -71,7 +71,7 @@ func newVirtualModelsList(t i18n.T, ctx context.Context, printerSvc *service.Pri
 				return
 			}
 			selected := state.models[position]
-			showPrintLaunchDialog(t, ctx, printerSvc, settingsSvc, state.printers, state.spools, func(req domain.PrintLaunchRequest) (*domain.PrintLaunchResult, error) {
+			showPrintLaunchDialog(t, ctx, parent, printerSvc, settingsSvc, state.printers, state.spools, func(req domain.PrintLaunchRequest) (*domain.PrintLaunchResult, error) {
 				req.SourcePrinterID = selected.PrinterID
 				req.GcodeFilename = selected.Path
 				return printerSvc.PrintModel(ctx, req)

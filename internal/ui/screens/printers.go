@@ -12,7 +12,7 @@ import (
 )
 
 // NewPrintersScreen creates the Moonraker printer management screen.
-func NewPrintersScreen(ctx context.Context, printerSvc *service.PrinterService, spoolSvc *service.SpoolService, onChanged func()) (*gtk.Box, func(), func()) {
+func NewPrintersScreen(ctx context.Context, parent *gtk.Window, printerSvc *service.PrinterService, spoolSvc *service.SpoolService, onChanged func()) (*gtk.Box, func(), func()) {
 	t := i18n.L()
 
 	box := gtk.NewBox(gtk.OrientationVertical, 12)
@@ -151,7 +151,7 @@ func NewPrintersScreen(ctx context.Context, printerSvc *service.PrinterService, 
 
 			editBtn := gtk.NewButtonWithLabel(t.Edit)
 			editBtn.ConnectClicked(func() {
-				showEditPrinterDialog(ctx, printerSvc, printer, func() {
+				showEditPrinterDialog(ctx, parent, printerSvc, printer, func() {
 					refreshPrinters()
 					if onChanged != nil {
 						onChanged()
@@ -204,12 +204,11 @@ func NewPrintersScreen(ctx context.Context, printerSvc *service.PrinterService, 
 	return box, refreshPrinters, refreshPrinterStatuses
 }
 
-func showEditPrinterDialog(ctx context.Context, printerSvc *service.PrinterService, printer domain.Printer, onSave func()) {
+func showEditPrinterDialog(ctx context.Context, parent *gtk.Window, printerSvc *service.PrinterService, printer domain.Printer, onSave func()) {
 	t := i18n.L()
-	dialog := gtk.NewWindow()
+	dialog := newModalWindow(parent)
 	dialog.SetTitle(fmt.Sprintf("%s — %s", t.Edit, printer.Name))
 	dialog.SetDefaultSize(440, 260)
-	dialog.SetModal(true)
 
 	box := gtk.NewBox(gtk.OrientationVertical, 8)
 	box.SetMarginTop(16)

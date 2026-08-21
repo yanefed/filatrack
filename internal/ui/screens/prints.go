@@ -13,7 +13,7 @@ import (
 )
 
 // NewPrintsScreen создаёт экран истории печатей.
-func NewPrintsScreen(ctx context.Context, printSvc *service.PrintService, printerSvc *service.PrinterService, spoolSvc *service.SpoolService, onChanged func()) (*gtk.Box, func(), func()) {
+func NewPrintsScreen(ctx context.Context, parent *gtk.Window, printSvc *service.PrintService, printerSvc *service.PrinterService, spoolSvc *service.SpoolService, onChanged func()) (*gtk.Box, func(), func()) {
 	box := gtk.NewBox(gtk.OrientationVertical, 12)
 	box.SetMarginTop(24)
 	box.SetMarginBottom(24)
@@ -231,7 +231,7 @@ func showLaunchResult(t i18n.T, label *gtk.Label, result *domain.PrintLaunchResu
 	label.SetVisible(true)
 }
 
-func showGCodeFileChooser(pathEntry *gtk.Entry) {
+func showGCodeFileChooser(parent *gtk.Window, pathEntry *gtk.Entry) {
 	t := i18n.L()
 	dialog := gtk.NewFileDialog()
 	dialog.SetTitle(t.SelectGCode)
@@ -249,7 +249,7 @@ func showGCodeFileChooser(pathEntry *gtk.Entry) {
 	filter.AddPattern("*.GC")
 	dialog.SetDefaultFilter(filter)
 
-	dialog.Open(context.Background(), nil, func(result gio.AsyncResulter) {
+	dialog.Open(context.Background(), parent, func(result gio.AsyncResulter) {
 		file, err := dialog.OpenFinish(result)
 		if err != nil || file == nil {
 			return

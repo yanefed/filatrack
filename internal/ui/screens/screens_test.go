@@ -56,12 +56,12 @@ func TestScreenConstructorsWithRealServices(t *testing.T) {
 	}
 
 	dashboard, refreshDashboard := NewDashboard(ctx, spoolSvc, printSvc)
-	spools, refreshSpools := NewSpoolsScreen(ctx, spoolSvc, settingsSvc, func() {})
-	prints, refreshPrints, refreshPrintsLive := NewPrintsScreen(ctx, printSvc, printerSvc, spoolSvc, func() {})
-	models, refreshModels := NewModelsScreen(ctx, printerSvc, spoolSvc, settingsSvc, func() {})
+	spools, refreshSpools := NewSpoolsScreen(ctx, nil, spoolSvc, dryingSvc, settingsSvc, func() {})
+	prints, refreshPrints, refreshPrintsLive := NewPrintsScreen(ctx, nil, printSvc, printerSvc, spoolSvc, func() {})
+	models, refreshModels := NewModelsScreen(ctx, nil, printerSvc, spoolSvc, settingsSvc, func() {})
 	drying, refreshDrying := NewDryingScreen(ctx, dryingSvc, spoolSvc, func() {})
-	printers, refreshPrinters, refreshPrintersLive := NewPrintersScreen(ctx, printerSvc, spoolSvc, func() {})
-	settings, refreshSettings := NewSettingsScreen(ctx, settingsSvc, func() {}, func() {})
+	printers, refreshPrinters, refreshPrintersLive := NewPrintersScreen(ctx, nil, printerSvc, spoolSvc, func() {})
+	settings, refreshSettings := NewSettingsScreen(ctx, nil, settingsSvc, func() {}, func() {})
 	if dashboard == nil || spools == nil || prints == nil || models == nil || drying == nil || printers == nil || settings == nil {
 		t.Fatal("one or more screen constructors returned nil")
 	}
@@ -76,6 +76,27 @@ func TestScreenConstructorsWithRealServices(t *testing.T) {
 	refreshPrintersLive()
 	refreshSettings()
 	runtime.KeepAlive([]any{dashboard, spools, prints, models, drying, printers, settings})
+}
+
+func TestModalWindowIsTransientForParent(t *testing.T) {
+	runtime.LockOSThread()
+	t.Cleanup(runtime.UnlockOSThread)
+	if !gtk.InitCheck() {
+		t.Skip("GTK display is not available")
+	}
+
+	parent := gtk.NewWindow()
+	dialog := newModalWindow(parent)
+	t.Cleanup(parent.Destroy)
+	t.Cleanup(dialog.Destroy)
+
+	transient := dialog.TransientFor()
+	if !dialog.Modal() || transient == nil || transient.Object.Native() != parent.Object.Native() {
+		t.Fatalf("dialog is not modal/transient for its parent")
+	}
+	if !dialog.DestroyWithParent() {
+		t.Fatal("dialog must be destroyed with its parent")
+	}
 }
 
 func TestLargeListsAreVirtualized(t *testing.T) {
@@ -95,7 +116,7 @@ func TestLargeListsAreVirtualized(t *testing.T) {
 
 	translations := i18n.L()
 	message := gtk.NewLabel("")
-	modelsView, updateModels := newVirtualModelsList(translations, context.Background(), nil, nil, message, nil)
+	modelsView, updateModels := newVirtualModelsList(translations, context.Background(), nil, nil, nil, message, nil)
 	updateModels(models, nil, nil)
 	printsView, updatePrints := newVirtualPrintsList(translations, context.Background(), nil, message)
 	updatePrints(jobs, nil)
