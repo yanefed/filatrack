@@ -1,9 +1,11 @@
-package screens
+package spools
 
 import (
 	"awesomeProject/internal/domain"
 	"awesomeProject/internal/i18n"
 	"awesomeProject/internal/service"
+	"awesomeProject/internal/ui/screens/shared"
+	"awesomeProject/internal/ui/widgets"
 	"context"
 	"fmt"
 	"strconv"
@@ -70,15 +72,11 @@ func dryingStateText(t i18n.T, status service.DryingStatus, statusErr error) str
 
 func showDrySpoolDialog(ctx context.Context, parent *gtk.Window, dryingSvc *service.DryingService, spool domain.Spool, profile *domain.DryingProfile, onSave func()) {
 	t := i18n.L()
-	dialog := newModalWindow(parent)
+	dialog := shared.NewModalWindow(parent)
 	dialog.SetTitle(fmt.Sprintf("%s", t.DrySpool))
 	dialog.SetDefaultSize(360, 240)
 
-	box := gtk.NewBox(gtk.OrientationVertical, 8)
-	box.SetMarginTop(16)
-	box.SetMarginBottom(16)
-	box.SetMarginStart(16)
-	box.SetMarginEnd(16)
+	box := widgets.NewDialogContent(8)
 
 	spoolLabel := gtk.NewLabel(fmt.Sprintf("%s — %s %s (%s)", spool.DisplayCode, spool.Manufacturer, spool.Color, spool.Material))
 	spoolLabel.AddCSSClass("heading")
@@ -118,8 +116,7 @@ func showDrySpoolDialog(ctx context.Context, parent *gtk.Window, dryingSvc *serv
 	errorLabel.SetWrap(true)
 	box.Append(errorLabel)
 
-	actions := gtk.NewBox(gtk.OrientationHorizontal, 8)
-	actions.SetHAlign(gtk.AlignEnd)
+	actions := widgets.NewActions(8, gtk.AlignEnd)
 	cancelBtn := gtk.NewButtonWithLabel(t.Cancel)
 	cancelBtn.ConnectClicked(dialog.Destroy)
 	actions.Append(cancelBtn)

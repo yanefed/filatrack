@@ -1,9 +1,10 @@
-package screens
+package dashboard
 
 import (
 	"awesomeProject/internal/i18n"
 	"awesomeProject/internal/repository"
 	"awesomeProject/internal/service"
+	"awesomeProject/internal/ui/widgets"
 	"context"
 	"fmt"
 
@@ -14,15 +15,7 @@ import (
 func NewDashboard(ctx context.Context, spoolSvc *service.SpoolService, printSvc *service.PrintService) (*gtk.Box, func()) {
 	t := i18n.L()
 
-	box := gtk.NewBox(gtk.OrientationVertical, 12)
-	box.SetMarginTop(24)
-	box.SetMarginBottom(24)
-	box.SetMarginStart(24)
-	box.SetMarginEnd(24)
-
-	title := gtk.NewLabel(t.Dashboard)
-	title.AddCSSClass("title-1")
-	box.Append(title)
+	box := widgets.NewScreen(t.Dashboard)
 
 	statsLabel := gtk.NewLabel("...")
 	statsLabel.SetHAlign(gtk.AlignStart)

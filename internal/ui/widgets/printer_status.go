@@ -1,16 +1,16 @@
-package screens
+package widgets
 
 import (
-	"fmt"
-
 	"awesomeProject/internal/domain"
 	"awesomeProject/internal/i18n"
+	"fmt"
 
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 	"github.com/diamondburned/gotk4/pkg/pango"
 )
 
-func printerStatusWidget(t i18n.T, printer domain.Printer) *gtk.Box {
+// NewPrinterStatus creates a compact status block for a Moonraker printer.
+func NewPrinterStatus(t i18n.T, printer domain.Printer) *gtk.Box {
 	row := gtk.NewBox(gtk.OrientationVertical, 4)
 	row.SetMarginTop(6)
 	row.SetMarginBottom(8)
@@ -18,14 +18,14 @@ func printerStatusWidget(t i18n.T, printer domain.Printer) *gtk.Box {
 	header := gtk.NewBox(gtk.OrientationHorizontal, 8)
 	dot := gtk.NewBox(gtk.OrientationHorizontal, 0)
 	dot.AddCSSClass("printer-status-dot")
-	if printerOnline(printer) {
+	if PrinterOnline(printer) {
 		dot.AddCSSClass("online")
 	} else {
 		dot.AddCSSClass("offline")
 	}
 	header.Append(dot)
 
-	progress := clampProgress(printer.Progress)
+	progress := ClampProgress(printer.Progress)
 	info := gtk.NewLabel(fmt.Sprintf(t.PrinterInfoFmt, printer.Name, string(printer.State), progress*100))
 	info.SetHAlign(gtk.AlignStart)
 	info.SetHExpand(true)
@@ -44,7 +44,7 @@ func printerStatusWidget(t i18n.T, printer domain.Printer) *gtk.Box {
 		row.Append(file)
 	}
 
-	if printerHasActivePrint(printer) {
+	if PrinterHasActivePrint(printer) {
 		bar := gtk.NewProgressBar()
 		bar.SetFraction(progress)
 		bar.SetShowText(true)
@@ -55,15 +55,15 @@ func printerStatusWidget(t i18n.T, printer domain.Printer) *gtk.Box {
 	return row
 }
 
-func printerOnline(printer domain.Printer) bool {
+func PrinterOnline(printer domain.Printer) bool {
 	return printer.State != domain.PrinterStateOffline && printer.State != domain.PrinterStateError
 }
 
-func printerHasActivePrint(printer domain.Printer) bool {
+func PrinterHasActivePrint(printer domain.Printer) bool {
 	return printer.State == domain.PrinterStatePrinting || printer.State == domain.PrinterStatePaused
 }
 
-func clampProgress(progress float64) float64 {
+func ClampProgress(progress float64) float64 {
 	if progress < 0 {
 		return 0
 	}
@@ -71,15 +71,4 @@ func clampProgress(progress float64) float64 {
 		return 1
 	}
 	return progress
-}
-
-func replaceBoxChild(box *gtk.Box, child gtk.Widgetter) {
-	for {
-		current := box.FirstChild()
-		if current == nil {
-			break
-		}
-		box.Remove(current)
-	}
-	box.Append(child)
 }

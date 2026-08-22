@@ -1,10 +1,12 @@
-package screens
+package models
 
 import (
 	"awesomeProject/internal/domain"
 	"awesomeProject/internal/i18n"
 	"awesomeProject/internal/repository"
 	"awesomeProject/internal/service"
+	"awesomeProject/internal/ui/screens/shared"
+	"awesomeProject/internal/ui/widgets"
 	"context"
 	"fmt"
 	"strings"
@@ -15,50 +17,20 @@ import (
 func NewModelsScreen(ctx context.Context, parent *gtk.Window, printerSvc *service.PrinterService, spoolSvc *service.SpoolService, settingsSvc *service.SettingsService, onChanged func()) (*gtk.Box, func()) {
 	t := i18n.L()
 
-	box := gtk.NewBox(gtk.OrientationVertical, 12)
-	box.SetMarginTop(24)
-	box.SetMarginBottom(24)
-	box.SetMarginStart(24)
-	box.SetMarginEnd(24)
+	box := widgets.NewScreen(t.Models)
 
-	title := gtk.NewLabel(t.Models)
-	title.AddCSSClass("title-1")
-	box.Append(title)
-
-	messageLabel := gtk.NewLabel("")
-	messageLabel.SetHAlign(gtk.AlignStart)
-	messageLabel.AddCSSClass("dim-label")
-	messageLabel.SetWrap(true)
-	messageLabel.SetVisible(false)
+	messageLabel := widgets.NewMessageLabel()
 	box.Append(messageLabel)
 
 	var printers []domain.Printer
 	var spools []domain.Spool
 
-	uploadTitle := gtk.NewLabel(t.UploadAndPrint)
-	uploadTitle.AddCSSClass("title-3")
-	uploadTitle.SetHAlign(gtk.AlignStart)
-	box.Append(uploadTitle)
-
-	pathEntry := gtk.NewEntry()
-	pathEntry.SetPlaceholderText(t.LocalGCodePath)
-	pathRow := gtk.NewBox(gtk.OrientationHorizontal, 6)
-	pathEntry.SetHExpand(true)
-	pathRow.Append(pathEntry)
-	chooseFileBtn := gtk.NewButtonWithLabel(t.SelectGCode)
-	chooseFileBtn.ConnectClicked(func() {
-		showGCodeFileChooser(parent, pathEntry)
-	})
-	pathRow.Append(chooseFileBtn)
+	box.Append(widgets.NewSectionTitle(t.UploadAndPrint))
+	pathRow, upload := newModelUpload(t, parent)
 	box.Append(pathRow)
+	box.Append(upload.button)
 
-	uploadBtn := gtk.NewButtonWithLabel(t.UploadAndPrint)
-	box.Append(uploadBtn)
-
-	modelsTitle := gtk.NewLabel(t.Models)
-	modelsTitle.AddCSSClass("title-3")
-	modelsTitle.SetHAlign(gtk.AlignStart)
-	box.Append(modelsTitle)
+	box.Append(widgets.NewSectionTitle(t.Models))
 
 	refreshModelsBtn := gtk.NewButtonWithLabel(t.RefreshModels)
 	box.Append(refreshModelsBtn)
@@ -68,10 +40,7 @@ func NewModelsScreen(ctx context.Context, parent *gtk.Window, printerSvc *servic
 	emptyLabel.SetVisible(false)
 	box.Append(emptyLabel)
 	modelsList, updateModelsList := newVirtualModelsList(t, ctx, parent, printerSvc, settingsSvc, messageLabel, onChanged)
-	scrolled := gtk.NewScrolledWindow()
-	scrolled.SetVExpand(true)
-	scrolled.SetChild(modelsList)
-	box.Append(scrolled)
+	box.Append(widgets.NewScrolled(modelsList))
 
 	refreshPrinterChoices := func() {
 		loaded, err := printerSvc.List(ctx)
@@ -104,7 +73,7 @@ func NewModelsScreen(ctx context.Context, parent *gtk.Window, printerSvc *servic
 
 		var models []domain.PrinterModelFile
 		var err error
-		runAsyncUI(func() {
+		shared.RunAsyncUI(func() {
 			models, err = printerSvc.RefreshAllModels(ctx)
 		}, func() {
 			refreshModelsBtn.SetSensitive(true)
@@ -119,8 +88,8 @@ func NewModelsScreen(ctx context.Context, parent *gtk.Window, printerSvc *servic
 		})
 	}
 
-	uploadBtn.ConnectClicked(func() {
-		localPath := strings.TrimSpace(pathEntry.Text())
+	upload.button.ConnectClicked(func() {
+		localPath := strings.TrimSpace(upload.Path())
 		if localPath == "" {
 			return
 		}
@@ -128,7 +97,7 @@ func NewModelsScreen(ctx context.Context, parent *gtk.Window, printerSvc *servic
 			req.LocalPath = localPath
 			return printerSvc.UploadAndStartLocalFile(ctx, req)
 		}, messageLabel, func() {
-			pathEntry.SetText("")
+			upload.Reset()
 			refreshModels()
 			if onChanged != nil {
 				onChanged()
@@ -146,7 +115,7 @@ func NewModelsScreen(ctx context.Context, parent *gtk.Window, printerSvc *servic
 		emptyLabel.SetVisible(true)
 		var models []domain.PrinterModelFile
 		var err error
-		runAsyncUI(func() {
+		shared.RunAsyncUI(func() {
 			models, err = printerSvc.ListAllModels(ctx)
 		}, func() {
 			if err != nil {
@@ -164,7 +133,7 @@ func NewModelsScreen(ctx context.Context, parent *gtk.Window, printerSvc *servic
 }
 
 func showPrintLaunchDialog(t i18n.T, ctx context.Context, parent *gtk.Window, printerSvc *service.PrinterService, settingsSvc *service.SettingsService, printers []domain.Printer, spools []domain.Spool, launch func(domain.PrintLaunchRequest) (*domain.PrintLaunchResult, error), messageLabel *gtk.Label, onSuccess func()) {
-	dialog := newModalWindow(parent)
+	dialog := shared.NewModalWindow(parent)
 	dialog.SetTitle(t.PrintModelDialog)
 	dialog.SetDefaultSize(360, 220)
 	closed := false
@@ -172,11 +141,7 @@ func showPrintLaunchDialog(t i18n.T, ctx context.Context, parent *gtk.Window, pr
 		closed = true
 	})
 
-	box := gtk.NewBox(gtk.OrientationVertical, 10)
-	box.SetMarginTop(16)
-	box.SetMarginBottom(16)
-	box.SetMarginStart(16)
-	box.SetMarginEnd(16)
+	box := widgets.NewDialogContent(10)
 
 	printerLabel := gtk.NewLabel(t.Printers)
 	printerLabel.SetHAlign(gtk.AlignStart)
@@ -198,7 +163,7 @@ func showPrintLaunchDialog(t i18n.T, ctx context.Context, parent *gtk.Window, pr
 
 	spoolNames := make([]string, len(spools))
 	for i, spool := range spools {
-		spoolNames[i] = spoolDisplayName(spool)
+		spoolNames[i] = shared.SpoolDisplayName(spool)
 	}
 	if len(spoolNames) == 0 {
 		spoolNames = []string{t.NoSpoolsAvail}
@@ -224,7 +189,7 @@ func showPrintLaunchDialog(t i18n.T, ctx context.Context, parent *gtk.Window, pr
 	})
 	box.Append(spoolCombo)
 
-	actions := gtk.NewBox(gtk.OrientationHorizontal, 8)
+	actions := widgets.NewActions(8, gtk.AlignFill)
 	cancelBtn := gtk.NewButtonWithLabel(t.Cancel)
 	cancelBtn.ConnectClicked(func() {
 		dialog.Destroy()
@@ -248,7 +213,7 @@ func showPrintLaunchDialog(t i18n.T, ctx context.Context, parent *gtk.Window, pr
 		messageLabel.SetVisible(true)
 		var result *domain.PrintLaunchResult
 		var err error
-		runAsyncUI(func() {
+		shared.RunAsyncUI(func() {
 			if spoolID != "" {
 				for i := range printers {
 					if printers[i].ID == targetID && printers[i].ActiveSpoolID != spoolID {

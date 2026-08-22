@@ -3,7 +3,13 @@ package ui
 import (
 	"awesomeProject/internal/i18n"
 	"awesomeProject/internal/service"
-	"awesomeProject/internal/ui/screens"
+	"awesomeProject/internal/ui/screens/dashboard"
+	"awesomeProject/internal/ui/screens/drying"
+	"awesomeProject/internal/ui/screens/models"
+	"awesomeProject/internal/ui/screens/printers"
+	"awesomeProject/internal/ui/screens/prints"
+	"awesomeProject/internal/ui/screens/settings"
+	"awesomeProject/internal/ui/screens/spools"
 	"awesomeProject/packaging/metadata"
 	"context"
 	"log/slog"
@@ -151,25 +157,25 @@ func (a *App) activate(app *adw.Application) {
 		refreshSettingsDependencies := func() { markDirty("spools", "drying") }
 		refreshModelDependencies := func() { markDirty("dashboard", "printers") }
 
-		dashboardPage, refreshDashboard := screens.NewDashboard(ctx, a.SpoolService, a.PrintService)
+		dashboardPage, refreshDashboard := dashboard.NewDashboard(ctx, a.SpoolService, a.PrintService)
 		stack.AddTitled(dashboardPage, "dashboard", t.Dashboard)
 
-		spoolsPage, refreshSpools := screens.NewSpoolsScreen(ctx, parentWindow, a.SpoolService, a.DryingService, a.SettingsService, refreshSpoolDependencies)
+		spoolsPage, refreshSpools := spools.NewSpoolsScreen(ctx, parentWindow, a.SpoolService, a.DryingService, a.SettingsService, refreshSpoolDependencies)
 		stack.AddTitled(spoolsPage, "spools", t.Spools)
 
-		printsPage, refreshPrints, refreshPrintsLive := screens.NewPrintsScreen(ctx, parentWindow, a.PrintService, a.PrinterService, a.SpoolService, refreshPrintDependencies)
+		printsPage, refreshPrints, refreshPrintsLive := prints.NewPrintsScreen(ctx, parentWindow, a.PrintService, a.PrinterService, a.SpoolService, refreshPrintDependencies)
 		stack.AddTitled(printsPage, "prints", t.Prints)
 
-		modelsPage, refreshModels := screens.NewModelsScreen(ctx, parentWindow, a.PrinterService, a.SpoolService, a.SettingsService, refreshModelDependencies)
+		modelsPage, refreshModels := models.NewModelsScreen(ctx, parentWindow, a.PrinterService, a.SpoolService, a.SettingsService, refreshModelDependencies)
 		stack.AddTitled(modelsPage, "models", t.Models)
 
-		dryingPage, refreshDrying := screens.NewDryingScreen(ctx, a.DryingService, a.SpoolService, refreshDryingDependencies)
+		dryingPage, refreshDrying := drying.NewDryingScreen(ctx, a.DryingService, a.SpoolService, refreshDryingDependencies)
 		stack.AddTitled(dryingPage, "drying", t.Drying)
 
-		printersPage, refreshPrinters, refreshPrintersLive := screens.NewPrintersScreen(ctx, parentWindow, a.PrinterService, a.SpoolService, refreshPrinterDependencies)
+		printersPage, refreshPrinters, refreshPrintersLive := printers.NewPrintersScreen(ctx, parentWindow, a.PrinterService, a.SpoolService, refreshPrinterDependencies)
 		stack.AddTitled(printersPage, "printers", t.Printers)
 
-		settingsPage, refreshSettings := screens.NewSettingsScreen(ctx, parentWindow, a.SettingsService, refreshSettingsDependencies, rebuildUI)
+		settingsPage, refreshSettings := settings.NewSettingsScreen(ctx, parentWindow, a.SettingsService, refreshSettingsDependencies, rebuildUI)
 		stack.AddNamed(settingsPage, "settings")
 
 		sidebar := gtk.NewStackSidebar()

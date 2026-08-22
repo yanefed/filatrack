@@ -1,8 +1,8 @@
-package screens
+package shared
 
 import "github.com/diamondburned/gotk4/pkg/glib/v2"
 
-func runAsyncUI(work func(), done func()) {
+func RunAsyncUI(work func(), done func()) {
 	go func() {
 		if work != nil {
 			work()

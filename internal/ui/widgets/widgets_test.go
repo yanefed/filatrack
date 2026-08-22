@@ -1,6 +1,7 @@
 package widgets
 
 import (
+	"awesomeProject/internal/domain"
 	"math"
 	"runtime"
 	"testing"
@@ -14,6 +15,44 @@ func initGTK(t *testing.T) {
 	t.Cleanup(runtime.UnlockOSThread)
 	if !gtk.InitCheck() {
 		t.Skip("GTK display is not available")
+	}
+}
+
+func TestPrinterHasActivePrint(t *testing.T) {
+	if !PrinterHasActivePrint(domain.Printer{State: domain.PrinterStatePrinting, CurrentFile: "part.gcode"}) {
+		t.Fatal("printing printer must be active")
+	}
+	if !PrinterHasActivePrint(domain.Printer{State: domain.PrinterStatePaused, CurrentFile: "part.gcode"}) {
+		t.Fatal("paused printer must be active")
+	}
+	if PrinterHasActivePrint(domain.Printer{State: domain.PrinterStateReady, CurrentFile: "part.gcode", Progress: 1}) {
+		t.Fatal("ready printer with stale current file must not be active")
+	}
+}
+
+func TestScreenLayout(t *testing.T) {
+	initGTK(t)
+
+	screen := NewScreen("Inventory")
+	if screen.MarginTop() != screenMargin || screen.MarginBottom() != screenMargin ||
+		screen.MarginStart() != screenMargin || screen.MarginEnd() != screenMargin {
+		t.Fatalf("screen margins must all equal %d", screenMargin)
+	}
+	child := screen.FirstChild()
+	title, ok := child.(*gtk.Label)
+	if !ok || title.Text() != "Inventory" || !title.HasCSSClass("title-1") {
+		t.Fatal("screen must start with a title-1 label")
+	}
+}
+
+func TestClampProgress(t *testing.T) {
+	for _, tt := range []struct {
+		value float64
+		want  float64
+	}{{-1, 0}, {0.4, 0.4}, {2, 1}} {
+		if got := ClampProgress(tt.value); got != tt.want {
+			t.Fatalf("ClampProgress(%v) = %v, want %v", tt.value, got, tt.want)
+		}
 	}
 }
 

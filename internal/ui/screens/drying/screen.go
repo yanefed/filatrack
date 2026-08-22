@@ -1,13 +1,13 @@
-package screens
+package drying
 
 import (
 	"awesomeProject/internal/domain"
 	"awesomeProject/internal/i18n"
 	"awesomeProject/internal/repository"
 	"awesomeProject/internal/service"
+	"awesomeProject/internal/ui/widgets"
 	"context"
 	"fmt"
-	"strconv"
 
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 )
@@ -16,21 +16,10 @@ import (
 func NewDryingScreen(ctx context.Context, dryingSvc *service.DryingService, spoolSvc *service.SpoolService, onChanged func()) (*gtk.Box, func()) {
 	t := i18n.L()
 
-	box := gtk.NewBox(gtk.OrientationVertical, 12)
-	box.SetMarginTop(24)
-	box.SetMarginBottom(24)
-	box.SetMarginStart(24)
-	box.SetMarginEnd(24)
-
-	title := gtk.NewLabel(t.Drying)
-	title.AddCSSClass("title-1")
-	box.Append(title)
+	box := widgets.NewScreen(t.Drying)
 
 	// Рекомендации по сушке
-	recLabel := gtk.NewLabel(t.DryingRecommendations)
-	recLabel.SetHAlign(gtk.AlignStart)
-	recLabel.AddCSSClass("title-3")
-	box.Append(recLabel)
+	box.Append(widgets.NewSectionTitle(t.DryingRecommendations))
 
 	recText := ""
 	for _, mat := range []domain.Material{
@@ -49,21 +38,15 @@ func NewDryingScreen(ctx context.Context, dryingSvc *service.DryingService, spoo
 	box.Append(recInfo)
 
 	// Журнал сушки по катушкам
-	journalLabel := gtk.NewLabel(t.DryingLog)
-	journalLabel.SetHAlign(gtk.AlignStart)
-	journalLabel.AddCSSClass("title-3")
-	box.Append(journalLabel)
+	box.Append(widgets.NewSectionTitle(t.DryingLog))
 
 	listBox := gtk.NewListBox()
 	listBox.SetSelectionMode(gtk.SelectionNone)
 
-	scrolled := gtk.NewScrolledWindow()
-	scrolled.SetVExpand(true)
-	scrolled.SetChild(listBox)
-	box.Append(scrolled)
+	box.Append(widgets.NewScrolled(listBox))
 
 	var refreshDrying = func() {
-		clearListBox(listBox)
+		widgets.ClearListBox(listBox)
 
 		notArchived := false
 		spools, err := spoolSvc.List(ctx, repository.SpoolFilter{Archived: &notArchived})
@@ -90,20 +73,16 @@ func NewDryingScreen(ctx context.Context, dryingSvc *service.DryingService, spoo
 	addBtn := gtk.NewButtonWithLabel(t.AddDrying)
 	box.Append(addBtn)
 
-	formBox := gtk.NewBox(gtk.OrientationVertical, 6)
-	formBox.SetVisible(false)
-	box.Append(formBox)
+	form := newDryingForm(t)
+	box.Append(form.root)
 
 	// Выбор катушки
 	var spools []domain.Spool
-	spoolDropdown := gtk.NewDropDown(gtk.NewStringList([]string{t.NoSpoolsAvail}), nil)
-	formBox.Append(spoolDropdown)
-
 	refreshSpoolChoices := func() {
 		notArchived := false
 		currentID := ""
 		if len(spools) > 0 {
-			selected := spoolDropdown.Selected()
+			selected := form.spoolDropdown.Selected()
 			if int(selected) < len(spools) {
 				currentID = spools[selected].ID
 			}
@@ -112,26 +91,13 @@ func NewDryingScreen(ctx context.Context, dryingSvc *service.DryingService, spoo
 		loaded, err := spoolSvc.List(ctx, repository.SpoolFilter{Archived: &notArchived})
 		if err != nil {
 			spools = nil
-			spoolDropdown.SetModel(gtk.NewStringList([]string{fmt.Sprintf("%s: %v", t.ErrorPrefix, err)}))
-			spoolDropdown.SetSelected(0)
+			form.spoolDropdown.SetModel(gtk.NewStringList([]string{fmt.Sprintf("%s: %v", t.ErrorPrefix, err)}))
+			form.spoolDropdown.SetSelected(0)
 			return
 		}
 
 		spools = loaded
-		spoolNames := make([]string, len(spools))
-		selectedIdx := uint(0)
-		for i, s := range spools {
-			spoolNames[i] = fmt.Sprintf("%s %s (%s)", s.Manufacturer, s.Color, string(s.Material))
-			if s.ID == currentID {
-				selectedIdx = uint(i)
-			}
-		}
-		if len(spoolNames) == 0 {
-			spoolNames = []string{t.NoSpoolsAvail}
-		}
-
-		spoolDropdown.SetModel(gtk.NewStringList(spoolNames))
-		spoolDropdown.SetSelected(selectedIdx)
+		form.SetSpools(t, spools, currentID)
 	}
 
 	refreshScreen := func() {
@@ -139,46 +105,25 @@ func NewDryingScreen(ctx context.Context, dryingSvc *service.DryingService, spoo
 		refreshDrying()
 	}
 
-	tempEntry := gtk.NewEntry()
-	tempEntry.SetPlaceholderText(t.TemperatureC)
-	formBox.Append(tempEntry)
-
-	durationEntry := gtk.NewEntry()
-	durationEntry.SetPlaceholderText(t.DurationHours)
-	formBox.Append(durationEntry)
-
 	saveBtn := gtk.NewButtonWithLabel(t.Save)
-	formBox.Append(saveBtn)
+	form.root.Append(saveBtn)
 
 	addBtn.ConnectClicked(func() {
-		formBox.SetVisible(!formBox.IsVisible())
+		form.root.SetVisible(!form.root.IsVisible())
 	})
 
 	saveBtn.ConnectClicked(func() {
-		if len(spools) == 0 {
+		session, ok := form.Session(spools)
+		if !ok {
 			return
-		}
-		idx := spoolDropdown.Selected()
-		if int(idx) >= len(spools) {
-			return
-		}
-
-		temp, _ := strconv.Atoi(tempEntry.Text())
-		dur, _ := strconv.ParseFloat(durationEntry.Text(), 64)
-
-		session := &domain.DryingSession{
-			SpoolID:       spools[idx].ID,
-			TemperatureC:  temp,
-			DurationHours: dur,
 		}
 
 		if err := dryingSvc.Create(ctx, session); err != nil {
 			return
 		}
 
-		formBox.SetVisible(false)
-		tempEntry.SetText("")
-		durationEntry.SetText("")
+		form.root.SetVisible(false)
+		form.Reset()
 		refreshDrying()
 		if onChanged != nil {
 			onChanged()

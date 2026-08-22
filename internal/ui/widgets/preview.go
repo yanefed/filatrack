@@ -1,4 +1,4 @@
-package screens
+package widgets
 
 import (
 	"os"
@@ -8,19 +8,18 @@ import (
 )
 
 const (
-	printsRenderLimit = 250
-	previewWidth      = 96
-	previewHeight     = 72
+	PreviewWidth  = 96
+	PreviewHeight = 72
 )
 
-func loadScaledPreviewTexture(path string) *gdk.Texture {
+func LoadPreviewTexture(path string) *gdk.Texture {
 	if path == "" {
 		return nil
 	}
 	if _, err := os.Stat(path); err != nil {
 		return nil
 	}
-	pixbuf, err := gdkpixbuf.NewPixbufFromFileAtScale(path, previewWidth, previewHeight, true)
+	pixbuf, err := gdkpixbuf.NewPixbufFromFileAtScale(path, PreviewWidth, PreviewHeight, true)
 	if err != nil {
 		return nil
 	}

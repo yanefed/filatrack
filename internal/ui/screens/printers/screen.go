@@ -1,12 +1,13 @@
-package screens
+package printers
 
 import (
 	"awesomeProject/internal/domain"
 	"awesomeProject/internal/i18n"
 	"awesomeProject/internal/service"
+	"awesomeProject/internal/ui/screens/shared"
+	"awesomeProject/internal/ui/widgets"
 	"context"
 	"fmt"
-	"strings"
 
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 )
@@ -15,53 +16,24 @@ import (
 func NewPrintersScreen(ctx context.Context, parent *gtk.Window, printerSvc *service.PrinterService, spoolSvc *service.SpoolService, onChanged func()) (*gtk.Box, func(), func()) {
 	t := i18n.L()
 
-	box := gtk.NewBox(gtk.OrientationVertical, 12)
-	box.SetMarginTop(24)
-	box.SetMarginBottom(24)
-	box.SetMarginStart(24)
-	box.SetMarginEnd(24)
-
-	title := gtk.NewLabel(t.Printers)
-	title.AddCSSClass("title-1")
-	box.Append(title)
+	box := widgets.NewScreen(t.Printers)
 
 	list := gtk.NewListBox()
 	list.SetSelectionMode(gtk.SelectionNone)
 
-	scrolled := gtk.NewScrolledWindow()
-	scrolled.SetVExpand(true)
-	scrolled.SetChild(list)
-	box.Append(scrolled)
+	box.Append(widgets.NewScrolled(list))
 
-	errorLabel := gtk.NewLabel("")
-	errorLabel.SetHAlign(gtk.AlignStart)
-	errorLabel.AddCSSClass("dim-label")
-	errorLabel.SetWrap(true)
-	errorLabel.SetVisible(false)
+	errorLabel := widgets.NewMessageLabel()
 	box.Append(errorLabel)
 
-	addForm := gtk.NewBox(gtk.OrientationVertical, 6)
-	addForm.SetMarginTop(8)
-
-	nameEntry := gtk.NewEntry()
-	nameEntry.SetPlaceholderText(t.PrinterName)
-	addForm.Append(nameEntry)
-
-	urlEntry := gtk.NewEntry()
-	urlEntry.SetPlaceholderText(t.MoonrakerURL)
-	addForm.Append(urlEntry)
-
-	apiKeyEntry := gtk.NewEntry()
-	apiKeyEntry.SetPlaceholderText(t.APIKey)
-	apiKeyEntry.SetVisibility(false)
-	addForm.Append(apiKeyEntry)
+	addForm := newPrinterForm(t)
 
 	addBtn := gtk.NewButtonWithLabel(t.AddPrinter)
-	addForm.Append(addBtn)
+	addForm.root.Append(addBtn)
 
 	checkBtn := gtk.NewButtonWithLabel(t.CheckConnection)
-	addForm.Append(checkBtn)
-	box.Append(addForm)
+	addForm.root.Append(checkBtn)
+	box.Append(addForm.root)
 
 	pendingSpoolSelection := map[string]uint{}
 	statusSlots := map[string]*gtk.Box{}
@@ -77,12 +49,12 @@ func NewPrintersScreen(ctx context.Context, parent *gtk.Window, printerSvc *serv
 				refreshPrinters()
 				return
 			}
-			replaceBoxChild(slot, printerStatusWidget(t, printer))
+			widgets.ReplaceBoxChild(slot, widgets.NewPrinterStatus(t, printer))
 		}
 	}
 	refreshPrinters = func() {
 		errorLabel.SetVisible(false)
-		clearListBox(list)
+		widgets.ClearListBox(list)
 		statusSlots = map[string]*gtk.Box{}
 
 		printers, err := printerSvc.List(ctx)
@@ -92,7 +64,7 @@ func NewPrintersScreen(ctx context.Context, parent *gtk.Window, printerSvc *serv
 			return
 		}
 
-		spools := activeSpools(ctx, spoolSvc)
+		spools := shared.ActiveSpools(ctx, spoolSvc)
 		if len(printers) == 0 {
 			empty := gtk.NewLabel(t.NoPrinters)
 			empty.AddCSSClass("dim-label")
@@ -101,35 +73,13 @@ func NewPrintersScreen(ctx context.Context, parent *gtk.Window, printerSvc *serv
 		}
 
 		for _, printer := range printers {
-			row := gtk.NewBox(gtk.OrientationVertical, 4)
-			row.SetMarginTop(6)
-			row.SetMarginBottom(8)
-
-			statusSlot := gtk.NewBox(gtk.OrientationVertical, 0)
-			statusSlot.Append(printerStatusWidget(t, printer))
-			statusSlots[printer.ID] = statusSlot
-			row.Append(statusSlot)
-
-			assignRow := gtk.NewBox(gtk.OrientationHorizontal, 6)
-			assignLabel := gtk.NewLabel(t.ActiveSpool)
-			assignLabel.SetHAlign(gtk.AlignStart)
-			assignRow.Append(assignLabel)
-
-			spoolNames := spoolChoiceNames(t, spools)
-			dropdown := gtk.NewDropDown(gtk.NewStringList(spoolNames), nil)
-			selected := selectedSpoolIndex(printer.ActiveSpoolID, spools)
+			selected := shared.SelectedSpoolIndex(printer.ActiveSpoolID, spools)
 			if pending, ok := pendingSpoolSelection[printer.ID]; ok && int(pending) <= len(spools) {
 				selected = pending
 			}
-			dropdown.SetSelected(selected)
-			dropdown.NotifyProperty("selected", func() {
-				pendingSpoolSelection[printer.ID] = dropdown.Selected()
-			})
-			assignRow.Append(dropdown)
-
-			saveBtn := gtk.NewButtonWithLabel(t.SaveAssignment)
-			saveBtn.ConnectClicked(func() {
-				idx := dropdown.Selected()
+			row, statusSlot := newPrinterRow(t, printer, spools, selected, func(selected uint) {
+				pendingSpoolSelection[printer.ID] = selected
+			}, func(idx uint) {
 				var err error
 				if idx == 0 {
 					err = printerSvc.ClearAssignedSpool(ctx, printer.ID)
@@ -146,11 +96,7 @@ func NewPrintersScreen(ctx context.Context, parent *gtk.Window, printerSvc *serv
 				if onChanged != nil {
 					onChanged()
 				}
-			})
-			assignRow.Append(saveBtn)
-
-			editBtn := gtk.NewButtonWithLabel(t.Edit)
-			editBtn.ConnectClicked(func() {
+			}, func() {
 				showEditPrinterDialog(ctx, parent, printerSvc, printer, func() {
 					refreshPrinters()
 					if onChanged != nil {
@@ -158,27 +104,19 @@ func NewPrintersScreen(ctx context.Context, parent *gtk.Window, printerSvc *serv
 					}
 				})
 			})
-			assignRow.Append(editBtn)
-			row.Append(assignRow)
-
+			statusSlots[printer.ID] = statusSlot
 			list.Append(row)
 		}
 	}
 
 	addBtn.ConnectClicked(func() {
-		printer := &domain.Printer{
-			Name:         nameEntry.Text(),
-			MoonrakerURL: urlEntry.Text(),
-			APIKey:       strings.TrimSpace(apiKeyEntry.Text()),
-		}
-		if err := printerSvc.CreateMoonrakerPrinter(ctx, printer); err != nil {
+		printer := addForm.Printer()
+		if err := printerSvc.CreateMoonrakerPrinter(ctx, &printer); err != nil {
 			errorLabel.SetLabel(fmt.Sprintf("%s: %v", t.AddPrinterError, err))
 			errorLabel.SetVisible(true)
 			return
 		}
-		nameEntry.SetText("")
-		urlEntry.SetText("")
-		apiKeyEntry.SetText("")
+		addForm.Reset()
 		refreshPrinters()
 		if onChanged != nil {
 			onChanged()
@@ -186,12 +124,8 @@ func NewPrintersScreen(ctx context.Context, parent *gtk.Window, printerSvc *serv
 	})
 
 	checkBtn.ConnectClicked(func() {
-		printer := &domain.Printer{
-			Name:         nameEntry.Text(),
-			MoonrakerURL: urlEntry.Text(),
-			APIKey:       strings.TrimSpace(apiKeyEntry.Text()),
-		}
-		if err := printerSvc.CheckMoonrakerConnection(ctx, printer); err != nil {
+		printer := addForm.Printer()
+		if err := printerSvc.CheckMoonrakerConnection(ctx, &printer); err != nil {
 			errorLabel.SetLabel(fmt.Sprintf("%s: %v", t.ConnectionFailed, err))
 			errorLabel.SetVisible(true)
 			return
@@ -206,15 +140,11 @@ func NewPrintersScreen(ctx context.Context, parent *gtk.Window, printerSvc *serv
 
 func showEditPrinterDialog(ctx context.Context, parent *gtk.Window, printerSvc *service.PrinterService, printer domain.Printer, onSave func()) {
 	t := i18n.L()
-	dialog := newModalWindow(parent)
+	dialog := shared.NewModalWindow(parent)
 	dialog.SetTitle(fmt.Sprintf("%s — %s", t.Edit, printer.Name))
 	dialog.SetDefaultSize(440, 260)
 
-	box := gtk.NewBox(gtk.OrientationVertical, 8)
-	box.SetMarginTop(16)
-	box.SetMarginBottom(16)
-	box.SetMarginStart(16)
-	box.SetMarginEnd(16)
+	box := widgets.NewDialogContent(8)
 
 	nameEntry := gtk.NewEntry()
 	nameEntry.SetPlaceholderText(t.PrinterName)
@@ -233,7 +163,7 @@ func showEditPrinterDialog(ctx context.Context, parent *gtk.Window, printerSvc *
 	statusLabel.SetVisible(false)
 	box.Append(statusLabel)
 
-	actions := gtk.NewBox(gtk.OrientationHorizontal, 8)
+	actions := widgets.NewActions(8, gtk.AlignFill)
 	checkBtn := gtk.NewButtonWithLabel(t.CheckConnection)
 	saveBtn := gtk.NewButtonWithLabel(t.Save)
 	saveBtn.SetSensitive(false)

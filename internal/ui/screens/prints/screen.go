@@ -1,37 +1,28 @@
-package screens
+package prints
 
 import (
 	"awesomeProject/internal/domain"
 	"awesomeProject/internal/i18n"
 	"awesomeProject/internal/repository"
 	"awesomeProject/internal/service"
+	"awesomeProject/internal/ui/screens/shared"
+	"awesomeProject/internal/ui/widgets"
 	"context"
 	"fmt"
 
-	"github.com/diamondburned/gotk4/pkg/gio/v2"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 )
 
+const printsRenderLimit = 250
+
 // NewPrintsScreen создаёт экран истории печатей.
 func NewPrintsScreen(ctx context.Context, parent *gtk.Window, printSvc *service.PrintService, printerSvc *service.PrinterService, spoolSvc *service.SpoolService, onChanged func()) (*gtk.Box, func(), func()) {
-	box := gtk.NewBox(gtk.OrientationVertical, 12)
-	box.SetMarginTop(24)
-	box.SetMarginBottom(24)
-	box.SetMarginStart(24)
-	box.SetMarginEnd(24)
 	t := i18n.L()
-
-	title := gtk.NewLabel(t.Prints)
-	title.AddCSSClass("title-1")
-	box.Append(title)
+	box := widgets.NewScreen(t.Prints)
 
 	activeList := newPrintsListBox()
 
-	messageLabel := gtk.NewLabel("")
-	messageLabel.SetHAlign(gtk.AlignStart)
-	messageLabel.AddCSSClass("dim-label")
-	messageLabel.SetWrap(true)
-	messageLabel.SetVisible(false)
+	messageLabel := widgets.NewMessageLabel()
 	box.Append(messageLabel)
 	box.Append(activeList)
 
@@ -42,10 +33,7 @@ func NewPrintsScreen(ctx context.Context, parent *gtk.Window, printSvc *service.
 
 	listView, updatePrintsList := newVirtualPrintsList(t, ctx, printSvc, messageLabel)
 
-	scrolled := gtk.NewScrolledWindow()
-	scrolled.SetVExpand(true)
-	scrolled.SetChild(listView)
-	box.Append(scrolled)
+	box.Append(widgets.NewScrolled(listView))
 
 	var printers []domain.Printer
 	activePrintCount := 0
@@ -53,10 +41,10 @@ func NewPrintsScreen(ctx context.Context, parent *gtk.Window, printSvc *service.
 	box.Append(printerCombo)
 
 	renderActivePrints := func() int {
-		clearListBox(activeList)
+		widgets.ClearListBox(activeList)
 		rendered := 0
 		for _, printer := range printers {
-			if !printerHasActivePrint(printer) {
+			if !widgets.PrinterHasActivePrint(printer) {
 				continue
 			}
 			if len(printers) > 0 {
@@ -65,7 +53,7 @@ func NewPrintsScreen(ctx context.Context, parent *gtk.Window, printSvc *service.
 					continue
 				}
 			}
-			activeList.Append(printerStatusWidget(t, printer))
+			activeList.Append(widgets.NewPrinterStatus(t, printer))
 			rendered++
 		}
 		return rendered
@@ -102,7 +90,7 @@ func NewPrintsScreen(ctx context.Context, parent *gtk.Window, printSvc *service.
 			emptyLabel.SetVisible(false)
 			return
 		}
-		currentSpools := activeSpools(ctx, spoolSvc)
+		currentSpools := shared.ActiveSpools(ctx, spoolSvc)
 		activePrintCount = renderActivePrints()
 		updatePrintsList(jobs, currentSpools)
 		emptyLabel.SetVisible(activePrintCount == 0 && len(jobs) == 0)
@@ -163,7 +151,7 @@ func NewPrintsScreen(ctx context.Context, parent *gtk.Window, printSvc *service.
 		messageLabel.SetVisible(true)
 		var created int
 		var err error
-		runAsyncUI(func() {
+		shared.RunAsyncUI(func() {
 			created, err = printerSvc.SyncPrinterHistory(ctx, printerID, 0)
 		}, func() {
 			syncHistoryBtn.SetSensitive(true)
@@ -197,67 +185,4 @@ func printJobUsageText(t i18n.T, job domain.PrintJob) string {
 		return fmt.Sprintf(t.UsageFormat, job.ActualWeightG, job.CompletionPercent, printedAt)
 	}
 	return fmt.Sprintf("Usage: %.0f mm | Completion: %d%% | %s", job.EstimatedLengthMM, job.CompletionPercent, printedAt)
-}
-
-func selectedDirectSpool(dropdown *gtk.DropDown, spools []domain.Spool) string {
-	idx := dropdown.Selected()
-	if int(idx) >= len(spools) {
-		return ""
-	}
-	return spools[idx].ID
-}
-
-func showLaunchResult(t i18n.T, label *gtk.Label, result *domain.PrintLaunchResult, err error) {
-	if err != nil {
-		label.SetLabel(fmt.Sprintf("%s: %v", t.ErrorPrefix, err))
-		label.SetVisible(true)
-		return
-	}
-	if result == nil {
-		return
-	}
-	switch {
-	case result.Filament.Blocked:
-		label.SetLabel(fmt.Sprintf("%s: %s", t.LaunchBlocked, result.Filament.Warning))
-	case result.RequiresUserConfirmation:
-		label.SetLabel(fmt.Sprintf("%s: %s", t.LaunchWarning, result.Filament.Warning))
-	case result.Uploaded:
-		label.SetLabel(fmt.Sprintf("%s: %s", t.LaunchUploaded, result.Filename))
-	case result.Started || result.Queued:
-		label.SetLabel(fmt.Sprintf("%s: %s", t.LaunchStarted, result.Filename))
-	default:
-		label.SetLabel(fmt.Sprintf("%s: %.1fg / %.1fg", t.LaunchWarning, result.Filament.RequiredWeightG, result.Filament.RemainingBeforeG))
-	}
-	label.SetVisible(true)
-}
-
-func showGCodeFileChooser(parent *gtk.Window, pathEntry *gtk.Entry) {
-	t := i18n.L()
-	dialog := gtk.NewFileDialog()
-	dialog.SetTitle(t.SelectGCode)
-	dialog.SetAcceptLabel(t.SelectGCode)
-
-	filter := gtk.NewFileFilter()
-	filter.AddSuffix("gcode")
-	filter.AddSuffix("gco")
-	filter.AddSuffix("gc")
-	filter.AddPattern("*.gcode")
-	filter.AddPattern("*.GCODE")
-	filter.AddPattern("*.gco")
-	filter.AddPattern("*.GCO")
-	filter.AddPattern("*.gc")
-	filter.AddPattern("*.GC")
-	dialog.SetDefaultFilter(filter)
-
-	dialog.Open(context.Background(), parent, func(result gio.AsyncResulter) {
-		file, err := dialog.OpenFinish(result)
-		if err != nil || file == nil {
-			return
-		}
-		path := file.Path()
-		if path == "" {
-			path = file.ParseName()
-		}
-		pathEntry.SetText(path)
-	})
 }

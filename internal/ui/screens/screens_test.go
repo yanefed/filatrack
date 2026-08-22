@@ -1,28 +1,36 @@
-package screens
+package screens_test
 
 import (
 	"awesomeProject/internal/domain"
-	"awesomeProject/internal/i18n"
 	"awesomeProject/internal/repository/sqlite"
 	"awesomeProject/internal/service"
-	"context"
-	"fmt"
+	"awesomeProject/internal/ui/screens/dashboard"
+	"awesomeProject/internal/ui/screens/drying"
+	"awesomeProject/internal/ui/screens/models"
+	"awesomeProject/internal/ui/screens/printers"
+	"awesomeProject/internal/ui/screens/prints"
+	"awesomeProject/internal/ui/screens/settings"
+	"awesomeProject/internal/ui/screens/shared"
+	"awesomeProject/internal/ui/screens/spools"
 	"runtime"
 	"testing"
 	"time"
 
-	"github.com/diamondburned/gotk4/pkg/glib/v2"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 	_ "modernc.org/sqlite"
 )
 
-func TestScreenConstructorsWithRealServices(t *testing.T) {
+func initGTK(t *testing.T) {
+	t.Helper()
 	runtime.LockOSThread()
 	t.Cleanup(runtime.UnlockOSThread)
 	if !gtk.InitCheck() {
 		t.Skip("GTK display is not available")
 	}
+}
 
+func TestScreenConstructorsWithRealServices(t *testing.T) {
+	initGTK(t)
 	db, err := sqlite.New(":memory:")
 	if err != nil {
 		t.Fatalf("opening database: %v", err)
@@ -31,7 +39,6 @@ func TestScreenConstructorsWithRealServices(t *testing.T) {
 	if err := db.Migrate(); err != nil {
 		t.Fatalf("migrating database: %v", err)
 	}
-
 	spoolRepo := sqlite.NewSpoolRepo(db)
 	printRepo := sqlite.NewPrintJobRepo(db)
 	dryingRepo := sqlite.NewDryingRepo(db)
@@ -55,14 +62,14 @@ func TestScreenConstructorsWithRealServices(t *testing.T) {
 		t.Fatalf("creating drying session: %v", err)
 	}
 
-	dashboard, refreshDashboard := NewDashboard(ctx, spoolSvc, printSvc)
-	spools, refreshSpools := NewSpoolsScreen(ctx, nil, spoolSvc, dryingSvc, settingsSvc, func() {})
-	prints, refreshPrints, refreshPrintsLive := NewPrintsScreen(ctx, nil, printSvc, printerSvc, spoolSvc, func() {})
-	models, refreshModels := NewModelsScreen(ctx, nil, printerSvc, spoolSvc, settingsSvc, func() {})
-	drying, refreshDrying := NewDryingScreen(ctx, dryingSvc, spoolSvc, func() {})
-	printers, refreshPrinters, refreshPrintersLive := NewPrintersScreen(ctx, nil, printerSvc, spoolSvc, func() {})
-	settings, refreshSettings := NewSettingsScreen(ctx, nil, settingsSvc, func() {}, func() {})
-	if dashboard == nil || spools == nil || prints == nil || models == nil || drying == nil || printers == nil || settings == nil {
+	dashboardPage, refreshDashboard := dashboard.NewDashboard(ctx, spoolSvc, printSvc)
+	spoolsPage, refreshSpools := spools.NewSpoolsScreen(ctx, nil, spoolSvc, dryingSvc, settingsSvc, func() {})
+	printsPage, refreshPrints, refreshPrintsLive := prints.NewPrintsScreen(ctx, nil, printSvc, printerSvc, spoolSvc, func() {})
+	modelsPage, refreshModels := models.NewModelsScreen(ctx, nil, printerSvc, spoolSvc, settingsSvc, func() {})
+	dryingPage, refreshDrying := drying.NewDryingScreen(ctx, dryingSvc, spoolSvc, func() {})
+	printersPage, refreshPrinters, refreshPrintersLive := printers.NewPrintersScreen(ctx, nil, printerSvc, spoolSvc, func() {})
+	settingsPage, refreshSettings := settings.NewSettingsScreen(ctx, nil, settingsSvc, func() {}, func() {})
+	if dashboardPage == nil || spoolsPage == nil || printsPage == nil || modelsPage == nil || dryingPage == nil || printersPage == nil || settingsPage == nil {
 		t.Fatal("one or more screen constructors returned nil")
 	}
 
@@ -75,103 +82,19 @@ func TestScreenConstructorsWithRealServices(t *testing.T) {
 	refreshPrinters()
 	refreshPrintersLive()
 	refreshSettings()
-	runtime.KeepAlive([]any{dashboard, spools, prints, models, drying, printers, settings})
 }
 
 func TestModalWindowIsTransientForParent(t *testing.T) {
-	runtime.LockOSThread()
-	t.Cleanup(runtime.UnlockOSThread)
-	if !gtk.InitCheck() {
-		t.Skip("GTK display is not available")
-	}
-
+	initGTK(t)
 	parent := gtk.NewWindow()
-	dialog := newModalWindow(parent)
+	dialog := shared.NewModalWindow(parent)
 	t.Cleanup(parent.Destroy)
 	t.Cleanup(dialog.Destroy)
-
 	transient := dialog.TransientFor()
 	if !dialog.Modal() || transient == nil || transient.Object.Native() != parent.Object.Native() {
-		t.Fatalf("dialog is not modal/transient for its parent")
+		t.Fatal("dialog is not modal/transient for its parent")
 	}
 	if !dialog.DestroyWithParent() {
 		t.Fatal("dialog must be destroyed with its parent")
-	}
-}
-
-func TestLargeListsAreVirtualized(t *testing.T) {
-	runtime.LockOSThread()
-	t.Cleanup(runtime.UnlockOSThread)
-	if !gtk.InitCheck() {
-		t.Skip("GTK display is not available")
-	}
-
-	const itemCount = 1000
-	models := make([]domain.PrinterModelFile, itemCount)
-	jobs := make([]domain.PrintJob, itemCount)
-	for i := 0; i < itemCount; i++ {
-		models[i] = domain.PrinterModelFile{PrinterID: "printer", Path: fmt.Sprintf("model-%d.gcode", i)}
-		jobs[i] = domain.PrintJob{ID: fmt.Sprintf("job-%d", i), ModelName: fmt.Sprintf("job-%d", i)}
-	}
-
-	translations := i18n.L()
-	message := gtk.NewLabel("")
-	modelsView, updateModels := newVirtualModelsList(translations, context.Background(), nil, nil, nil, message, nil)
-	updateModels(models, nil, nil)
-	printsView, updatePrints := newVirtualPrintsList(translations, context.Background(), nil, message)
-	updatePrints(jobs, nil)
-
-	window := gtk.NewWindow()
-	window.SetDefaultSize(800, 600)
-	scrolled := gtk.NewScrolledWindow()
-	scrolled.SetChild(modelsView)
-	window.SetChild(scrolled)
-	window.Present()
-	iterateGTK()
-	// A non-virtual ListBox version creates roughly ten widgets per record.
-	// GtkListView should keep only a viewport-sized reusable pool.
-	if widgets := widgetDescendantCount(modelsView); widgets >= itemCount*3 {
-		t.Fatalf("models view created %d widgets for %d records; virtualization is not active", widgets, itemCount)
-	}
-	window.Destroy()
-
-	printsWindow := gtk.NewWindow()
-	printsWindow.SetDefaultSize(800, 600)
-	printsScrolled := gtk.NewScrolledWindow()
-	printsScrolled.SetChild(printsView)
-	printsWindow.SetChild(printsScrolled)
-	printsWindow.Present()
-	iterateGTK()
-	if widgets := widgetDescendantCount(printsView); widgets >= itemCount*3 {
-		t.Fatalf("prints view created %d widgets for %d records; virtualization is not active", widgets, itemCount)
-	}
-	printsWindow.Destroy()
-}
-
-func iterateGTK() {
-	mainContext := glib.MainContextDefault()
-	for i := 0; i < 20; i++ {
-		mainContext.Iteration(false)
-	}
-}
-
-func widgetDescendantCount(root gtk.Widgetter) int {
-	count := 0
-	for child := gtk.BaseWidget(root).FirstChild(); child != nil; child = gtk.BaseWidget(child).NextSibling() {
-		count++
-		count += widgetDescendantCount(child)
-	}
-	return count
-}
-
-func TestPrinterHasActivePrintIgnoresFinishedCurrentFile(t *testing.T) {
-	if !printerHasActivePrint(domain.Printer{State: domain.PrinterStatePrinting, CurrentFile: "part.gcode"}) {
-		t.Fatal("printing printer must be active")
-	}
-	if !printerHasActivePrint(domain.Printer{State: domain.PrinterStatePaused, CurrentFile: "part.gcode"}) {
-		t.Fatal("paused printer must be active")
-	}
-	if printerHasActivePrint(domain.Printer{State: domain.PrinterStateReady, CurrentFile: "part.gcode", Progress: 1}) {
-		t.Fatal("ready printer with stale current file must not be active")
 	}
 }
