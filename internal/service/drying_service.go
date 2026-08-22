@@ -14,6 +14,15 @@ type DryingService struct {
 	settings repository.SettingsRepository
 }
 
+// DryingStatus описывает актуальность сушки конкретной катушки.
+type DryingStatus struct {
+	Profile       *domain.DryingProfile
+	LastSession   *domain.DryingSession
+	NextDryingAt  time.Time
+	DaysUntilNext int
+	NeedsDrying   bool
+}
+
 func NewDryingService(dryings repository.DryingSessionRepository, settings repository.SettingsRepository) *DryingService {
 	return &DryingService{dryings: dryings, settings: settings}
 }
@@ -48,4 +57,29 @@ func (s *DryingService) GetRecommendation(ctx context.Context, material domain.M
 		return &p
 	}
 	return nil
+}
+
+// GetStatus возвращает последнюю сушку и рассчитывает срок следующей по
+// актуальному профилю материала.
+func (s *DryingService) GetStatus(ctx context.Context, spool *domain.Spool) (DryingStatus, error) {
+	profile := s.GetRecommendation(ctx, spool.Material)
+	status := DryingStatus{Profile: profile}
+	last, err := s.dryings.GetLastDrying(ctx, spool.ID)
+	if err != nil {
+		return DryingStatus{}, err
+	}
+	status.LastSession = last
+	if profile == nil {
+		return status, nil
+	}
+	if last == nil {
+		status.NeedsDrying = true
+		return status, nil
+	}
+
+	now := time.Now()
+	status.NextDryingAt = domain.NextDryingAt(last.DriedAt, *profile)
+	status.DaysUntilNext = domain.DaysUntilNextDrying(last.DriedAt, *profile, now)
+	status.NeedsDrying = domain.NeedsDrying(last.DriedAt, *profile)
+	return status, nil
 }

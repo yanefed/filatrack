@@ -62,6 +62,25 @@ func TestNeedsDrying(t *testing.T) {
 	}
 }
 
+func TestDryingSchedule(t *testing.T) {
+	now := time.Date(2026, time.August, 22, 12, 0, 0, 0, time.UTC)
+	profile := DryingProfile{MaxDaysNoDry: 7}
+	last := now.AddDate(0, 0, -3)
+
+	if got := NextDryingAt(last, profile); !got.Equal(now.AddDate(0, 0, 4)) {
+		t.Fatalf("NextDryingAt() = %v, want %v", got, now.AddDate(0, 0, 4))
+	}
+	if got := DaysUntilNextDrying(last, profile, now); got != 4 {
+		t.Fatalf("DaysUntilNextDrying() = %d, want 4", got)
+	}
+	if got := DaysUntilNextDrying(now.AddDate(0, 0, -9), profile, now); got != -2 {
+		t.Fatalf("overdue DaysUntilNextDrying() = %d, want -2", got)
+	}
+	if got := DaysUntilNextDrying(time.Time{}, profile, now); got != 0 {
+		t.Fatalf("never-dried DaysUntilNextDrying() = %d, want 0", got)
+	}
+}
+
 func TestDefaultMaterialData(t *testing.T) {
 	materials := []Material{MaterialPLA, MaterialPETG, MaterialABS, MaterialASA, MaterialTPU, MaterialNylon, MaterialPC}
 	for _, material := range materials {
