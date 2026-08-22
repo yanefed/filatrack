@@ -2,82 +2,80 @@ package dashboard
 
 import (
 	"awesomeProject/internal/i18n"
-	"awesomeProject/internal/repository"
 	"awesomeProject/internal/service"
 	"awesomeProject/internal/ui/widgets"
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 )
 
-// NewDashboard создаёт экран сводной статистики и предупреждений о сушке.
-func NewDashboard(ctx context.Context, spoolSvc *service.SpoolService, printSvc *service.PrintService) (*gtk.Box, func()) {
+// NewDashboard creates the application overview and its lightweight live refresh.
+func NewDashboard(ctx context.Context, spoolSvc *service.SpoolService, printSvc *service.PrintService, printerSvc *service.PrinterService) (*gtk.Box, func(), func()) {
 	t := i18n.L()
-
 	box := widgets.NewScreen(t.Dashboard)
 
-	statsLabel := gtk.NewLabel("...")
-	statsLabel.SetHAlign(gtk.AlignStart)
-	box.Append(statsLabel)
+	messageLabel := widgets.NewMessageLabel()
+	box.Append(messageLabel)
+	content := gtk.NewBox(gtk.OrientationVertical, 18)
+	box.Append(widgets.NewScrolled(content))
 
-	warningsLabel := gtk.NewLabel("")
-	warningsLabel.SetHAlign(gtk.AlignStart)
-	warningsLabel.SetWrap(true)
-	box.Append(warningsLabel)
+	activeSlot := gtk.NewBox(gtk.OrientationVertical, 0)
+	render := func(data dashboardData) {
+		for child := content.FirstChild(); child != nil; child = content.FirstChild() {
+			content.Remove(child)
+		}
+		content.Append(newMetricsGrid(t, data))
+
+		content.Append(widgets.NewSectionTitle(t.ActivePrints))
+		widgets.ReplaceBoxChild(activeSlot, newActivePrintsView(t, data.activePrinters()))
+		content.Append(activeSlot)
+
+		columns := gtk.NewBox(gtk.OrientationHorizontal, 12)
+		columns.SetHomogeneous(true)
+		recent := gtk.NewBox(gtk.OrientationVertical, 8)
+		recent.SetHExpand(true)
+		recent.Append(widgets.NewSectionTitle(t.RecentPrints))
+		recent.Append(newRecentPrintsPanel(t, data.recent))
+		columns.Append(recent)
+
+		attention := gtk.NewBox(gtk.OrientationVertical, 8)
+		attention.SetHExpand(true)
+		attention.Append(widgets.NewSectionTitle(t.DryingWarnings))
+		attention.Append(newAttentionPanel(t, data.dryingWarnings()))
+		columns.Append(attention)
+		content.Append(columns)
+
+		showDashboardErrors(t, messageLabel, data)
+	}
 
 	refreshDashboard := func() {
-		stats, err := printSvc.GetStats(ctx, repository.StatsFilter{})
-		if err != nil {
-			statsLabel.SetText(t.StatsUnavailable)
-			return
-		}
-
-		successRate := 0.0
-		if stats.TotalPrints > 0 {
-			successRate = float64(stats.SuccessCount) / float64(stats.TotalPrints) * 100
-		}
-
-		statsLabel.SetText(fmt.Sprintf(
-			"%s: %d\n%s: %d (%.0f%%)\n%s: %.1f g\n%s: %.1f g",
-			t.TotalPrints, stats.TotalPrints,
-			t.SuccessRate, stats.SuccessCount, successRate,
-			t.TotalUsed, stats.TotalWeightG,
-			t.AvgPerPrint, stats.AvgWeightG,
-		))
-
-		// Проверка сушки
-		notArchived := false
-		spools, err := spoolSvc.List(ctx, repository.SpoolFilter{Archived: &notArchived})
+		render(loadDashboardData(ctx, spoolSvc, printSvc, printerSvc))
+	}
+	refreshDashboardLive := func() {
+		printers, err := printerSvc.List(ctx)
 		if err != nil {
 			return
 		}
-
-		var warnings []string
-		for i := range spools {
-			needs, err := spoolSvc.NeedsDrying(ctx, &spools[i])
-			if err != nil {
-				continue
-			}
-			if needs {
-				warnings = append(warnings, fmt.Sprintf("⚠ %s %s (%s) — %s",
-					spools[i].Manufacturer, spools[i].Color, string(spools[i].Material),
-					t.SpoolNeedsDrying))
-			}
-		}
-
-		if len(warnings) > 0 {
-			text := t.DryingWarnings + ":\n"
-			for _, w := range warnings {
-				text += w + "\n"
-			}
-			warningsLabel.SetText(text)
-		} else {
-			warningsLabel.SetText(t.NoDryingWarnings)
-		}
+		data := dashboardData{printers: printers}
+		widgets.ReplaceBoxChild(activeSlot, newActivePrintsView(t, data.activePrinters()))
 	}
 
 	refreshDashboard()
+	return box, refreshDashboard, refreshDashboardLive
+}
 
-	return box, refreshDashboard
+func showDashboardErrors(t i18n.T, label *gtk.Label, data dashboardData) {
+	messages := make([]string, 0, 4)
+	if data.statsErr != nil {
+		messages = append(messages, t.StatsUnavailable)
+	}
+	for _, err := range []error{data.spoolsErr, data.printersErr, data.recentErr} {
+		if err != nil {
+			messages = append(messages, fmt.Sprintf("%s: %v", t.ErrorPrefix, err))
+		}
+	}
+	label.SetVisible(len(messages) > 0)
+	label.SetLabel(strings.Join(messages, " · "))
 }

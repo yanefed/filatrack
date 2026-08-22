@@ -62,7 +62,7 @@ func TestScreenConstructorsWithRealServices(t *testing.T) {
 		t.Fatalf("creating drying session: %v", err)
 	}
 
-	dashboardPage, refreshDashboard := dashboard.NewDashboard(ctx, spoolSvc, printSvc)
+	dashboardPage, refreshDashboard, refreshDashboardLive := dashboard.NewDashboard(ctx, spoolSvc, printSvc, printerSvc)
 	spoolsPage, refreshSpools, openAddSpoolDialog := spools.NewSpoolsScreen(ctx, nil, spoolSvc, dryingSvc, settingsSvc, func() {})
 	printsPage, refreshPrints, refreshPrintsLive, refreshHistoryButton := prints.NewPrintsScreen(ctx, nil, printSvc, printerSvc, spoolSvc, func() {})
 	modelsPage, refreshModels, addModelButton, refreshModelsButton := models.NewModelsScreen(ctx, nil, printerSvc, spoolSvc, settingsSvc, func() {})
@@ -74,6 +74,7 @@ func TestScreenConstructorsWithRealServices(t *testing.T) {
 	}
 
 	refreshDashboard()
+	refreshDashboardLive()
 	refreshSpools()
 	openAddSpoolDialog()
 	refreshPrints()

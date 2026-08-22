@@ -95,6 +95,7 @@ func (a *App) activate(app *adw.Application) {
 		stack.SetTransitionType(gtk.StackTransitionTypeCrossfade)
 
 		refreshDashboard := func() {}
+		refreshDashboardLive := func() {}
 		refreshSpools := func() {}
 		refreshPrints := func() {}
 		refreshModels := func() {}
@@ -115,6 +116,9 @@ func (a *App) activate(app *adw.Application) {
 		refreshLive = func() {
 			refreshPrintsLive()
 			refreshPrintersLive()
+			if activePage == "dashboard" {
+				refreshDashboardLive()
+			}
 		}
 
 		refreshPage := func(page string) {
@@ -157,7 +161,7 @@ func (a *App) activate(app *adw.Application) {
 		refreshSettingsDependencies := func() { markDirty("spools", "drying") }
 		refreshModelDependencies := func() { markDirty("dashboard", "printers") }
 
-		dashboardPage, refreshDashboard := dashboard.NewDashboard(ctx, a.SpoolService, a.PrintService)
+		dashboardPage, refreshDashboard, refreshDashboardLive := dashboard.NewDashboard(ctx, a.SpoolService, a.PrintService, a.PrinterService)
 		stack.AddTitled(dashboardPage, "dashboard", t.Dashboard)
 
 		spoolsPage, refreshSpools, openAddSpoolDialog := spools.NewSpoolsScreen(ctx, parentWindow, a.SpoolService, a.DryingService, a.SettingsService, refreshSpoolDependencies)

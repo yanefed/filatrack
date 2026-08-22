@@ -21,14 +21,19 @@ type T struct {
 	Settings  string
 
 	// Dashboard
-	TotalPrints      string
-	SuccessRate      string
-	TotalUsed        string
-	AvgPerPrint      string
-	NoDryingWarnings string
-	SpoolNeedsDrying string
-	DryingWarnings   string
-	StatsUnavailable string
+	TotalPrints          string
+	SuccessRate          string
+	TotalUsed            string
+	AvgPerPrint          string
+	NoDryingWarnings     string
+	SpoolNeedsDrying     string
+	DryingWarnings       string
+	StatsUnavailable     string
+	ActivePrints         string
+	NoActivePrints       string
+	RecentPrints         string
+	RemainingFilamentFmt string
+	MoreItemsFmt         string
 
 	// Spools
 	Save           string
