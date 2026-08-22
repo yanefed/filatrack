@@ -247,6 +247,7 @@ type printerJobClientStub struct {
 	downloadData  []byte
 	uploadedPath  string
 	uploadedLocal string
+	uploadStarted bool
 	uploadErr     error
 }
 
@@ -298,9 +299,10 @@ func (c *printerJobClientStub) DownloadFile(_ context.Context, _ domain.Printer,
 	return os.WriteFile(localPath, data, 0o644)
 }
 
-func (c *printerJobClientStub) UploadAndStart(_ context.Context, _ domain.Printer, localPath string) (domain.PrinterUploadResult, error) {
+func (c *printerJobClientStub) Upload(_ context.Context, _ domain.Printer, localPath string, startPrint bool) (domain.PrinterUploadResult, error) {
 	c.uploadedLocal = localPath
-	return domain.PrinterUploadResult{Path: c.uploadedPath, PrintStarted: true}, c.uploadErr
+	c.uploadStarted = startPrint
+	return domain.PrinterUploadResult{Path: c.uploadedPath, PrintStarted: startPrint}, c.uploadErr
 }
 
 func (r *printerModelRepoStub) SaveForPrinter(_ context.Context, printerID string, models []domain.PrinterModelFile) error {
@@ -1201,11 +1203,31 @@ func TestPrinterServiceUploadAndStartLocalFileChecksFilament(t *testing.T) {
 	if err != nil {
 		t.Fatalf("UploadAndStartLocalFile: %v", err)
 	}
-	if !result.Uploaded || !result.Started || client.uploadedLocal != path || result.Filament.RequiredWeightG != 10 {
+	if !result.Uploaded || !result.Started || !client.uploadStarted || client.uploadedLocal != path || result.Filament.RequiredWeightG != 10 {
 		t.Fatalf("upload result=%+v client=%+v", result, client)
 	}
 	if len(cache.saved) != 1 || cache.saved[0].Path != "small.gcode" || cache.saved[0].EstimatedWeightG != 10 {
 		t.Fatalf("cached models = %+v", cache.saved)
+	}
+}
+
+func TestPrinterServiceUploadLocalFileWithoutStarting(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "upload-only.gcode")
+	if err := os.WriteFile(path, []byte("; input_filename = upload-only.stl\n"), 0o644); err != nil {
+		t.Fatalf("writing gcode: %v", err)
+	}
+	printers := &printerRepoStub{printer: &domain.Printer{ID: "printer-1"}}
+	client := &printerJobClientStub{uploadedPath: "upload-only.gcode"}
+	service := newTestPrinterService(printers, &spoolRepoStub{}, &printRepoStub{})
+	service.SetJobClient(client)
+
+	result, err := service.UploadLocalFile(t.Context(), domain.PrintLaunchRequest{PrinterID: "printer-1", LocalPath: path}, false)
+	if err != nil {
+		t.Fatalf("UploadLocalFile: %v", err)
+	}
+	if !result.Uploaded || result.Started || client.uploadStarted || client.uploadedLocal != path {
+		t.Fatalf("upload result=%+v client=%+v", result, client)
 	}
 }
 

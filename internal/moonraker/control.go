@@ -25,7 +25,7 @@ type HistoryClient interface {
 	FetchMetadata(ctx context.Context, printer domain.Printer, filename string) (*domain.GcodeMetadata, error)
 	StartFile(ctx context.Context, printer domain.Printer, filename string) error
 	DownloadFile(ctx context.Context, printer domain.Printer, filename, localPath string) error
-	UploadAndStart(ctx context.Context, printer domain.Printer, localPath string) (domain.PrinterUploadResult, error)
+	Upload(ctx context.Context, printer domain.Printer, localPath string, startPrint bool) (domain.PrinterUploadResult, error)
 }
 
 type HTTPControlClient struct {
@@ -224,7 +224,7 @@ func (c HTTPControlClient) DownloadFile(ctx context.Context, printer domain.Prin
 	return nil
 }
 
-func (c HTTPControlClient) UploadAndStart(ctx context.Context, printer domain.Printer, localPath string) (uploadResult domain.PrinterUploadResult, err error) {
+func (c HTTPControlClient) Upload(ctx context.Context, printer domain.Printer, localPath string, startPrint bool) (uploadResult domain.PrinterUploadResult, err error) {
 	file, err := os.Open(localPath)
 	if err != nil {
 		return domain.PrinterUploadResult{}, fmt.Errorf("opening local gcode: %w", err)
@@ -248,7 +248,7 @@ func (c HTTPControlClient) UploadAndStart(ctx context.Context, printer domain.Pr
 	if err := writer.WriteField("root", "gcodes"); err != nil {
 		return domain.PrinterUploadResult{}, fmt.Errorf("writing upload root field: %w", err)
 	}
-	if err := writer.WriteField("print", "true"); err != nil {
+	if err := writer.WriteField("print", strconv.FormatBool(startPrint)); err != nil {
 		return domain.PrinterUploadResult{}, fmt.Errorf("writing upload print field: %w", err)
 	}
 	if err := writer.Close(); err != nil {

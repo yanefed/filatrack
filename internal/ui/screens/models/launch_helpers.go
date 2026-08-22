@@ -32,17 +32,17 @@ func showLaunchResult(t i18n.T, label *gtk.Label, result *domain.PrintLaunchResu
 		label.SetLabel(fmt.Sprintf("%s: %s", t.LaunchBlocked, result.Filament.Warning))
 	case result.RequiresUserConfirmation:
 		label.SetLabel(fmt.Sprintf("%s: %s", t.LaunchWarning, result.Filament.Warning))
-	case result.Uploaded:
-		label.SetLabel(fmt.Sprintf("%s: %s", t.LaunchUploaded, result.Filename))
 	case result.Started || result.Queued:
 		label.SetLabel(fmt.Sprintf("%s: %s", t.LaunchStarted, result.Filename))
+	case result.Uploaded:
+		label.SetLabel(fmt.Sprintf("%s: %s", t.LaunchUploaded, result.Filename))
 	default:
 		label.SetLabel(fmt.Sprintf("%s: %.1fg / %.1fg", t.LaunchWarning, result.Filament.RequiredWeightG, result.Filament.RemainingBeforeG))
 	}
 	label.SetVisible(true)
 }
 
-func showGCodeFileChooser(parent *gtk.Window, pathEntry *gtk.Entry) {
+func showGCodeFileChooser(parent *gtk.Window, onSelected func(string)) {
 	t := i18n.L()
 	dialog := gtk.NewFileDialog()
 	dialog.SetTitle(t.SelectGCode)
@@ -64,6 +64,8 @@ func showGCodeFileChooser(parent *gtk.Window, pathEntry *gtk.Entry) {
 		if path == "" {
 			path = file.ParseName()
 		}
-		pathEntry.SetText(path)
+		if onSelected != nil {
+			onSelected(path)
+		}
 	})
 }

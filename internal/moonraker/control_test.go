@@ -157,7 +157,7 @@ func TestHTTPControlClientListModels(t *testing.T) {
 	}
 }
 
-func TestHTTPControlClientUploadAndStart(t *testing.T) {
+func TestHTTPControlClientUpload(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "part.gcode")
 	if err := os.WriteFile(path, []byte("G28\n"), 0o644); err != nil {
@@ -196,9 +196,9 @@ func TestHTTPControlClientUploadAndStart(t *testing.T) {
 	}))
 	t.Cleanup(server.Close)
 
-	uploaded, err := HTTPControlClient{}.UploadAndStart(t.Context(), domain.Printer{MoonrakerURL: server.URL}, path)
+	uploaded, err := HTTPControlClient{}.Upload(t.Context(), domain.Printer{MoonrakerURL: server.URL}, path, true)
 	if err != nil {
-		t.Fatalf("UploadAndStart: %v", err)
+		t.Fatalf("Upload: %v", err)
 	}
 	if uploaded.Path != "part.gcode" || !uploaded.PrintStarted || uploaded.PrintQueued {
 		t.Fatalf("uploaded = %+v", uploaded)

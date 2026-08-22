@@ -104,8 +104,10 @@ type T struct {
 	ConnectionFailed   string
 	RefreshHistory     string
 	AssignHistoryJob   string
+	UploadModel        string
+	NoFileSelected     string
+	StartAfterUpload   string
 	UploadAndPrint     string
-	LocalGCodePath     string
 	LaunchBlocked      string
 	LaunchWarning      string
 	LaunchStarted      string

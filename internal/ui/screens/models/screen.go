@@ -9,12 +9,11 @@ import (
 	"awesomeProject/internal/ui/widgets"
 	"context"
 	"fmt"
-	"strings"
 
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 )
 
-func NewModelsScreen(ctx context.Context, parent *gtk.Window, printerSvc *service.PrinterService, spoolSvc *service.SpoolService, settingsSvc *service.SettingsService, onChanged func()) (*gtk.Box, func()) {
+func NewModelsScreen(ctx context.Context, parent *gtk.Window, printerSvc *service.PrinterService, spoolSvc *service.SpoolService, settingsSvc *service.SettingsService, onChanged func()) (*gtk.Box, func(), *gtk.Button, *gtk.Button) {
 	t := i18n.L()
 
 	box := widgets.NewScreen(t.Models)
@@ -25,15 +24,10 @@ func NewModelsScreen(ctx context.Context, parent *gtk.Window, printerSvc *servic
 	var printers []domain.Printer
 	var spools []domain.Spool
 
-	box.Append(widgets.NewSectionTitle(t.UploadAndPrint))
-	pathRow, upload := newModelUpload(t, parent)
-	box.Append(pathRow)
-	box.Append(upload.button)
-
-	box.Append(widgets.NewSectionTitle(t.Models))
-
-	refreshModelsBtn := gtk.NewButtonWithLabel(t.RefreshModels)
-	box.Append(refreshModelsBtn)
+	addModelBtn := gtk.NewButtonFromIconName("list-add-symbolic")
+	addModelBtn.SetTooltipText(t.UploadModel)
+	refreshModelsBtn := gtk.NewButtonFromIconName("view-refresh-symbolic")
+	refreshModelsBtn.SetTooltipText(t.RefreshModels)
 
 	emptyLabel := gtk.NewLabel(t.NoPrinterModels)
 	emptyLabel.AddCSSClass("dim-label")
@@ -88,16 +82,8 @@ func NewModelsScreen(ctx context.Context, parent *gtk.Window, printerSvc *servic
 		})
 	}
 
-	upload.button.ConnectClicked(func() {
-		localPath := strings.TrimSpace(upload.Path())
-		if localPath == "" {
-			return
-		}
-		showPrintLaunchDialog(t, ctx, parent, printerSvc, settingsSvc, printers, spools, func(req domain.PrintLaunchRequest) (*domain.PrintLaunchResult, error) {
-			req.LocalPath = localPath
-			return printerSvc.UploadAndStartLocalFile(ctx, req)
-		}, messageLabel, func() {
-			upload.Reset()
+	addModelBtn.ConnectClicked(func() {
+		showModelUploadDialog(t, ctx, parent, printerSvc, settingsSvc, printers, spools, messageLabel, func() {
 			refreshModels()
 			if onChanged != nil {
 				onChanged()
@@ -129,7 +115,7 @@ func NewModelsScreen(ctx context.Context, parent *gtk.Window, printerSvc *servic
 		})
 	}
 	refreshScreen()
-	return box, refreshScreen
+	return box, refreshScreen, addModelBtn, refreshModelsBtn
 }
 
 func showPrintLaunchDialog(t i18n.T, ctx context.Context, parent *gtk.Window, printerSvc *service.PrinterService, settingsSvc *service.SettingsService, printers []domain.Printer, spools []domain.Spool, launch func(domain.PrintLaunchRequest) (*domain.PrintLaunchResult, error), messageLabel *gtk.Label, onSuccess func()) {

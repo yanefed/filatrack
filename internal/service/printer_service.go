@@ -36,7 +36,7 @@ type PrinterJobClient interface {
 	FetchMetadata(ctx context.Context, printer domain.Printer, filename string) (*domain.GcodeMetadata, error)
 	StartFile(ctx context.Context, printer domain.Printer, filename string) error
 	DownloadFile(ctx context.Context, printer domain.Printer, filename, localPath string) error
-	UploadAndStart(ctx context.Context, printer domain.Printer, localPath string) (domain.PrinterUploadResult, error)
+	Upload(ctx context.Context, printer domain.Printer, localPath string, startPrint bool) (domain.PrinterUploadResult, error)
 }
 
 type printerHistoryPageClient interface {
@@ -637,7 +637,7 @@ func (s *PrinterService) PrintModel(ctx context.Context, req domain.PrintLaunchR
 	if err := s.jobClient.DownloadFile(ctx, *source, req.GcodeFilename, tmpPath); err != nil {
 		return nil, err
 	}
-	uploaded, err := s.jobClient.UploadAndStart(ctx, *target, tmpPath)
+	uploaded, err := s.jobClient.Upload(ctx, *target, tmpPath, true)
 	if err != nil {
 		return nil, err
 	}
@@ -649,6 +649,10 @@ func (s *PrinterService) PrintModel(ctx context.Context, req domain.PrintLaunchR
 }
 
 func (s *PrinterService) UploadAndStartLocalFile(ctx context.Context, req domain.PrintLaunchRequest) (*domain.PrintLaunchResult, error) {
+	return s.UploadLocalFile(ctx, req, true)
+}
+
+func (s *PrinterService) UploadLocalFile(ctx context.Context, req domain.PrintLaunchRequest, startPrint bool) (*domain.PrintLaunchResult, error) {
 	if s.jobClient == nil {
 		return nil, fmt.Errorf("printer job client is not configured")
 	}
@@ -666,19 +670,22 @@ func (s *PrinterService) UploadAndStartLocalFile(ctx context.Context, req domain
 	if metadata.Filename == "" {
 		metadata.Filename = filepath.Base(req.LocalPath)
 	}
-	check, err := s.checkFilament(ctx, *printer, req.SpoolID, metadata)
-	if err != nil {
-		return nil, err
+	result := &domain.PrintLaunchResult{Filename: metadata.Filename}
+	if startPrint {
+		check, err := s.checkFilament(ctx, *printer, req.SpoolID, metadata)
+		if err != nil {
+			return nil, err
+		}
+		result.Filament = check
+		if check.Blocked {
+			return result, nil
+		}
+		if check.Warning != "" && !req.AllowLowFilament {
+			result.RequiresUserConfirmation = true
+			return result, nil
+		}
 	}
-	result := &domain.PrintLaunchResult{Filename: metadata.Filename, Filament: check}
-	if check.Blocked {
-		return result, nil
-	}
-	if check.Warning != "" && !req.AllowLowFilament {
-		result.RequiresUserConfirmation = true
-		return result, nil
-	}
-	uploaded, err := s.jobClient.UploadAndStart(ctx, *printer, req.LocalPath)
+	uploaded, err := s.jobClient.Upload(ctx, *printer, req.LocalPath, startPrint)
 	if err != nil {
 		return nil, err
 	}
