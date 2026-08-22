@@ -43,13 +43,17 @@ func newSettingsButton(t i18n.T, showSettings func()) *gtk.Button {
 func newAboutButton(t i18n.T, parent gtk.Widgetter) *gtk.Button {
 	button := gtk.NewButtonFromIconName("help-about-symbolic")
 	button.SetTooltipText(t.AboutProgram)
+	var dialog *adw.AboutDialog
 	button.ConnectClicked(func() {
-		showAboutDialog(parent)
+		if dialog == nil {
+			dialog = newAboutDialog()
+		}
+		dialog.Present(parent)
 	})
 	return button
 }
 
-func showAboutDialog(parent gtk.Widgetter) {
+func newAboutDialog() *adw.AboutDialog {
 	dialog := adw.NewAboutDialog()
 	dialog.SetApplicationIcon(metadata.Current.ID)
 	dialog.SetApplicationName(metadata.Current.Name)
@@ -70,7 +74,7 @@ func showAboutDialog(parent gtk.Widgetter) {
 		dialog.AddLegalSection(title, component.copyright, gtk.LicenseCustom,
 			fmt.Sprintf("License: %s\nSource: %s", component.license, component.sourceURL))
 	}
-	dialog.Present(parent)
+	return dialog
 }
 
 func localizedDescription() string {
