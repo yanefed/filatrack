@@ -73,6 +73,7 @@ var langRu = T{
 	UnassignedSpool:       "Нет активной катушки",
 	SaveAssignment:        "Сохранить",
 	PrinterInfoFmt:        "%s — %s, %.0f%%",
+	PrinterIdleInfoFmt:    "%s — %s",
 	CurrentFileFmt:        "Файл: %s",
 	AddPrinterError:       "Ошибка при сохранении принтера",
 	AssignPrinterError:    "Ошибка при сохранении катушки",

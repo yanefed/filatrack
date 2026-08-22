@@ -73,6 +73,7 @@ var langBg = T{
 	UnassignedSpool:       "Няма активна макара",
 	SaveAssignment:        "Запази връзката",
 	PrinterInfoFmt:        "%s — %s, %.0f%%",
+	PrinterIdleInfoFmt:    "%s — %s",
 	CurrentFileFmt:        "Файл: %s",
 	AddPrinterError:       "Грешка при запазване на принтер",
 	AssignPrinterError:    "Грешка при свързване на макара",

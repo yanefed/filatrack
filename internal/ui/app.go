@@ -172,7 +172,7 @@ func (a *App) activate(app *adw.Application) {
 		dryingPage, refreshDrying, addDryingButton := drying.NewDryingScreen(ctx, parentWindow, a.DryingService, a.SpoolService, refreshDryingDependencies)
 		stack.AddTitled(dryingPage, "drying", t.Drying)
 
-		printersPage, refreshPrinters, refreshPrintersLive := printers.NewPrintersScreen(ctx, parentWindow, a.PrinterService, a.SpoolService, refreshPrinterDependencies)
+		printersPage, refreshPrinters, refreshPrintersLive, addPrinterButton := printers.NewPrintersScreen(ctx, parentWindow, a.PrinterService, a.SpoolService, refreshPrinterDependencies)
 		stack.AddTitled(printersPage, "printers", t.Printers)
 
 		settingsPage, refreshSettings := settings.NewSettingsScreen(ctx, parentWindow, a.SettingsService, refreshSettingsDependencies, rebuildUI)
@@ -206,6 +206,7 @@ func (a *App) activate(app *adw.Application) {
 		headerBar.PackEnd(addModelButton)
 		headerBar.PackEnd(refreshModelsButton)
 		headerBar.PackEnd(addDryingButton)
+		headerBar.PackEnd(addPrinterButton)
 
 		toolbarView := adw.NewToolbarView()
 		toolbarView.AddTopBar(headerBar)
@@ -221,6 +222,7 @@ func (a *App) activate(app *adw.Application) {
 			addModelButton.SetVisible(stackShowsPage(stack, modelsPage))
 			refreshModelsButton.SetVisible(stackShowsPage(stack, modelsPage))
 			addDryingButton.SetVisible(stackShowsPage(stack, dryingPage))
+			addPrinterButton.SetVisible(stackShowsPage(stack, printersPage))
 		}
 		updateHeaderActions()
 		visibleChildHandle = stack.NotifyProperty("visible-child", func() {

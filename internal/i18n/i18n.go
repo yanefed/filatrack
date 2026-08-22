@@ -98,6 +98,7 @@ type T struct {
 	UnassignedSpool    string
 	SaveAssignment     string
 	PrinterInfoFmt     string
+	PrinterIdleInfoFmt string
 	CurrentFileFmt     string
 	AddPrinterError    string
 	AssignPrinterError string

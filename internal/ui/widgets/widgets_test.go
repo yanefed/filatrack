@@ -2,8 +2,10 @@ package widgets
 
 import (
 	"awesomeProject/internal/domain"
+	"awesomeProject/internal/i18n"
 	"math"
 	"runtime"
+	"strings"
 	"testing"
 
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
@@ -27,6 +29,18 @@ func TestPrinterHasActivePrint(t *testing.T) {
 	}
 	if PrinterHasActivePrint(domain.Printer{State: domain.PrinterStateReady, CurrentFile: "part.gcode", Progress: 1}) {
 		t.Fatal("ready printer with stale current file must not be active")
+	}
+}
+
+func TestPrinterInfoTextOnlyIncludesProgressForActivePrint(t *testing.T) {
+	translations := i18n.L()
+	idle := PrinterInfoText(translations, domain.Printer{Name: "Voron", State: domain.PrinterStateReady, Progress: 0.75})
+	if strings.Contains(idle, "%") {
+		t.Fatalf("idle printer status contains progress: %q", idle)
+	}
+	printing := PrinterInfoText(translations, domain.Printer{Name: "Voron", State: domain.PrinterStatePrinting, Progress: 0.75})
+	if !strings.Contains(printing, "75%") {
+		t.Fatalf("printing printer status does not contain progress: %q", printing)
 	}
 }
 

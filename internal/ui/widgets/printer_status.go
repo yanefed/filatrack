@@ -26,7 +26,8 @@ func NewPrinterStatus(t i18n.T, printer domain.Printer) *gtk.Box {
 	header.Append(dot)
 
 	progress := ClampProgress(printer.Progress)
-	info := gtk.NewLabel(fmt.Sprintf(t.PrinterInfoFmt, printer.Name, string(printer.State), progress*100))
+	info := gtk.NewLabel(PrinterInfoText(t, printer))
+	info.AddCSSClass("heading")
 	info.SetHAlign(gtk.AlignStart)
 	info.SetHExpand(true)
 	info.SetEllipsize(pango.EllipsizeEnd)
@@ -61,6 +62,13 @@ func PrinterOnline(printer domain.Printer) bool {
 
 func PrinterHasActivePrint(printer domain.Printer) bool {
 	return printer.State == domain.PrinterStatePrinting || printer.State == domain.PrinterStatePaused
+}
+
+func PrinterInfoText(t i18n.T, printer domain.Printer) string {
+	if PrinterHasActivePrint(printer) {
+		return fmt.Sprintf(t.PrinterInfoFmt, printer.Name, string(printer.State), ClampProgress(printer.Progress)*100)
+	}
+	return fmt.Sprintf(t.PrinterIdleInfoFmt, printer.Name, string(printer.State))
 }
 
 func ClampProgress(progress float64) float64 {

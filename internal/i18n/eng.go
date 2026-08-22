@@ -73,6 +73,7 @@ var langEn = T{
 	UnassignedSpool:       "No active spool",
 	SaveAssignment:        "Save assignment",
 	PrinterInfoFmt:        "%s — %s, %.0f%%",
+	PrinterIdleInfoFmt:    "%s — %s",
 	CurrentFileFmt:        "File: %s",
 	AddPrinterError:       "Printer save error",
 	AssignPrinterError:    "Spool assignment error",

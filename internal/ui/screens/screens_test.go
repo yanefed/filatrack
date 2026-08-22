@@ -67,7 +67,7 @@ func TestScreenConstructorsWithRealServices(t *testing.T) {
 	printsPage, refreshPrints, refreshPrintsLive, refreshHistoryButton := prints.NewPrintsScreen(ctx, nil, printSvc, printerSvc, spoolSvc, func() {})
 	modelsPage, refreshModels, addModelButton, refreshModelsButton := models.NewModelsScreen(ctx, nil, printerSvc, spoolSvc, settingsSvc, func() {})
 	dryingPage, refreshDrying, addDryingButton := drying.NewDryingScreen(ctx, nil, dryingSvc, spoolSvc, func() {})
-	printersPage, refreshPrinters, refreshPrintersLive := printers.NewPrintersScreen(ctx, nil, printerSvc, spoolSvc, func() {})
+	printersPage, refreshPrinters, refreshPrintersLive, addPrinterButton := printers.NewPrintersScreen(ctx, nil, printerSvc, spoolSvc, func() {})
 	settingsPage, refreshSettings := settings.NewSettingsScreen(ctx, nil, settingsSvc, func() {}, func() {})
 	if dashboardPage == nil || spoolsPage == nil || printsPage == nil || modelsPage == nil || dryingPage == nil || printersPage == nil || settingsPage == nil {
 		t.Fatal("one or more screen constructors returned nil")
@@ -86,6 +86,9 @@ func TestScreenConstructorsWithRealServices(t *testing.T) {
 	}
 	if addDryingButton == nil {
 		t.Fatal("drying toolbar action is nil")
+	}
+	if addPrinterButton == nil {
+		t.Fatal("printers toolbar action is nil")
 	}
 	refreshModels()
 	refreshDrying()
