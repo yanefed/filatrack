@@ -160,7 +160,7 @@ func (a *App) activate(app *adw.Application) {
 		dashboardPage, refreshDashboard := dashboard.NewDashboard(ctx, a.SpoolService, a.PrintService)
 		stack.AddTitled(dashboardPage, "dashboard", t.Dashboard)
 
-		spoolsPage, refreshSpools := spools.NewSpoolsScreen(ctx, parentWindow, a.SpoolService, a.DryingService, a.SettingsService, refreshSpoolDependencies)
+		spoolsPage, refreshSpools, toggleAddSpoolForm := spools.NewSpoolsScreen(ctx, parentWindow, a.SpoolService, a.DryingService, a.SettingsService, refreshSpoolDependencies)
 		stack.AddTitled(spoolsPage, "spools", t.Spools)
 
 		printsPage, refreshPrints, refreshPrintsLive := prints.NewPrintsScreen(ctx, parentWindow, a.PrintService, a.PrinterService, a.SpoolService, refreshPrintDependencies)
@@ -194,10 +194,14 @@ func (a *App) activate(app *adw.Application) {
 
 		headerBar := adw.NewHeaderBar()
 		headerBar.SetShowEndTitleButtons(true)
+		addSpoolButton := gtk.NewButtonFromIconName("list-add-symbolic")
+		addSpoolButton.SetTooltipText(t.AddSpoolBtn)
+		addSpoolButton.ConnectClicked(toggleAddSpoolForm)
 		headerBar.PackEnd(newAboutButton(t, window))
 		headerBar.PackEnd(newSettingsButton(t, func() {
 			stack.SetVisibleChildName("settings")
 		}))
+		headerBar.PackEnd(addSpoolButton)
 
 		toolbarView := adw.NewToolbarView()
 		toolbarView.AddTopBar(headerBar)
@@ -207,8 +211,13 @@ func (a *App) activate(app *adw.Application) {
 		currentContent = toolbarView
 		currentStack = stack
 		stack.SetVisibleChildName(activePage)
-		visibleChildHandle = stack.NotifyProperty("visible-child-name", func() {
+		updateHeaderActions := func() {
+			addSpoolButton.SetVisible(stackShowsPage(stack, spoolsPage))
+		}
+		updateHeaderActions()
+		visibleChildHandle = stack.NotifyProperty("visible-child", func() {
 			activePage = stack.VisibleChildName()
+			updateHeaderActions()
 			refreshActive(false)
 		})
 	}
@@ -232,6 +241,11 @@ func (a *App) activate(app *adw.Application) {
 		refreshActive = func(bool) {}
 		refreshLive = func() {}
 	})
+}
+
+func stackShowsPage(stack *gtk.Stack, page gtk.Widgetter) bool {
+	visiblePage := stack.VisibleChild()
+	return visiblePage != nil && coreglib.InternObject(visiblePage).Native() == coreglib.InternObject(page).Native()
 }
 
 func installAppCSS() {

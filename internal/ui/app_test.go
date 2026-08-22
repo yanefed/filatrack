@@ -1,10 +1,15 @@
 package ui
 
 import (
+	"runtime"
 	"strings"
 	"testing"
 
 	"awesomeProject/internal/service"
+
+	"github.com/diamondburned/gotk4-adwaita/pkg/adw"
+	"github.com/diamondburned/gotk4/pkg/glib/v2"
+	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 )
 
 func TestNewAppStoresServices(t *testing.T) {
@@ -18,6 +23,72 @@ func TestNewAppStoresServices(t *testing.T) {
 
 	if app.SpoolService != spools || app.PrintService != prints || app.DryingService != dryings || app.SettingsService != settings || app.PrinterService != printers {
 		t.Fatalf("NewApp did not retain its services: %+v", app)
+	}
+}
+
+func TestSpoolToolbarButtonBecomesMapped(t *testing.T) {
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+	if !gtk.InitCheck() {
+		t.Skip("GTK display is not available")
+	}
+
+	stack := gtk.NewStack()
+	dashboard := gtk.NewBox(gtk.OrientationVertical, 0)
+	spools := gtk.NewBox(gtk.OrientationVertical, 0)
+	stack.AddNamed(dashboard, "dashboard")
+	stack.AddNamed(spools, "spools")
+	button := gtk.NewButtonFromIconName("list-add-symbolic")
+	header := adw.NewHeaderBar()
+	header.PackEnd(button)
+	toolbar := adw.NewToolbarView()
+	toolbar.AddTopBar(header)
+	toolbar.SetContent(stack)
+	window := gtk.NewWindow()
+	window.SetChild(toolbar)
+	window.Present()
+	defer window.Destroy()
+
+	update := func() { button.SetVisible(stackShowsPage(stack, spools)) }
+	handle := stack.NotifyProperty("visible-child", update)
+	defer stack.HandlerDisconnect(handle)
+	stack.SetVisibleChildName("spools")
+	update()
+	mainContext := glib.MainContextDefault()
+	for i := 0; i < 20; i++ {
+		mainContext.Iteration(false)
+	}
+	if button.Parent() == nil || !button.IsVisible() || !button.Mapped() {
+		t.Fatalf("toolbar button state: parent=%v visible=%v mapped=%v", button.Parent() != nil, button.IsVisible(), button.Mapped())
+	}
+}
+
+func TestStackShowsPageTracksVisibleChild(t *testing.T) {
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+	if !gtk.InitCheck() {
+		t.Skip("GTK display is not available")
+	}
+
+	stack := gtk.NewStack()
+	dashboard := gtk.NewBox(gtk.OrientationVertical, 0)
+	spools := gtk.NewBox(gtk.OrientationVertical, 0)
+	stack.AddNamed(dashboard, "dashboard")
+	stack.AddNamed(spools, "spools")
+
+	stack.SetVisibleChildName("dashboard")
+	if stackShowsPage(stack, spools) {
+		t.Fatal("spools page must not be active")
+	}
+	notified := false
+	handle := stack.NotifyProperty("visible-child", func() { notified = true })
+	defer stack.HandlerDisconnect(handle)
+	stack.SetVisibleChildName("spools")
+	if !notified {
+		t.Fatal("switching pages must notify visible-child")
+	}
+	if !stackShowsPage(stack, spools) {
+		t.Fatal("spools page must be active")
 	}
 }
 

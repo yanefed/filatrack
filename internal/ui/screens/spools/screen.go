@@ -14,7 +14,7 @@ import (
 )
 
 // NewSpoolsScreen создаёт экран управления катушками филамента.
-func NewSpoolsScreen(ctx context.Context, parent *gtk.Window, spoolSvc *service.SpoolService, dryingSvc *service.DryingService, settingsSvc *service.SettingsService, onChanged func()) (*gtk.Box, func()) {
+func NewSpoolsScreen(ctx context.Context, parent *gtk.Window, spoolSvc *service.SpoolService, dryingSvc *service.DryingService, settingsSvc *service.SettingsService, onChanged func()) (*gtk.Box, func(), func()) {
 	t := i18n.L()
 	box := widgets.NewScreen(t.Spools)
 
@@ -110,10 +110,6 @@ func NewSpoolsScreen(ctx context.Context, parent *gtk.Window, spoolSvc *service.
 		}
 	}
 
-	// Форма добавления
-	addBtn := gtk.NewButtonWithLabel(t.AddSpoolBtn)
-	box.Append(addBtn)
-
 	form := newSpoolForm(t, materials, nil)
 	formBox := form.Widget()
 	formBox.SetVisible(false)
@@ -124,9 +120,12 @@ func NewSpoolsScreen(ctx context.Context, parent *gtk.Window, spoolSvc *service.
 	saveBtn := gtk.NewButtonWithLabel(t.Save)
 	formBox.Append(saveBtn)
 
-	addBtn.ConnectClicked(func() {
+	toggleAddForm := func() {
 		formBox.SetVisible(!formBox.IsVisible())
-	})
+		if formBox.IsVisible() {
+			form.manufacturerEntry.GrabFocus()
+		}
+	}
 
 	saveBtn.ConnectClicked(func() {
 		spool, ok := form.Spool(materials, domain.Spool{})
@@ -146,7 +145,7 @@ func NewSpoolsScreen(ctx context.Context, parent *gtk.Window, spoolSvc *service.
 	})
 
 	refreshSpools()
-	return box, refreshSpools
+	return box, refreshSpools, toggleAddForm
 }
 
 func showEditSpoolDialog(ctx context.Context, parent *gtk.Window, spoolSvc *service.SpoolService, settingsSvc *service.SettingsService, spool domain.Spool, onSave func()) {

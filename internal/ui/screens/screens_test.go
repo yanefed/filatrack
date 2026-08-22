@@ -63,7 +63,7 @@ func TestScreenConstructorsWithRealServices(t *testing.T) {
 	}
 
 	dashboardPage, refreshDashboard := dashboard.NewDashboard(ctx, spoolSvc, printSvc)
-	spoolsPage, refreshSpools := spools.NewSpoolsScreen(ctx, nil, spoolSvc, dryingSvc, settingsSvc, func() {})
+	spoolsPage, refreshSpools, toggleAddSpoolForm := spools.NewSpoolsScreen(ctx, nil, spoolSvc, dryingSvc, settingsSvc, func() {})
 	printsPage, refreshPrints, refreshPrintsLive := prints.NewPrintsScreen(ctx, nil, printSvc, printerSvc, spoolSvc, func() {})
 	modelsPage, refreshModels := models.NewModelsScreen(ctx, nil, printerSvc, spoolSvc, settingsSvc, func() {})
 	dryingPage, refreshDrying := drying.NewDryingScreen(ctx, dryingSvc, spoolSvc, func() {})
@@ -75,6 +75,7 @@ func TestScreenConstructorsWithRealServices(t *testing.T) {
 
 	refreshDashboard()
 	refreshSpools()
+	toggleAddSpoolForm()
 	refreshPrints()
 	refreshPrintsLive()
 	refreshModels()
