@@ -37,9 +37,11 @@ type T struct {
 	AddSpoolBtn    string
 	ManufacturerPH string
 	ColorPH        string
+	ColorHexLabel  string
 	NetWeightPH    string
 	PricePH        string
 	SpoolInfoFmt   string
+	SpoolWeightFmt string
 
 	// Prints
 	SelectGCode    string
@@ -57,6 +59,14 @@ type T struct {
 	TemperatureC          string
 	DurationHours         string
 	MaxDaysNoDry          string
+	LastDryingFmt         string
+	NeverDried            string
+	NextDryingFmt         string
+	DryingDueToday        string
+	DryingOverdueFmt      string
+	DryingRequired        string
+	NoDryingProfile       string
+	DrySpool              string
 
 	// Settings
 	LanguageLabel    string
