@@ -5,6 +5,7 @@ import (
 	"awesomeProject/internal/i18n"
 	"awesomeProject/internal/repository"
 	"awesomeProject/internal/service"
+	"awesomeProject/internal/ui/widgets"
 	"context"
 	"fmt"
 	"strconv"
@@ -13,7 +14,7 @@ import (
 )
 
 // NewSpoolsScreen создаёт экран управления катушками филамента.
-func NewSpoolsScreen(ctx context.Context, spoolSvc *service.SpoolService, settingsSvc *service.SettingsService, onChanged func()) (*gtk.Box, func()) {
+func NewSpoolsScreen(ctx context.Context, parent *gtk.Window, spoolSvc *service.SpoolService, dryingSvc *service.DryingService, settingsSvc *service.SettingsService, onChanged func()) (*gtk.Box, func()) {
 	box := gtk.NewBox(gtk.OrientationVertical, 12)
 	box.SetMarginTop(24)
 	box.SetMarginBottom(24)
@@ -26,12 +27,18 @@ func NewSpoolsScreen(ctx context.Context, spoolSvc *service.SpoolService, settin
 	title.AddCSSClass("title-1")
 	box.Append(title)
 
-	listBox := gtk.NewListBox()
-	listBox.SetSelectionMode(gtk.SelectionNone)
+	spoolGrid := gtk.NewFlowBox()
+	spoolGrid.SetSelectionMode(gtk.SelectionNone)
+	spoolGrid.SetHomogeneous(true)
+	spoolGrid.SetMinChildrenPerLine(1)
+	spoolGrid.SetMaxChildrenPerLine(3)
+	spoolGrid.SetColumnSpacing(12)
+	spoolGrid.SetRowSpacing(12)
 
 	scrolled := gtk.NewScrolledWindow()
 	scrolled.SetVExpand(true)
-	scrolled.SetChild(listBox)
+	scrolled.SetPolicy(gtk.PolicyNever, gtk.PolicyAutomatic)
+	scrolled.SetChild(spoolGrid)
 	box.Append(scrolled)
 
 	var materials []domain.Material
@@ -66,13 +73,13 @@ func NewSpoolsScreen(ctx context.Context, spoolSvc *service.SpoolService, settin
 	var refreshSpools func()
 	refreshSpools = func() {
 		refreshMaterialChoices()
-		clearListBox(listBox)
+		spoolGrid.RemoveAll()
 
 		notArchived := false
 		spools, err := spoolSvc.List(ctx, repository.SpoolFilter{Archived: &notArchived})
 		if err != nil {
 			label := gtk.NewLabel(fmt.Sprintf("%s: %v", t.ErrorPrefix, err))
-			listBox.Append(label)
+			spoolGrid.Append(label)
 			return
 		}
 
@@ -82,30 +89,88 @@ func NewSpoolsScreen(ctx context.Context, spoolSvc *service.SpoolService, settin
 				remaining = 0
 			}
 			percent := spool.RemainingPercent(spool.TotalWeightG - remaining)
+			dryingStatus, dryingErr := dryingSvc.GetStatus(ctx, &spool)
 
-			row := gtk.NewBox(gtk.OrientationHorizontal, 12)
-			row.SetMarginTop(6)
-			row.SetMarginBottom(6)
+			card := gtk.NewBox(gtk.OrientationVertical, 10)
+			card.AddCSSClass("card")
+			card.SetMarginTop(2)
+			card.SetMarginBottom(2)
+			card.SetMarginStart(2)
+			card.SetMarginEnd(2)
+			card.SetSizeRequest(270, -1)
 
-			info := gtk.NewLabel(fmt.Sprintf(t.SpoolInfoFmt,
-				spool.DisplayCode, spool.Manufacturer, spool.Color, string(spool.Material),
-				remaining, spool.TotalWeightG, percent))
-			info.SetHAlign(gtk.AlignStart)
-			info.SetHExpand(true)
-			row.Append(info)
+			content := gtk.NewBox(gtk.OrientationHorizontal, 12)
+			content.SetMarginTop(14)
+			content.SetMarginStart(14)
+			content.SetMarginEnd(14)
+			content.Append(widgets.NewSpoolPreview(spool.ColorHex))
 
-			editBtn := gtk.NewButtonWithLabel(t.Edit)
-			editBtn.ConnectClicked(func() {
-				showEditSpoolDialog(ctx, spoolSvc, settingsSvc, spool, func() {
+			labels := gtk.NewBox(gtk.OrientationVertical, 3)
+			labels.SetHExpand(true)
+
+			name := gtk.NewLabel(fmt.Sprintf("%s — %s", spool.DisplayCode, spool.Manufacturer))
+			name.AddCSSClass("heading")
+			name.SetHAlign(gtk.AlignStart)
+			name.SetWrap(true)
+			name.SetMaxWidthChars(24)
+			labels.Append(name)
+
+			details := gtk.NewLabel(fmt.Sprintf("%s · %s", spool.Color, spool.Material))
+			details.AddCSSClass("dim-label")
+			details.SetHAlign(gtk.AlignStart)
+			details.SetWrap(true)
+			labels.Append(details)
+			content.Append(labels)
+			card.Append(content)
+
+			progress := widgets.NewLevelProgress(percent, fmt.Sprintf(t.SpoolWeightFmt, remaining, spool.TotalWeightG, percent))
+			progress.SetMarginStart(14)
+			progress.SetMarginEnd(14)
+			card.Append(progress)
+
+			weight := gtk.NewLabel(fmt.Sprintf(t.SpoolWeightFmt, remaining, spool.TotalWeightG, percent))
+			weight.AddCSSClass("caption")
+			weight.AddCSSClass("dim-label")
+			weight.SetHAlign(gtk.AlignStart)
+			weight.SetMarginStart(14)
+			weight.SetMarginEnd(14)
+			card.Append(weight)
+
+			card.Append(newSpoolDryingSection(t, dryingStatus, dryingErr))
+
+			actions := gtk.NewBox(gtk.OrientationHorizontal, 8)
+			actions.SetHAlign(gtk.AlignEnd)
+			actions.SetMarginBottom(12)
+			actions.SetMarginStart(14)
+			actions.SetMarginEnd(14)
+
+			dryBtn := spoolActionButton("weather-windy-symbolic", t.DrySpool)
+			if dryingStatus.NeedsDrying {
+				dryBtn.AddCSSClass("warning")
+			}
+			dryBtn.ConnectClicked(func() {
+				showDrySpoolDialog(ctx, parent, dryingSvc, spool, dryingStatus.Profile, func() {
 					refreshSpools()
 					if onChanged != nil {
 						onChanged()
 					}
 				})
 			})
-			row.Append(editBtn)
+			actions.Append(dryBtn)
 
-			archiveBtn := gtk.NewButtonWithLabel(t.Archive)
+			editBtn := spoolActionButton("document-edit-symbolic", t.Edit)
+			editBtn.ConnectClicked(func() {
+				showEditSpoolDialog(ctx, parent, spoolSvc, settingsSvc, spool, func() {
+					refreshSpools()
+					if onChanged != nil {
+						onChanged()
+					}
+				})
+			})
+			actions.Append(editBtn)
+
+			archiveBtn := spoolActionButton("edit-delete-symbolic", t.Archive)
+			archiveBtn.AddCSSClass("destructive-action")
 			archiveBtn.ConnectClicked(func() {
 				if err := spoolSvc.Archive(ctx, spool.ID); err != nil {
 					return
@@ -115,9 +180,10 @@ func NewSpoolsScreen(ctx context.Context, spoolSvc *service.SpoolService, settin
 					onChanged()
 				}
 			})
-			row.Append(archiveBtn)
+			actions.Append(archiveBtn)
+			card.Append(actions)
 
-			listBox.Append(row)
+			spoolGrid.Append(card)
 		}
 	}
 
@@ -140,6 +206,8 @@ func NewSpoolsScreen(ctx context.Context, spoolSvc *service.SpoolService, settin
 	colorEntry := gtk.NewEntry()
 	colorEntry.SetPlaceholderText(t.ColorPH)
 	formBox.Append(colorEntry)
+	colorPicker := widgets.NewColorPicker(t.ColorHexLabel, "")
+	formBox.Append(colorPicker.Widget())
 
 	weightEntry := gtk.NewEntry()
 	weightEntry.SetPlaceholderText(t.NetWeightPH)
@@ -169,7 +237,7 @@ func NewSpoolsScreen(ctx context.Context, spoolSvc *service.SpoolService, settin
 			Manufacturer: manufacturerEntry.Text(),
 			Material:     mat,
 			Color:        colorEntry.Text(),
-			ColorHex:     "#000000",
+			ColorHex:     colorPicker.Hex(),
 			DiameterMM:   1.75,
 			TotalWeightG: weight,
 			Price:        price,
@@ -182,6 +250,7 @@ func NewSpoolsScreen(ctx context.Context, spoolSvc *service.SpoolService, settin
 		formBox.SetVisible(false)
 		manufacturerEntry.SetText("")
 		colorEntry.SetText("")
+		colorPicker.SetHex("")
 		weightEntry.SetText("")
 		priceEntry.SetText("")
 		refreshSpools()
@@ -194,12 +263,11 @@ func NewSpoolsScreen(ctx context.Context, spoolSvc *service.SpoolService, settin
 	return box, refreshSpools
 }
 
-func showEditSpoolDialog(ctx context.Context, spoolSvc *service.SpoolService, settingsSvc *service.SettingsService, spool domain.Spool, onSave func()) {
+func showEditSpoolDialog(ctx context.Context, parent *gtk.Window, spoolSvc *service.SpoolService, settingsSvc *service.SettingsService, spool domain.Spool, onSave func()) {
 	t := i18n.L()
-	dialog := gtk.NewWindow()
-	dialog.SetTitle(fmt.Sprintf("%s — %s", t.Edit, spool.DisplayCode))
+	dialog := newModalWindow(parent)
+	dialog.SetTitle(fmt.Sprintf("%s", t.Edit))
 	dialog.SetDefaultSize(360, 320)
-	dialog.SetModal(true)
 
 	box := gtk.NewBox(gtk.OrientationVertical, 8)
 	box.SetMarginTop(16)
@@ -232,6 +300,8 @@ func showEditSpoolDialog(ctx context.Context, spoolSvc *service.SpoolService, se
 	colorEntry.SetPlaceholderText(t.ColorPH)
 	colorEntry.SetText(spool.Color)
 	box.Append(colorEntry)
+	colorPicker := widgets.NewColorPicker(t.ColorHexLabel, spool.ColorHex)
+	box.Append(colorPicker.Widget())
 
 	weightEntry := gtk.NewEntry()
 	weightEntry.SetPlaceholderText(t.NetWeightPH)
@@ -262,6 +332,7 @@ func showEditSpoolDialog(ctx context.Context, spoolSvc *service.SpoolService, se
 		updated.Manufacturer = manufacturerEntry.Text()
 		updated.Material = materials[idx]
 		updated.Color = colorEntry.Text()
+		updated.ColorHex = colorPicker.Hex()
 		updated.TotalWeightG = weight
 		updated.Price = price
 		if err := spoolSvc.Update(ctx, &updated); err != nil {
@@ -277,4 +348,11 @@ func showEditSpoolDialog(ctx context.Context, spoolSvc *service.SpoolService, se
 
 	dialog.SetChild(box)
 	dialog.SetVisible(true)
+}
+
+func spoolActionButton(iconName, tooltip string) *gtk.Button {
+	button := gtk.NewButtonFromIconName(iconName)
+	button.AddCSSClass("circular")
+	button.SetTooltipText(tooltip)
+	return button
 }

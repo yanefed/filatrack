@@ -1268,6 +1268,36 @@ func TestDryingServiceListAndRecommendations(t *testing.T) {
 	}
 }
 
+func TestDryingServiceGetStatus(t *testing.T) {
+	profile := domain.DryingProfile{Material: domain.MaterialPLA, TemperatureC: 45, DurationHours: 4, MaxDaysNoDry: 7}
+	dryings := &dryingRepoStub{}
+	service := NewDryingService(dryings, &settingsRepoStub{profiles: []domain.DryingProfile{profile}})
+	spool := &domain.Spool{ID: "spool", Material: domain.MaterialPLA}
+
+	status, err := service.GetStatus(t.Context(), spool)
+	if err != nil || status.Profile == nil || !status.NeedsDrying || status.LastSession != nil {
+		t.Fatalf("never-dried status = (%+v, %v)", status, err)
+	}
+
+	dryings.last = &domain.DryingSession{SpoolID: spool.ID, DriedAt: time.Now().Add(-2 * 24 * time.Hour)}
+	status, err = service.GetStatus(t.Context(), spool)
+	if err != nil || status.NeedsDrying || status.DaysUntilNext != 5 || status.NextDryingAt.IsZero() {
+		t.Fatalf("recently-dried status = (%+v, %v)", status, err)
+	}
+
+	dryings.last = &domain.DryingSession{SpoolID: spool.ID, DriedAt: time.Now().Add(-9 * 24 * time.Hour)}
+	status, err = service.GetStatus(t.Context(), spool)
+	if err != nil || !status.NeedsDrying || status.DaysUntilNext >= 0 {
+		t.Fatalf("overdue status = (%+v, %v)", status, err)
+	}
+
+	wantErr := errors.New("last drying failed")
+	dryings.lastErr = wantErr
+	if _, err := service.GetStatus(t.Context(), spool); !errors.Is(err, wantErr) {
+		t.Fatalf("GetStatus error = %v, want %v", err, wantErr)
+	}
+}
+
 func TestSettingsServiceLanguage(t *testing.T) {
 	original := i18n.GetLanguage()
 	t.Cleanup(func() { i18n.SetLanguage(original) })
