@@ -246,6 +246,10 @@ func installAppCSS() {
 .printer-status-dot.offline {
 	background: #e01b24;
 }
+.drying-warning {
+	color: #e66100;
+	font-weight: 600;
+}
 `)
 	gtk.StyleContextAddProviderForDisplay(display, provider, gtk.STYLE_PROVIDER_PRIORITY_APPLICATION)
 }
