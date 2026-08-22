@@ -33,6 +33,7 @@ var langEn = T{
 	SpoolWeightFmt:        "%.0f g / %.0f g · %.0f%%",
 	SelectGCode:           "Select G-code file",
 	LanguageLabel:         "Language",
+	Print:                 "Print",
 	DryingProfiles:        "Drying profiles",
 	CustomMaterials:       "Custom materials",
 	AddMaterial:           "Add material",

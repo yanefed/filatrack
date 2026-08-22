@@ -77,6 +77,7 @@ type T struct {
 
 	// Settings
 	LanguageLabel    string
+	Print            string
 	DryingProfiles   string
 	CustomMaterials  string
 	AddMaterial      string

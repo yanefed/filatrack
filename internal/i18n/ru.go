@@ -12,6 +12,7 @@ var langRu = T{
 	AvgPerPrint:           "В среднем использовано",
 	NoDryingWarnings:      "Ничего не требуется сушить",
 	SpoolNeedsDrying:      "требует сушки",
+	Print:                 "Печать",
 	DryingWarnings:        "Напоминания о сушке",
 	StatsUnavailable:      "Статистика недоступна",
 	ActivePrints:          "Сейчас печатается",

@@ -33,6 +33,7 @@ var langBg = T{
 	SpoolWeightFmt:        "%.0f г / %.0f г · %.0f%%",
 	SelectGCode:           "Избери G-code файл",
 	LanguageLabel:         "Език",
+	Print:                 "Печат",
 	DryingProfiles:        "Профили за сушене",
 	CustomMaterials:       "Потребителски материали",
 	AddMaterial:           "Добави материал",

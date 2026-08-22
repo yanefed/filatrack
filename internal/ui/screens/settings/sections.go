@@ -45,7 +45,7 @@ func newLanguageSettingsSection(ctx context.Context, settingsSvc *service.Settin
 
 func newPrintSettingsSection(ctx context.Context, settingsSvc *service.SettingsService, onChanged func()) *gtk.Box {
 	section := gtk.NewBox(gtk.OrientationVertical, 6)
-	section.Append(widgets.NewSectionTitle(i18n.L().Prints))
+	section.Append(widgets.NewSectionTitle(i18n.L().Print))
 	allowLowFilament := gtk.NewCheckButtonWithLabel(i18n.L().LowFilamentSetting)
 	allowLowFilament.SetActive(settingsSvc.AllowLowFilamentWarning(ctx))
 	allowLowFilament.ConnectToggled(func() {
