@@ -23,3 +23,24 @@ func TestSpoolFormPreservesExistingFields(t *testing.T) {
 		t.Fatal("editing a spool must preserve fields that are not part of the form")
 	}
 }
+
+func TestSpoolFormValidation(t *testing.T) {
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+	if !gtk.InitCheck() {
+		t.Skip("GTK display is not available")
+	}
+	materials := []domain.Material{domain.MaterialPLA}
+	form := newSpoolForm(i18n.L(), materials, nil)
+	if form.Valid(materials) {
+		t.Fatal("empty form must be invalid")
+	}
+	form.weightEntry.SetText("1000")
+	if !form.Valid(materials) {
+		t.Fatal("positive weight must make the form valid")
+	}
+	form.priceEntry.SetText("invalid")
+	if form.Valid(materials) {
+		t.Fatal("invalid price must make the form invalid")
+	}
+}

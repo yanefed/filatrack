@@ -160,7 +160,7 @@ func (a *App) activate(app *adw.Application) {
 		dashboardPage, refreshDashboard := dashboard.NewDashboard(ctx, a.SpoolService, a.PrintService)
 		stack.AddTitled(dashboardPage, "dashboard", t.Dashboard)
 
-		spoolsPage, refreshSpools, toggleAddSpoolForm := spools.NewSpoolsScreen(ctx, parentWindow, a.SpoolService, a.DryingService, a.SettingsService, refreshSpoolDependencies)
+		spoolsPage, refreshSpools, openAddSpoolDialog := spools.NewSpoolsScreen(ctx, parentWindow, a.SpoolService, a.DryingService, a.SettingsService, refreshSpoolDependencies)
 		stack.AddTitled(spoolsPage, "spools", t.Spools)
 
 		printsPage, refreshPrints, refreshPrintsLive, refreshHistoryButton := prints.NewPrintsScreen(ctx, parentWindow, a.PrintService, a.PrinterService, a.SpoolService, refreshPrintDependencies)
@@ -196,7 +196,7 @@ func (a *App) activate(app *adw.Application) {
 		headerBar.SetShowEndTitleButtons(true)
 		addSpoolButton := gtk.NewButtonFromIconName("list-add-symbolic")
 		addSpoolButton.SetTooltipText(t.AddSpoolBtn)
-		addSpoolButton.ConnectClicked(toggleAddSpoolForm)
+		addSpoolButton.ConnectClicked(openAddSpoolDialog)
 		headerBar.PackEnd(newAboutButton(t, window))
 		headerBar.PackEnd(newSettingsButton(t, func() {
 			stack.SetVisibleChildName("settings")

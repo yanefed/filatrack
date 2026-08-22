@@ -19,6 +19,7 @@ var langBg = T{
 	Archive:               "Архивирай",
 	AddSpoolBtn:           "Добави макара",
 	ManufacturerPH:        "Производител",
+	MaterialLabel:         "Материал",
 	ColorPH:               "Цвят",
 	ColorHexLabel:         "Цвят на филамента",
 	NetWeightPH:           "Тегло нето (г)",

@@ -36,6 +36,7 @@ type T struct {
 	Archive        string
 	AddSpoolBtn    string
 	ManufacturerPH string
+	MaterialLabel  string
 	ColorPH        string
 	ColorHexLabel  string
 	NetWeightPH    string

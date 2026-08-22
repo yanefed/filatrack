@@ -8,8 +8,9 @@ import (
 
 // ColorPicker объединяет подпись и нативную кнопку выбора цвета.
 type ColorPicker struct {
-	root   *gtk.Box
-	button *gtk.ColorDialogButton
+	root         *gtk.Box
+	button       *gtk.ColorDialogButton
+	buttonInRoot bool
 }
 
 // NewColorPicker создаёт подписанный выбор непрозрачного цвета.
@@ -30,12 +31,25 @@ func NewColorPicker(title, initialHex string) *ColorPicker {
 	root.Append(label)
 	root.Append(button)
 
-	return &ColorPicker{root: root, button: button}
+	return &ColorPicker{root: root, button: button, buttonInRoot: true}
 }
 
 // Widget возвращает корневой GTK-виджет выбора цвета.
 func (picker *ColorPicker) Widget() *gtk.Box {
+	if !picker.buttonInRoot && picker.button.Parent() == nil {
+		picker.root.Append(picker.button)
+		picker.buttonInRoot = true
+	}
 	return picker.root
+}
+
+// Button returns the compact native color selector for embedding in a row.
+func (picker *ColorPicker) Button() *gtk.ColorDialogButton {
+	if picker.buttonInRoot {
+		picker.root.Remove(picker.button)
+		picker.buttonInRoot = false
+	}
+	return picker.button
 }
 
 // Hex возвращает выбранный цвет в нормализованном HEX-формате.

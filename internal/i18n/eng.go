@@ -19,6 +19,7 @@ var langEn = T{
 	Archive:               "Archive",
 	AddSpoolBtn:           "Add spool",
 	ManufacturerPH:        "Manufacturer",
+	MaterialLabel:         "Material",
 	ColorPH:               "Color",
 	ColorHexLabel:         "Filament color",
 	NetWeightPH:           "Net weight (g)",

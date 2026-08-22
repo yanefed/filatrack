@@ -19,6 +19,7 @@ var langRu = T{
 	Archive:               "Удалить",
 	AddSpoolBtn:           "Добавить катушку",
 	ManufacturerPH:        "Производитель",
+	MaterialLabel:         "Материал",
 	ColorPH:               "Цвет",
 	ColorHexLabel:         "Цвет филамента",
 	NetWeightPH:           "Вес нетто (г)",

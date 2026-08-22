@@ -6,25 +6,27 @@ import (
 	"awesomeProject/internal/ui/widgets"
 	"fmt"
 	"strconv"
+	"strings"
 
+	"github.com/diamondburned/gotk4-adwaita/pkg/adw"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 )
 
 type spoolForm struct {
-	root              *gtk.Box
-	manufacturerEntry *gtk.Entry
-	materialCombo     *gtk.DropDown
-	colorEntry        *gtk.Entry
+	root              *adw.PreferencesGroup
+	manufacturerEntry *adw.EntryRow
+	materialCombo     *adw.ComboRow
+	colorEntry        *adw.EntryRow
 	colorPicker       *widgets.ColorPicker
-	weightEntry       *gtk.Entry
-	priceEntry        *gtk.Entry
+	weightEntry       *adw.EntryRow
+	priceEntry        *adw.EntryRow
 }
 
 func newSpoolForm(t i18n.T, materials []domain.Material, spool *domain.Spool) *spoolForm {
-	form := &spoolForm{root: gtk.NewBox(gtk.OrientationVertical, 6)}
-	form.manufacturerEntry = gtk.NewEntry()
-	form.manufacturerEntry.SetPlaceholderText(t.ManufacturerPH)
-	form.root.Append(form.manufacturerEntry)
+	form := &spoolForm{root: adw.NewPreferencesGroup()}
+	form.manufacturerEntry = adw.NewEntryRow()
+	form.manufacturerEntry.SetTitle(t.ManufacturerPH)
+	form.root.Add(form.manufacturerEntry)
 
 	names := make([]string, len(materials))
 	selected := uint(0)
@@ -34,26 +36,35 @@ func newSpoolForm(t i18n.T, materials []domain.Material, spool *domain.Spool) *s
 			selected = uint(i)
 		}
 	}
-	form.materialCombo = gtk.NewDropDown(gtk.NewStringList(names), nil)
+	form.materialCombo = adw.NewComboRow()
+	form.materialCombo.SetTitle(t.MaterialLabel)
+	form.materialCombo.SetModel(gtk.NewStringList(names))
 	form.materialCombo.SetSelected(selected)
-	form.root.Append(form.materialCombo)
+	form.root.Add(form.materialCombo)
 
-	form.colorEntry = gtk.NewEntry()
-	form.colorEntry.SetPlaceholderText(t.ColorPH)
-	form.root.Append(form.colorEntry)
+	form.colorEntry = adw.NewEntryRow()
+	form.colorEntry.SetTitle(t.ColorPH)
+	form.root.Add(form.colorEntry)
 	colorHex := ""
 	if spool != nil {
 		colorHex = spool.ColorHex
 	}
 	form.colorPicker = widgets.NewColorPicker(t.ColorHexLabel, colorHex)
-	form.root.Append(form.colorPicker.Widget())
+	colorRow := adw.NewActionRow()
+	colorRow.SetTitle(t.ColorHexLabel)
+	colorButton := form.colorPicker.Button()
+	colorRow.AddSuffix(colorButton)
+	colorRow.SetActivatableWidget(colorButton)
+	form.root.Add(colorRow)
 
-	form.weightEntry = gtk.NewEntry()
-	form.weightEntry.SetPlaceholderText(t.NetWeightPH)
-	form.root.Append(form.weightEntry)
-	form.priceEntry = gtk.NewEntry()
-	form.priceEntry.SetPlaceholderText(t.PricePH)
-	form.root.Append(form.priceEntry)
+	form.weightEntry = adw.NewEntryRow()
+	form.weightEntry.SetTitle(t.NetWeightPH)
+	form.weightEntry.SetInputPurpose(gtk.InputPurposeNumber)
+	form.root.Add(form.weightEntry)
+	form.priceEntry = adw.NewEntryRow()
+	form.priceEntry.SetTitle(t.PricePH)
+	form.priceEntry.SetInputPurpose(gtk.InputPurposeNumber)
+	form.root.Add(form.priceEntry)
 
 	if spool != nil {
 		form.manufacturerEntry.SetText(spool.Manufacturer)
@@ -64,7 +75,7 @@ func newSpoolForm(t i18n.T, materials []domain.Material, spool *domain.Spool) *s
 	return form
 }
 
-func (f *spoolForm) Widget() *gtk.Box {
+func (f *spoolForm) Widget() *adw.PreferencesGroup {
 	return f.root
 }
 
@@ -87,10 +98,18 @@ func (f *spoolForm) Spool(materials []domain.Material, base domain.Spool) (domai
 	return base, true
 }
 
-func (f *spoolForm) Reset() {
-	f.manufacturerEntry.SetText("")
-	f.colorEntry.SetText("")
-	f.colorPicker.SetHex("")
-	f.weightEntry.SetText("")
-	f.priceEntry.SetText("")
+func (f *spoolForm) Valid(materials []domain.Material) bool {
+	if int(f.materialCombo.Selected()) >= len(materials) {
+		return false
+	}
+	weight, err := strconv.ParseFloat(strings.TrimSpace(f.weightEntry.Text()), 64)
+	if err != nil || weight <= 0 {
+		return false
+	}
+	priceText := strings.TrimSpace(f.priceEntry.Text())
+	if priceText == "" {
+		return true
+	}
+	price, err := strconv.ParseFloat(priceText, 64)
+	return err == nil && price >= 0
 }
