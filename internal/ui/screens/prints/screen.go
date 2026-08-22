@@ -16,7 +16,7 @@ import (
 const printsRenderLimit = 250
 
 // NewPrintsScreen создаёт экран истории печатей.
-func NewPrintsScreen(ctx context.Context, parent *gtk.Window, printSvc *service.PrintService, printerSvc *service.PrinterService, spoolSvc *service.SpoolService, onChanged func()) (*gtk.Box, func(), func(), *gtk.Button) {
+func NewPrintsScreen(ctx context.Context, parent *gtk.Window, printSvc *service.PrintService, printerSvc *service.PrinterService, spoolSvc *service.SpoolService, onChanged func()) (*gtk.Box, func(), func(), *gtk.Button, *gtk.DropDown) {
 	t := i18n.L()
 	box := widgets.NewScreen(t.Prints)
 
@@ -25,13 +25,8 @@ func NewPrintsScreen(ctx context.Context, parent *gtk.Window, printSvc *service.
 
 	var printers []domain.Printer
 	printerCombo := gtk.NewDropDown(gtk.NewStringList([]string{t.NoPrinters}), nil)
-	filterRow := gtk.NewBox(gtk.OrientationHorizontal, 8)
-	filterLabel := gtk.NewLabel(t.Printers)
-	filterLabel.SetHAlign(gtk.AlignStart)
-	filterLabel.SetHExpand(true)
-	filterRow.Append(filterLabel)
-	filterRow.Append(printerCombo)
-	box.Append(filterRow)
+	printerCombo.SetSizeRequest(180, -1)
+	printerCombo.SetTooltipText(t.Printers)
 
 	activeList := newPrintsListBox()
 	box.Append(activeList)
@@ -185,7 +180,7 @@ func NewPrintsScreen(ctx context.Context, parent *gtk.Window, printSvc *service.
 	})
 
 	refreshScreen()
-	return box, refreshScreen, refreshLivePrints, syncHistoryBtn
+	return box, refreshScreen, refreshLivePrints, syncHistoryBtn, printerCombo
 }
 
 func newPrintsListBox() *gtk.ListBox {

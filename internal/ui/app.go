@@ -167,7 +167,7 @@ func (a *App) activate(app *adw.Application) {
 		spoolsPage, refreshSpools, openAddSpoolDialog := spools.NewSpoolsScreen(ctx, parentWindow, a.SpoolService, a.DryingService, a.SettingsService, refreshSpoolDependencies)
 		stack.AddTitled(spoolsPage, "spools", t.Spools)
 
-		printsPage, refreshPrints, refreshPrintsLive, refreshHistoryButton := prints.NewPrintsScreen(ctx, parentWindow, a.PrintService, a.PrinterService, a.SpoolService, refreshPrintDependencies)
+		printsPage, refreshPrints, refreshPrintsLive, refreshHistoryButton, printsPrinterFilter := prints.NewPrintsScreen(ctx, parentWindow, a.PrintService, a.PrinterService, a.SpoolService, refreshPrintDependencies)
 		stack.AddTitled(printsPage, "prints", t.Prints)
 
 		modelsPage, refreshModels, addModelButton, refreshModelsButton := models.NewModelsScreen(ctx, parentWindow, a.PrinterService, a.SpoolService, a.SettingsService, refreshModelDependencies)
@@ -207,6 +207,7 @@ func (a *App) activate(app *adw.Application) {
 		}))
 		headerBar.PackEnd(addSpoolButton)
 		headerBar.PackEnd(refreshHistoryButton)
+		headerBar.PackEnd(printsPrinterFilter)
 		headerBar.PackEnd(addModelButton)
 		headerBar.PackEnd(refreshModelsButton)
 		headerBar.PackEnd(addDryingButton)
@@ -223,6 +224,7 @@ func (a *App) activate(app *adw.Application) {
 		updateHeaderActions := func() {
 			addSpoolButton.SetVisible(stackShowsPage(stack, spoolsPage))
 			refreshHistoryButton.SetVisible(stackShowsPage(stack, printsPage))
+			printsPrinterFilter.SetVisible(stackShowsPage(stack, printsPage))
 			addModelButton.SetVisible(stackShowsPage(stack, modelsPage))
 			refreshModelsButton.SetVisible(stackShowsPage(stack, modelsPage))
 			addDryingButton.SetVisible(stackShowsPage(stack, dryingPage))
