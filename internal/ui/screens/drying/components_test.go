@@ -24,4 +24,20 @@ func TestDryingFormCreatesSessionForSelectedSpool(t *testing.T) {
 	if !ok || session.SpoolID != "second" || session.TemperatureC != 55 || session.DurationHours != 6.5 {
 		t.Fatalf("unexpected drying session: %#v", session)
 	}
+	if !form.Valid(spools) {
+		t.Fatal("complete drying form must be valid")
+	}
+}
+
+func TestDryingFormAppliesRecommendation(t *testing.T) {
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+	if !gtk.InitCheck() {
+		t.Skip("GTK display is not available")
+	}
+	form := newDryingForm(i18n.L())
+	form.SetRecommendation(&domain.DryingProfile{TemperatureC: 65, DurationHours: 5.5})
+	if form.tempEntry.Text() != "65" || form.durationEntry.Text() != "5.5" {
+		t.Fatalf("recommendation was not applied: temperature=%q duration=%q", form.tempEntry.Text(), form.durationEntry.Text())
+	}
 }

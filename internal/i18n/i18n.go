@@ -56,6 +56,7 @@ type T struct {
 	// Drying
 	DryingRecommendations string
 	DryingLog             string
+	NoDryingHistory       string
 	AddDrying             string
 	TemperatureC          string
 	DurationHours         string

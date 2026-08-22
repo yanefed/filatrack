@@ -66,7 +66,7 @@ func TestScreenConstructorsWithRealServices(t *testing.T) {
 	spoolsPage, refreshSpools, openAddSpoolDialog := spools.NewSpoolsScreen(ctx, nil, spoolSvc, dryingSvc, settingsSvc, func() {})
 	printsPage, refreshPrints, refreshPrintsLive, refreshHistoryButton := prints.NewPrintsScreen(ctx, nil, printSvc, printerSvc, spoolSvc, func() {})
 	modelsPage, refreshModels, addModelButton, refreshModelsButton := models.NewModelsScreen(ctx, nil, printerSvc, spoolSvc, settingsSvc, func() {})
-	dryingPage, refreshDrying := drying.NewDryingScreen(ctx, dryingSvc, spoolSvc, func() {})
+	dryingPage, refreshDrying, addDryingButton := drying.NewDryingScreen(ctx, nil, dryingSvc, spoolSvc, func() {})
 	printersPage, refreshPrinters, refreshPrintersLive := printers.NewPrintersScreen(ctx, nil, printerSvc, spoolSvc, func() {})
 	settingsPage, refreshSettings := settings.NewSettingsScreen(ctx, nil, settingsSvc, func() {}, func() {})
 	if dashboardPage == nil || spoolsPage == nil || printsPage == nil || modelsPage == nil || dryingPage == nil || printersPage == nil || settingsPage == nil {
@@ -83,6 +83,9 @@ func TestScreenConstructorsWithRealServices(t *testing.T) {
 	}
 	if addModelButton == nil || refreshModelsButton == nil {
 		t.Fatal("models toolbar actions are nil")
+	}
+	if addDryingButton == nil {
+		t.Fatal("drying toolbar action is nil")
 	}
 	refreshModels()
 	refreshDrying()

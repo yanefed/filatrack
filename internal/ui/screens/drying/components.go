@@ -5,28 +5,33 @@ import (
 	"awesomeProject/internal/i18n"
 	"fmt"
 	"strconv"
+	"strings"
 
+	"github.com/diamondburned/gotk4-adwaita/pkg/adw"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 )
 
 type dryingForm struct {
-	root          *gtk.Box
-	spoolDropdown *gtk.DropDown
-	tempEntry     *gtk.Entry
-	durationEntry *gtk.Entry
+	root          *adw.PreferencesGroup
+	spoolDropdown *adw.ComboRow
+	tempEntry     *adw.EntryRow
+	durationEntry *adw.EntryRow
 }
 
 func newDryingForm(t i18n.T) *dryingForm {
-	form := &dryingForm{root: gtk.NewBox(gtk.OrientationVertical, 6)}
-	form.root.SetVisible(false)
-	form.spoolDropdown = gtk.NewDropDown(gtk.NewStringList([]string{t.NoSpoolsAvail}), nil)
-	form.root.Append(form.spoolDropdown)
-	form.tempEntry = gtk.NewEntry()
-	form.tempEntry.SetPlaceholderText(t.TemperatureC)
-	form.root.Append(form.tempEntry)
-	form.durationEntry = gtk.NewEntry()
-	form.durationEntry.SetPlaceholderText(t.DurationHours)
-	form.root.Append(form.durationEntry)
+	form := &dryingForm{root: adw.NewPreferencesGroup()}
+	form.spoolDropdown = adw.NewComboRow()
+	form.spoolDropdown.SetTitle(t.SpoolColon)
+	form.spoolDropdown.SetModel(gtk.NewStringList([]string{t.NoSpoolsAvail}))
+	form.root.Add(form.spoolDropdown)
+	form.tempEntry = adw.NewEntryRow()
+	form.tempEntry.SetTitle(t.TemperatureC)
+	form.tempEntry.SetInputPurpose(gtk.InputPurposeNumber)
+	form.root.Add(form.tempEntry)
+	form.durationEntry = adw.NewEntryRow()
+	form.durationEntry.SetTitle(t.DurationHours)
+	form.durationEntry.SetInputPurpose(gtk.InputPurposeNumber)
+	form.root.Add(form.durationEntry)
 	return form
 }
 
@@ -56,7 +61,24 @@ func (f *dryingForm) Session(spools []domain.Spool) (*domain.DryingSession, bool
 	return &domain.DryingSession{SpoolID: spools[idx].ID, TemperatureC: temperature, DurationHours: duration}, true
 }
 
-func (f *dryingForm) Reset() {
-	f.tempEntry.SetText("")
-	f.durationEntry.SetText("")
+func (f *dryingForm) SetRecommendation(profile *domain.DryingProfile) {
+	if profile == nil {
+		f.tempEntry.SetText("")
+		f.durationEntry.SetText("")
+		return
+	}
+	f.tempEntry.SetText(strconv.Itoa(profile.TemperatureC))
+	f.durationEntry.SetText(strconv.FormatFloat(profile.DurationHours, 'f', -1, 64))
+}
+
+func (f *dryingForm) Valid(spools []domain.Spool) bool {
+	if int(f.spoolDropdown.Selected()) >= len(spools) {
+		return false
+	}
+	temperature, err := strconv.Atoi(strings.TrimSpace(f.tempEntry.Text()))
+	if err != nil || temperature <= 0 {
+		return false
+	}
+	duration, err := strconv.ParseFloat(strings.TrimSpace(f.durationEntry.Text()), 64)
+	return err == nil && duration > 0
 }
