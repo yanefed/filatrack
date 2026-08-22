@@ -64,8 +64,8 @@ func TestScreenConstructorsWithRealServices(t *testing.T) {
 
 	dashboardPage, refreshDashboard := dashboard.NewDashboard(ctx, spoolSvc, printSvc)
 	spoolsPage, refreshSpools, toggleAddSpoolForm := spools.NewSpoolsScreen(ctx, nil, spoolSvc, dryingSvc, settingsSvc, func() {})
-	printsPage, refreshPrints, refreshPrintsLive := prints.NewPrintsScreen(ctx, nil, printSvc, printerSvc, spoolSvc, func() {})
-	modelsPage, refreshModels := models.NewModelsScreen(ctx, nil, printerSvc, spoolSvc, settingsSvc, func() {})
+	printsPage, refreshPrints, refreshPrintsLive, refreshHistoryButton := prints.NewPrintsScreen(ctx, nil, printSvc, printerSvc, spoolSvc, func() {})
+	modelsPage, refreshModels, addModelButton, refreshModelsButton := models.NewModelsScreen(ctx, nil, printerSvc, spoolSvc, settingsSvc, func() {})
 	dryingPage, refreshDrying := drying.NewDryingScreen(ctx, dryingSvc, spoolSvc, func() {})
 	printersPage, refreshPrinters, refreshPrintersLive := printers.NewPrintersScreen(ctx, nil, printerSvc, spoolSvc, func() {})
 	settingsPage, refreshSettings := settings.NewSettingsScreen(ctx, nil, settingsSvc, func() {}, func() {})
@@ -78,6 +78,12 @@ func TestScreenConstructorsWithRealServices(t *testing.T) {
 	toggleAddSpoolForm()
 	refreshPrints()
 	refreshPrintsLive()
+	if refreshHistoryButton == nil {
+		t.Fatal("prints toolbar action is nil")
+	}
+	if addModelButton == nil || refreshModelsButton == nil {
+		t.Fatal("models toolbar actions are nil")
+	}
 	refreshModels()
 	refreshDrying()
 	refreshPrinters()

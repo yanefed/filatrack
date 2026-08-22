@@ -16,14 +16,24 @@ import (
 const printsRenderLimit = 250
 
 // NewPrintsScreen создаёт экран истории печатей.
-func NewPrintsScreen(ctx context.Context, parent *gtk.Window, printSvc *service.PrintService, printerSvc *service.PrinterService, spoolSvc *service.SpoolService, onChanged func()) (*gtk.Box, func(), func()) {
+func NewPrintsScreen(ctx context.Context, parent *gtk.Window, printSvc *service.PrintService, printerSvc *service.PrinterService, spoolSvc *service.SpoolService, onChanged func()) (*gtk.Box, func(), func(), *gtk.Button) {
 	t := i18n.L()
 	box := widgets.NewScreen(t.Prints)
 
-	activeList := newPrintsListBox()
-
 	messageLabel := widgets.NewMessageLabel()
 	box.Append(messageLabel)
+
+	var printers []domain.Printer
+	printerCombo := gtk.NewDropDown(gtk.NewStringList([]string{t.NoPrinters}), nil)
+	filterRow := gtk.NewBox(gtk.OrientationHorizontal, 8)
+	filterLabel := gtk.NewLabel(t.Printers)
+	filterLabel.SetHAlign(gtk.AlignStart)
+	filterLabel.SetHExpand(true)
+	filterRow.Append(filterLabel)
+	filterRow.Append(printerCombo)
+	box.Append(filterRow)
+
+	activeList := newPrintsListBox()
 	box.Append(activeList)
 
 	emptyLabel := gtk.NewLabel(t.NoPrintRecords)
@@ -35,10 +45,7 @@ func NewPrintsScreen(ctx context.Context, parent *gtk.Window, printSvc *service.
 
 	box.Append(widgets.NewScrolled(listView))
 
-	var printers []domain.Printer
 	activePrintCount := 0
-	printerCombo := gtk.NewDropDown(gtk.NewStringList([]string{t.NoPrinters}), nil)
-	box.Append(printerCombo)
 
 	renderActivePrints := func() int {
 		widgets.ClearListBox(activeList)
@@ -53,7 +60,7 @@ func NewPrintsScreen(ctx context.Context, parent *gtk.Window, printSvc *service.
 					continue
 				}
 			}
-			activeList.Append(widgets.NewPrinterStatus(t, printer))
+			activeList.Append(newActivePrintCard(t, printer))
 			rendered++
 		}
 		return rendered
@@ -96,7 +103,10 @@ func NewPrintsScreen(ctx context.Context, parent *gtk.Window, printSvc *service.
 		emptyLabel.SetVisible(activePrintCount == 0 && len(jobs) == 0)
 	}
 
+	updatingPrinterChoices := false
 	refreshPrinterChoices := func() {
+		updatingPrinterChoices = true
+		defer func() { updatingPrinterChoices = false }()
 		currentID := ""
 		if len(printers) > 0 {
 			selected := printerCombo.Selected()
@@ -134,9 +144,14 @@ func NewPrintsScreen(ctx context.Context, parent *gtk.Window, printSvc *service.
 		refreshPrinterChoices()
 		refreshPrints()
 	}
+	printerCombo.NotifyProperty("selected", func() {
+		if !updatingPrinterChoices {
+			refreshPrints()
+		}
+	})
 
-	syncHistoryBtn := gtk.NewButtonWithLabel(t.RefreshHistory)
-	box.Append(syncHistoryBtn)
+	syncHistoryBtn := gtk.NewButtonFromIconName("view-refresh-symbolic")
+	syncHistoryBtn.SetTooltipText(t.RefreshHistory)
 	syncHistoryBtn.ConnectClicked(func() {
 		if len(printers) == 0 {
 			return
@@ -170,13 +185,29 @@ func NewPrintsScreen(ctx context.Context, parent *gtk.Window, printSvc *service.
 	})
 
 	refreshScreen()
-	return box, refreshScreen, refreshLivePrints
+	return box, refreshScreen, refreshLivePrints, syncHistoryBtn
 }
 
 func newPrintsListBox() *gtk.ListBox {
 	list := gtk.NewListBox()
 	list.SetSelectionMode(gtk.SelectionNone)
 	return list
+}
+
+func newActivePrintCard(t i18n.T, printer domain.Printer) *gtk.Box {
+	card := gtk.NewBox(gtk.OrientationVertical, 0)
+	card.AddCSSClass("card")
+	card.SetMarginTop(4)
+	card.SetMarginBottom(4)
+	card.SetMarginStart(4)
+	card.SetMarginEnd(4)
+	status := widgets.NewPrinterStatus(t, printer)
+	status.SetMarginTop(10)
+	status.SetMarginBottom(10)
+	status.SetMarginStart(12)
+	status.SetMarginEnd(12)
+	card.Append(status)
+	return card
 }
 
 func printJobUsageText(t i18n.T, job domain.PrintJob) string {

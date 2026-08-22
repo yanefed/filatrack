@@ -21,6 +21,7 @@ type printListState struct {
 
 type printRowWidgets struct {
 	picture   *gtk.Picture
+	status    *gtk.Image
 	header    *gtk.Label
 	details   *gtk.Label
 	assignRow *gtk.Box
@@ -107,9 +108,17 @@ func newVirtualPrintsList(t i18n.T, ctx context.Context, printSvc *service.Print
 		item := object.Cast().(*gtk.ListItem)
 		item.SetActivatable(false)
 		item.SetFocusable(false)
-		row := gtk.NewBox(gtk.OrientationHorizontal, 8)
-		row.SetMarginTop(6)
-		row.SetMarginBottom(6)
+		card := gtk.NewBox(gtk.OrientationVertical, 0)
+		card.AddCSSClass("card")
+		card.SetMarginTop(4)
+		card.SetMarginBottom(4)
+		card.SetMarginStart(4)
+		card.SetMarginEnd(4)
+		row := gtk.NewBox(gtk.OrientationHorizontal, 12)
+		row.SetMarginTop(12)
+		row.SetMarginBottom(12)
+		row.SetMarginStart(12)
+		row.SetMarginEnd(12)
 		picture := gtk.NewPicture()
 		picture.SetSizeRequest(widgets.PreviewWidth, widgets.PreviewHeight)
 		picture.SetContentFit(gtk.ContentFitContain)
@@ -117,24 +126,33 @@ func newVirtualPrintsList(t i18n.T, ctx context.Context, printSvc *service.Print
 		row.Append(picture)
 		content := gtk.NewBox(gtk.OrientationVertical, 4)
 		content.SetHExpand(true)
+		titleRow := gtk.NewBox(gtk.OrientationHorizontal, 8)
+		status := gtk.NewImageFromIconName("object-select-symbolic")
+		status.SetPixelSize(18)
+		titleRow.Append(status)
 		header := gtk.NewLabel("")
+		header.AddCSSClass("heading")
 		header.SetHAlign(gtk.AlignStart)
 		header.SetHExpand(true)
 		header.SetEllipsize(pango.EllipsizeEnd)
 		header.SetMaxWidthChars(80)
-		content.Append(header)
+		titleRow.Append(header)
+		content.Append(titleRow)
 		details := gtk.NewLabel("")
 		details.SetHAlign(gtk.AlignStart)
 		details.AddCSSClass("dim-label")
 		content.Append(details)
 		assignRow := gtk.NewBox(gtk.OrientationHorizontal, 6)
+		assignRow.SetHAlign(gtk.AlignStart)
 		assignBtn := gtk.NewButtonWithLabel(t.SpoolColon)
+		//assignBtn.AddCSSClass("flat")
 		assignRow.Append(assignBtn)
 		content.Append(assignRow)
 		row.Append(content)
-		item.SetChild(row)
+		card.Append(row)
+		item.SetChild(card)
 
-		rowWidgets := &printRowWidgets{picture: picture, header: header, details: details, assignRow: assignRow, assignBtn: assignBtn}
+		rowWidgets := &printRowWidgets{picture: picture, status: status, header: header, details: details, assignRow: assignRow, assignBtn: assignBtn}
 		rows[item.Native()] = rowWidgets
 		assignBtn.ConnectClicked(func() {
 			rowWidgets := rows[item.Native()]
@@ -174,18 +192,26 @@ func newVirtualPrintsList(t i18n.T, ctx context.Context, printSvc *service.Print
 			return
 		}
 		job := state.jobs[position]
-		statusIcon := "✅"
+		statusIcon := "object-select-symbolic"
+		statusClass := "success"
 		switch job.Status {
 		case "failed":
-			statusIcon = "❌"
+			statusIcon = "dialog-error-symbolic"
+			statusClass = "error"
 		case "cancelled":
-			statusIcon = "🚫"
+			statusIcon = "process-stop-symbolic"
+			statusClass = "warning"
 		}
 		title := job.ModelName
 		if title == "" {
 			title = job.GcodeFilename
 		}
-		row.header.SetLabel(fmt.Sprintf("%s %s", statusIcon, title))
+		row.status.SetFromIconName(statusIcon)
+		row.status.RemoveCSSClass("success")
+		row.status.RemoveCSSClass("error")
+		row.status.RemoveCSSClass("warning")
+		row.status.AddCSSClass(statusClass)
+		row.header.SetLabel(title)
 		row.details.SetLabel(printJobUsageText(t, job))
 		texture := widgets.LoadPreviewTexture(job.PreviewImagePath)
 		if texture != nil {
