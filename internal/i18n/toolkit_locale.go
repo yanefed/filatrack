@@ -3,6 +3,16 @@ package i18n
 /*
 #include <locale.h>
 #include <stdlib.h>
+
+static char *filatrack_setlocale_messages(const char *locale) {
+#ifdef LC_MESSAGES
+	return setlocale(LC_MESSAGES, locale);
+#else
+	// The Windows UCRT has no LC_MESSAGES category. LC_ALL is the only
+	// available category that also lets gettext initialize its locale.
+	return setlocale(LC_ALL, locale);
+#endif
+}
 */
 import "C"
 
@@ -25,7 +35,7 @@ func ConfigureToolkitLanguage(lang Language) error {
 
 	for _, candidate := range candidates {
 		localeName := C.CString(candidate)
-		configured := C.setlocale(C.LC_MESSAGES, localeName) != nil
+		configured := C.filatrack_setlocale_messages(localeName) != nil
 		C.free(unsafe.Pointer(localeName))
 		if configured {
 			return nil
