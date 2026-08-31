@@ -56,7 +56,11 @@ command -v brew >/dev/null 2>&1 || {
 }
 
 if [[ "$INSTALL_DEPS" -eq 1 ]]; then
-  brew install go pkg-config gtk4 libadwaita librsvg hicolor-icon-theme fontconfig
+  # GTK does not guarantee that its default symbolic icon theme is installed as
+  # a runtime dependency.  The app uses Adwaita names such as
+  # preferences-system-symbolic and help-about-symbolic, so bundle the theme
+  # explicitly instead of leaving toolbar icons up to the build machine.
+  brew install go pkg-config gtk4 libadwaita librsvg adwaita-icon-theme hicolor-icon-theme fontconfig
 fi
 
 required_tools=(awk brew codesign file find iconutil install_name_tool otool perl pkg-config rsvg-convert)
@@ -72,6 +76,10 @@ done
 
 pkg-config --exists gtk4 libadwaita-1 || {
   echo "GTK4 and libadwaita development files are required. Try: go run ./cmd/build macos --install-deps" >&2
+  exit 1
+}
+brew --prefix adwaita-icon-theme >/dev/null 2>&1 || {
+  echo "Adwaita icon theme is required for toolbar icons. Try: go run ./cmd/build macos --install-deps" >&2
   exit 1
 }
 
@@ -209,6 +217,15 @@ for formula in adwaita-icon-theme hicolor-icon-theme shared-mime-info; do
     copy_tree_if_present "$RESOURCE_PREFIX/share/mime" "$RESOURCES/share/mime"
   fi
 done
+
+# CFBundleIconFile supplies the Finder/Dock icon, while AdwAboutDialog resolves
+# SetApplicationIcon through GTK's icon theme. Install the same artwork under
+# the application ID so both macOS and GTK can find it.
+APP_ICON_DIR="$RESOURCES/share/icons/hicolor/scalable/apps"
+mkdir -p "$APP_ICON_DIR"
+cp "$PROJECT_ROOT/packaging/$APP_ID.svg" "$APP_ICON_DIR/$APP_ID.svg"
+"$GTK_PREFIX/bin/gtk4-update-icon-cache" --force --quiet "$RESOURCES/share/icons/hicolor"
+
 if brew --prefix fontconfig >/dev/null 2>&1; then
   FONTCONFIG_PREFIX="$(brew --prefix fontconfig)"
   copy_tree_if_present "$FONTCONFIG_PREFIX/etc/fonts" "$RESOURCES/etc/fonts"
