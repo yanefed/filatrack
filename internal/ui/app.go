@@ -14,6 +14,7 @@ import (
 	"context"
 	"log/slog"
 	"os"
+	"runtime"
 
 	"github.com/diamondburned/gotk4-adwaita/pkg/adw"
 	coreglib "github.com/diamondburned/gotk4/pkg/core/glib"
@@ -270,7 +271,7 @@ func installAppCSS() {
 		return
 	}
 	provider := gtk.NewCSSProvider()
-	provider.LoadFromString(`
+	css := `
 .printer-status-dot {
 	min-width: 12px;
 	min-height: 12px;
@@ -286,6 +287,15 @@ func installAppCSS() {
 	color: #e66100;
 	font-weight: 600;
 }
-`)
+`
+	if runtime.GOOS == "darwin" {
+		css += `
+window.background.csd,
+window.background.solid-csd {
+	border-radius: 0;
+}
+`
+	}
+	provider.LoadFromString(css)
 	gtk.StyleContextAddProviderForDisplay(display, provider, gtk.STYLE_PROVIDER_PRIORITY_APPLICATION)
 }
