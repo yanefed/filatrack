@@ -9,6 +9,8 @@ import (
 	"fmt"
 	"log/slog"
 
+	"awesomeProject/internal/repository/sqlite/entity"
+
 	"github.com/google/uuid"
 )
 
@@ -34,10 +36,11 @@ func (r *DryingRepo) Create(ctx context.Context, session *domain.DryingSession) 
 	if session.ID == "" {
 		session.ID = uuid.New().String()
 	}
+	persisted := entity.DryingSessionFromDomain(*session)
 	_, err := r.db.Conn().ExecContext(ctx,
 		`INSERT INTO drying_sessions (id, spool_id, temperature_c, duration_hours, dried_at, created_at)
 		 VALUES (?, ?, ?, ?, ?, ?)`,
-		session.ID, session.SpoolID, session.TemperatureC, session.DurationHours, session.DriedAt, session.CreatedAt,
+		persisted.ID, persisted.SpoolID, persisted.TemperatureC, persisted.DurationHours, persisted.DriedAt, persisted.CreatedAt,
 	)
 	if err != nil {
 		return fmt.Errorf("inserting drying session: %w", err)
@@ -61,12 +64,11 @@ func (r *DryingRepo) List(ctx context.Context, spoolID string) ([]domain.DryingS
 
 	var sessions []domain.DryingSession
 	for rows.Next() {
-		var s domain.DryingSession
-		if err := rows.Scan(&s.ID, &s.SpoolID, &s.TemperatureC, &s.DurationHours,
-			&s.DriedAt, &s.CreatedAt); err != nil {
+		persisted, err := entity.ScanDryingSession(rows)
+		if err != nil {
 			return nil, fmt.Errorf("scanning drying session: %w", err)
 		}
-		sessions = append(sessions, s)
+		sessions = append(sessions, persisted.Domain())
 	}
 	return sessions, rows.Err()
 }
@@ -76,13 +78,13 @@ func (r *DryingRepo) GetLastDrying(ctx context.Context, spoolID string) (*domain
 		`SELECT id, spool_id, temperature_c, duration_hours, dried_at, created_at
 		 FROM drying_sessions WHERE spool_id = ? ORDER BY dried_at DESC LIMIT 1`, spoolID)
 
-	var s domain.DryingSession
-	err := row.Scan(&s.ID, &s.SpoolID, &s.TemperatureC, &s.DurationHours, &s.DriedAt, &s.CreatedAt)
+	persisted, err := entity.ScanDryingSession(row)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, nil
 		}
 		return nil, fmt.Errorf("getting last drying: %w", err)
 	}
-	return &s, nil
+	session := persisted.Domain()
+	return &session, nil
 }

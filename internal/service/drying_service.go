@@ -52,11 +52,22 @@ func (s *DryingService) GetRecommendation(ctx context.Context, material domain.M
 			return profile
 		}
 	}
-	// Fallback to defaults
-	if p, ok := domain.DefaultDryingProfiles[material]; ok {
-		return &p
-	}
 	return nil
+}
+
+func (s *DryingService) ListRecommendations(ctx context.Context) ([]domain.DryingProfile, error) {
+	if s.settings == nil {
+		return nil, nil
+	}
+	materials, err := s.settings.ListMaterials(ctx)
+	if err != nil {
+		return nil, err
+	}
+	profiles := make([]domain.DryingProfile, len(materials))
+	for i := range materials {
+		profiles[i] = materials[i].DryingProfile()
+	}
+	return profiles, nil
 }
 
 // GetStatus возвращает последнюю сушку и рассчитывает срок следующей по

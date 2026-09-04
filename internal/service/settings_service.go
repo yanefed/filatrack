@@ -76,86 +76,44 @@ func (s *SettingsService) SetLowFilamentLevel(ctx context.Context, value int) er
 	return s.settings.SetSetting(ctx, lowFilamentLevelSettingKey, strconv.Itoa(value))
 }
 
-func (s *SettingsService) ListDryingProfiles(ctx context.Context) ([]domain.DryingProfile, error) {
-	return s.settings.ListDryingProfiles(ctx)
-}
-
-func (s *SettingsService) SaveDryingProfile(ctx context.Context, p *domain.DryingProfile) error {
-	if err := p.ValidateDryingProfile(); err != nil {
-		return err
-	}
-	return s.settings.UpsertDryingProfile(ctx, p)
+func (s *SettingsService) ListMaterials(ctx context.Context) ([]domain.MaterialDefinition, error) {
+	return s.settings.ListMaterials(ctx)
 }
 
 func (s *SettingsService) AllMaterials(ctx context.Context) ([]domain.Material, error) {
-	custom, err := s.settings.ListCustomMaterials(ctx)
+	definitions, err := s.settings.ListMaterials(ctx)
 	if err != nil {
 		return nil, err
 	}
-	result := make([]domain.Material, len(domain.BuiltInMaterials))
-	copy(result, domain.BuiltInMaterials)
-	for _, c := range custom {
-		result = append(result, domain.Material(c))
+	result := make([]domain.Material, len(definitions))
+	for i := range definitions {
+		result[i] = definitions[i].Name
 	}
 	return result, nil
 }
 
-func (s *SettingsService) AddCustomMaterial(ctx context.Context, name string) error {
-	name = strings.TrimSpace(name)
-	if name == "" {
+func (s *SettingsService) CreateMaterial(ctx context.Context, material *domain.MaterialDefinition) error {
+	if material == nil {
+		return fmt.Errorf("material is required")
+	}
+	copy := *material
+	copy.Name = domain.Material(strings.TrimSpace(string(copy.Name)))
+	if err := copy.Validate(); err != nil {
+		return err
+	}
+	return s.settings.CreateMaterial(ctx, &copy)
+}
+
+func (s *SettingsService) UpdateMaterial(ctx context.Context, material *domain.MaterialDefinition) error {
+	if err := material.Validate(); err != nil {
+		return err
+	}
+	return s.settings.UpdateMaterial(ctx, material)
+}
+
+func (s *SettingsService) DeleteMaterial(ctx context.Context, name domain.Material) error {
+	if strings.TrimSpace(string(name)) == "" {
 		return fmt.Errorf("material name is required")
 	}
-	material := domain.Material(name)
-	if material.IsBuiltIn() {
-		return fmt.Errorf("material %s is built-in", name)
-	}
-	return s.settings.AddCustomMaterial(ctx, name)
-}
-
-func (s *SettingsService) DeleteCustomMaterial(ctx context.Context, name string) error {
-	material := domain.Material(name)
-	if material.IsBuiltIn() {
-		return fmt.Errorf("cannot delete built-in material %s", name)
-	}
-	return s.settings.DeleteCustomMaterial(ctx, name)
-}
-
-func (s *SettingsService) ListCustomMaterialBindings(ctx context.Context) ([]domain.CustomMaterial, error) {
-	return s.settings.ListCustomMaterialBindings(ctx)
-}
-
-func (s *SettingsService) BindCustomMaterialDryingProfile(ctx context.Context, material, profileMaterial domain.Material) error {
-	if material.IsBuiltIn() {
-		return fmt.Errorf("material %s is built-in", material)
-	}
-	if profileMaterial == "" {
-		return fmt.Errorf("drying profile is required")
-	}
-	profile, err := s.settings.GetDryingProfileForMaterial(ctx, profileMaterial)
-	if err != nil {
-		return err
-	}
-	if profile == nil {
-		return fmt.Errorf("drying profile %s not found", profileMaterial)
-	}
-	return s.settings.SetCustomMaterialDryingProfile(ctx, string(material), string(profile.Material))
-}
-
-func (s *SettingsService) CreateCustomMaterialDryingProfile(ctx context.Context, material domain.Material, profile *domain.DryingProfile) error {
-	if material.IsBuiltIn() {
-		return fmt.Errorf("material %s is built-in", material)
-	}
-	if profile == nil {
-		return fmt.Errorf("drying profile is required")
-	}
-	owned := *profile
-	owned.Material = material
-	if err := owned.ValidateDryingProfile(); err != nil {
-		return err
-	}
-	return s.settings.UpsertCustomMaterialDryingProfile(ctx, string(material), &owned)
-}
-
-func (s *SettingsService) GetDryingProfile(ctx context.Context, material domain.Material) (*domain.DryingProfile, error) {
-	return s.settings.GetDryingProfileForMaterial(ctx, material)
+	return s.settings.DeleteMaterial(ctx, name)
 }

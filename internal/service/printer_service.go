@@ -293,8 +293,8 @@ func (s *PrinterService) RefreshModels(ctx context.Context, printerID string) ([
 
 // TODO refactor
 func (s *PrinterService) modelFilamentProperties(ctx context.Context, printer *domain.Printer) (float64, float64) {
-	diameterMM := 1.75 // TODO remove hardcoded values
-	densityGCM3 := domain.DefaultDensities[domain.MaterialPLA]
+	diameterMM := domain.DefaultDiameter
+	densityGCM3 := domain.DefaultDensity
 	if printer.ActiveSpoolID == "" {
 		return diameterMM, densityGCM3
 	}

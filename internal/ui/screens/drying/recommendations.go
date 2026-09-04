@@ -17,16 +17,6 @@ const (
 	recommendationStripHeight    = 158
 )
 
-var recommendedMaterials = []domain.Material{
-	domain.MaterialPLA,
-	domain.MaterialPETG,
-	domain.MaterialABS,
-	domain.MaterialASA,
-	domain.MaterialTPU,
-	domain.MaterialNylon,
-	domain.MaterialPC,
-}
-
 func newRecommendationsView(t i18n.T, ctx context.Context, dryingSvc *service.DryingService) (*gtk.ScrolledWindow, func()) {
 	row := gtk.NewBox(gtk.OrientationHorizontal, 10)
 	row.SetMarginBottom(8)
@@ -42,11 +32,12 @@ func newRecommendationsView(t i18n.T, ctx context.Context, dryingSvc *service.Dr
 		for child := row.FirstChild(); child != nil; child = row.FirstChild() {
 			row.Remove(child)
 		}
-		for _, material := range recommendedMaterials {
-			profile := dryingSvc.GetRecommendation(ctx, material)
-			if profile != nil {
-				row.Append(newRecommendationCard(t, *profile))
-			}
+		profiles, err := dryingSvc.ListRecommendations(ctx)
+		if err != nil {
+			return
+		}
+		for _, profile := range profiles {
+			row.Append(newRecommendationCard(t, profile))
 		}
 	}
 	refresh()

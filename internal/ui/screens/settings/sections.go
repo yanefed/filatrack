@@ -4,11 +4,14 @@ import (
 	"awesomeProject/internal/domain"
 	"awesomeProject/internal/i18n"
 	"awesomeProject/internal/service"
+	"awesomeProject/internal/ui/screens/shared"
 	"awesomeProject/internal/ui/widgets"
 	"context"
 	"fmt"
+	"strconv"
 	"strings"
 
+	"github.com/diamondburned/gotk4-adwaita/pkg/adw"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 )
 
@@ -78,9 +81,9 @@ func newPrintSettingsSection(ctx context.Context, settingsSvc *service.SettingsS
 	return section
 }
 
-func newDryingProfilesSection(ctx context.Context, parent *gtk.Window, settingsSvc *service.SettingsService, onChanged func()) (*gtk.Box, func()) {
+func newMaterialsSection(ctx context.Context, parent *gtk.Window, settingsSvc *service.SettingsService, onChanged func()) (*gtk.Box, func()) {
 	section := gtk.NewBox(gtk.OrientationVertical, 6)
-	section.Append(widgets.NewSectionTitle(i18n.L().DryingProfiles))
+	section.Append(widgets.NewSectionTitle(i18n.L().MaterialSettings))
 	list := gtk.NewListBox()
 	list.SetSelectionMode(gtk.SelectionNone)
 	section.Append(list)
@@ -88,132 +91,157 @@ func newDryingProfilesSection(ctx context.Context, parent *gtk.Window, settingsS
 	var refresh func()
 	refresh = func() {
 		widgets.ClearListBox(list)
-		profiles, err := settingsSvc.ListDryingProfiles(ctx)
+		materials, err := settingsSvc.ListMaterials(ctx)
 		if err != nil {
 			return
-		}
-		for _, item := range profiles {
-			profile := item
-			row := gtk.NewBox(gtk.OrientationHorizontal, 8)
-			row.SetMarginTop(4)
-			row.SetMarginBottom(4)
-			info := gtk.NewLabel(fmt.Sprintf("%s: %d°C, %.0f %s, %d %s", profile.Material, profile.TemperatureC, profile.DurationHours, i18n.L().Hours, profile.MaxDaysNoDry, i18n.L().Days))
-			info.SetHAlign(gtk.AlignStart)
-			info.SetHExpand(true)
-			row.Append(info)
-			editBtn := gtk.NewButtonWithLabel(i18n.L().Edit)
-			editBtn.ConnectClicked(func() {
-				showEditProfileDialog(ctx, parent, settingsSvc, &profile, func() {
-					refresh()
-					if onChanged != nil {
-						onChanged()
-					}
-				})
-			})
-			row.Append(editBtn)
-			list.Append(row)
-		}
-	}
-	refresh()
-	return section, refresh
-}
-
-func newMaterialsSection(ctx context.Context, parent *gtk.Window, settingsSvc *service.SettingsService, refreshProfiles func(), onChanged func()) (*gtk.Box, func()) {
-	section := gtk.NewBox(gtk.OrientationVertical, 6)
-	section.Append(widgets.NewSectionTitle(i18n.L().CustomMaterials))
-	list := gtk.NewListBox()
-	list.SetSelectionMode(gtk.SelectionNone)
-	section.Append(list)
-
-	var refresh func()
-	refresh = func() {
-		widgets.ClearListBox(list)
-		materials, err := settingsSvc.AllMaterials(ctx)
-		if err != nil {
-			return
-		}
-		bindings, err := settingsSvc.ListCustomMaterialBindings(ctx)
-		if err != nil {
-			return
-		}
-		profileByMaterial := make(map[domain.Material]domain.Material, len(bindings))
-		for _, binding := range bindings {
-			profileByMaterial[binding.Name] = binding.DryingProfileMaterial
 		}
 		for _, item := range materials {
 			material := item
 			row := gtk.NewBox(gtk.OrientationHorizontal, 8)
 			row.SetMarginTop(2)
 			row.SetMarginBottom(2)
-			label := gtk.NewLabel(string(material))
+			label := gtk.NewLabel(fmt.Sprintf("%s · %.3g g/cm³ · %d°C · %g %s · %d %s",
+				material.Name, material.DensityGCM3, material.DryingTemperatureC,
+				material.DryingDurationHours, i18n.L().Hours, material.MaxDaysNoDry, i18n.L().Days))
 			label.SetHAlign(gtk.AlignStart)
 			label.SetHExpand(true)
 			row.Append(label)
-			if material.IsBuiltIn() {
-				builtIn := gtk.NewLabel(i18n.L().BuiltInMaterial)
-				builtIn.AddCSSClass("dim-label")
-				row.Append(builtIn)
-			} else {
-				profileMaterial := profileByMaterial[material]
-				profileText := i18n.L().NoDryingRule
-				if profileMaterial != "" {
-					profileText = fmt.Sprintf("%s: %s", i18n.L().DryingRule, profileMaterial)
+			editBtn := gtk.NewButtonWithLabel(i18n.L().Edit)
+			editBtn.ConnectClicked(func() {
+				showMaterialDialog(ctx, parent, settingsSvc, &material, refresh, onChanged)
+			})
+			row.Append(editBtn)
+			deleteBtn := gtk.NewButtonWithLabel(i18n.L().Delete)
+			deleteBtn.ConnectClicked(func() {
+				_ = settingsSvc.DeleteMaterial(ctx, material.Name)
+				refresh()
+				if onChanged != nil {
+					onChanged()
 				}
-				profileLabel := gtk.NewLabel(profileText)
-				profileLabel.AddCSSClass("dim-label")
-				row.Append(profileLabel)
-				ruleBtn := gtk.NewButtonWithLabel(i18n.L().DryingRule)
-				ruleBtn.ConnectClicked(func() {
-					showCustomMaterialDryingDialog(ctx, parent, settingsSvc, material, profileMaterial, func() {
-						refreshProfiles()
-						refresh()
-						if onChanged != nil {
-							onChanged()
-						}
-					})
-				})
-				row.Append(ruleBtn)
-				deleteBtn := gtk.NewButtonWithLabel(i18n.L().Delete)
-				deleteBtn.ConnectClicked(func() {
-					_ = settingsSvc.DeleteCustomMaterial(ctx, string(material))
-					refresh()
-					if onChanged != nil {
-						onChanged()
-					}
-				})
-				row.Append(deleteBtn)
-			}
+			})
+			row.Append(deleteBtn)
 			list.Append(row)
 		}
 	}
 
-	addRow := gtk.NewBox(gtk.OrientationHorizontal, 6)
-	addRow.SetMarginTop(6)
-	entry := gtk.NewEntry()
-	entry.SetPlaceholderText(i18n.L().MaterialName)
-	entry.SetHExpand(true)
-	addRow.Append(entry)
 	addBtn := gtk.NewButtonWithLabel(i18n.L().AddMaterial)
 	addBtn.ConnectClicked(func() {
-		name := strings.TrimSpace(entry.Text())
-		if name == "" || settingsSvc.AddCustomMaterial(ctx, name) != nil {
+		showMaterialDialog(ctx, parent, settingsSvc, nil, refresh, onChanged)
+	})
+	addBtn.SetHAlign(gtk.AlignStart)
+	section.Append(addBtn)
+	refresh()
+	return section, refresh
+}
+
+func showMaterialDialog(ctx context.Context, parent *gtk.Window, settingsSvc *service.SettingsService, original *domain.MaterialDefinition, refresh, onChanged func()) {
+	t := i18n.L()
+	dialog := shared.NewModalWindow(parent)
+	title := t.AddMaterial
+	if original != nil {
+		title = fmt.Sprintf("%s — %s", t.Edit, original.Name)
+	}
+	dialog.SetTitle(title)
+	dialog.SetDefaultSize(480, -1)
+	box := widgets.NewDialogContent(16)
+
+	materialGroup := adw.NewPreferencesGroup()
+	materialGroup.SetTitle(t.MaterialSettings)
+	nameEntry := newMaterialEntry(t.MaterialName, false)
+	densityEntry := newMaterialEntry(t.FilamentDensity, true)
+	materialGroup.Add(nameEntry)
+	materialGroup.Add(densityEntry)
+	box.Append(materialGroup)
+
+	dryingGroup := adw.NewPreferencesGroup()
+	dryingGroup.SetTitle(t.Drying)
+	temperatureEntry := newMaterialEntry(t.TemperatureC, true)
+	durationEntry := newMaterialEntry(t.DurationHours, true)
+	daysEntry := newMaterialEntry(t.MaxDaysNoDry, true)
+	dryingGroup.Add(temperatureEntry)
+	dryingGroup.Add(durationEntry)
+	dryingGroup.Add(daysEntry)
+	box.Append(dryingGroup)
+
+	if original == nil {
+		densityEntry.SetText("1.24")
+		temperatureEntry.SetText("45")
+		durationEntry.SetText("4")
+		daysEntry.SetText("30")
+	} else {
+		nameEntry.SetText(string(original.Name))
+		nameEntry.SetSensitive(false)
+		densityEntry.SetText(strconv.FormatFloat(original.DensityGCM3, 'f', -1, 64))
+		temperatureEntry.SetText(strconv.Itoa(original.DryingTemperatureC))
+		durationEntry.SetText(strconv.FormatFloat(original.DryingDurationHours, 'f', -1, 64))
+		daysEntry.SetText(strconv.Itoa(original.MaxDaysNoDry))
+	}
+	errorLabel := gtk.NewLabel("")
+	errorLabel.AddCSSClass("error")
+	errorLabel.SetHAlign(gtk.AlignStart)
+	errorLabel.SetWrap(true)
+	errorLabel.SetVisible(false)
+	box.Append(errorLabel)
+
+	actions := widgets.NewActions(8, gtk.AlignEnd)
+	cancelBtn := gtk.NewButtonWithLabel(t.Cancel)
+	cancelBtn.ConnectClicked(dialog.Destroy)
+	actions.Append(cancelBtn)
+	saveBtn := gtk.NewButtonWithLabel(t.Save)
+	saveBtn.AddCSSClass("suggested-action")
+	materialFromForm := func() *domain.MaterialDefinition {
+		density, _ := strconv.ParseFloat(strings.TrimSpace(densityEntry.Text()), 64)
+		temperature, _ := strconv.Atoi(strings.TrimSpace(temperatureEntry.Text()))
+		duration, _ := strconv.ParseFloat(strings.TrimSpace(durationEntry.Text()), 64)
+		days, _ := strconv.Atoi(strings.TrimSpace(daysEntry.Text()))
+		return &domain.MaterialDefinition{
+			Name: domain.Material(strings.TrimSpace(nameEntry.Text())), DensityGCM3: density,
+			DryingTemperatureC: temperature, DryingDurationHours: duration, MaxDaysNoDry: days,
+		}
+	}
+	updateSaveState := func() {
+		saveBtn.SetSensitive(materialFromForm().Validate() == nil)
+		errorLabel.SetVisible(false)
+	}
+	for _, entry := range []*adw.EntryRow{nameEntry, densityEntry, temperatureEntry, durationEntry, daysEntry} {
+		entry.NotifyProperty("text", updateSaveState)
+	}
+	updateSaveState()
+	saveBtn.ConnectClicked(func() {
+		material := materialFromForm()
+		var err error
+		if original == nil {
+			err = settingsSvc.CreateMaterial(ctx, material)
+		} else {
+			err = settingsSvc.UpdateMaterial(ctx, material)
+		}
+		if err != nil {
+			errorLabel.SetText(fmt.Sprintf("%s: %v", t.ErrorPrefix, err))
+			errorLabel.SetVisible(true)
 			return
 		}
-		entry.SetText("")
+		dialog.Destroy()
 		refresh()
 		if onChanged != nil {
 			onChanged()
 		}
-		showCustomMaterialDryingDialog(ctx, parent, settingsSvc, domain.Material(name), "", func() {
-			refreshProfiles()
-			refresh()
-			if onChanged != nil {
-				onChanged()
-			}
-		})
 	})
-	addRow.Append(addBtn)
-	section.Append(addRow)
-	refresh()
-	return section, refresh
+	actions.Append(saveBtn)
+	box.Append(actions)
+	dialog.SetChild(box)
+	dialog.SetVisible(true)
+	if original == nil {
+		nameEntry.GrabFocus()
+	} else {
+		densityEntry.GrabFocus()
+	}
+}
+
+func newMaterialEntry(title string, numeric bool) *adw.EntryRow {
+	entry := adw.NewEntryRow()
+	entry.SetTitle(title)
+	if numeric {
+		entry.SetInputPurpose(gtk.InputPurposeNumber)
+	}
+	return entry
 }

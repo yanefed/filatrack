@@ -36,18 +36,21 @@ type T struct {
 	MoreItemsFmt         string
 
 	// Spools
-	Save           string
-	Cancel         string
-	Archive        string
-	AddSpoolBtn    string
-	ManufacturerPH string
-	MaterialLabel  string
-	ColorPH        string
-	ColorHexLabel  string
-	NetWeightPH    string
-	PricePH        string
-	SpoolInfoFmt   string
-	SpoolWeightFmt string
+	Save               string
+	Cancel             string
+	Archive            string
+	AddSpoolBtn        string
+	ManufacturerPH     string
+	MaterialLabel      string
+	ColorPH            string
+	ColorHexLabel      string
+	NetWeightPH        string
+	PricePH            string
+	AdditionalSettings string
+	FilamentDiameter   string
+	FilamentDensity    string
+	SpoolInfoFmt       string
+	SpoolWeightFmt     string
 
 	// Prints
 	SelectGCode    string
@@ -78,20 +81,14 @@ type T struct {
 	// Settings
 	LanguageLabel    string
 	Print            string
-	DryingProfiles   string
-	CustomMaterials  string
+	MaterialSettings string
 	AddMaterial      string
 	MaterialName     string
-	BuiltInMaterial  string
 	Days             string
 	Hours            string
 	Edit             string
 	Delete           string
 	Close            string
-	DryingRule       string
-	UseDryingRule    string
-	CreateDryingRule string
-	NoDryingRule     string
 
 	// Printers
 	Printers           string

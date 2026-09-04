@@ -78,14 +78,10 @@ type DryingSessionRepository interface {
 type SettingsRepository interface {
 	GetSetting(ctx context.Context, key string) (string, error)
 	SetSetting(ctx context.Context, key, value string) error
-	ListDryingProfiles(ctx context.Context) ([]domain.DryingProfile, error)
-	UpsertDryingProfile(ctx context.Context, p *domain.DryingProfile) error
-	DeleteDryingProfile(ctx context.Context, material string) error
+	ListMaterials(ctx context.Context) ([]domain.MaterialDefinition, error)
+	GetMaterial(ctx context.Context, name domain.Material) (*domain.MaterialDefinition, error)
+	CreateMaterial(ctx context.Context, material *domain.MaterialDefinition) error
+	UpdateMaterial(ctx context.Context, material *domain.MaterialDefinition) error
+	DeleteMaterial(ctx context.Context, name domain.Material) error
 	GetDryingProfileForMaterial(ctx context.Context, material domain.Material) (*domain.DryingProfile, error)
-	ListCustomMaterials(ctx context.Context) ([]string, error)
-	ListCustomMaterialBindings(ctx context.Context) ([]domain.CustomMaterial, error)
-	AddCustomMaterial(ctx context.Context, name string) error
-	SetCustomMaterialDryingProfile(ctx context.Context, name, profileMaterial string) error
-	UpsertCustomMaterialDryingProfile(ctx context.Context, name string, profile *domain.DryingProfile) error
-	DeleteCustomMaterial(ctx context.Context, name string) error
 }

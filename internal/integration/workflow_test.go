@@ -65,12 +65,12 @@ func TestCompleteFilamentTrackingWorkflow(t *testing.T) {
 	if err := app.settings.SetLanguage(ctx, i18n.LangBG); err != nil {
 		t.Fatalf("setting language: %v", err)
 	}
-	if err := app.settings.AddCustomMaterial(ctx, "Wood"); err != nil {
-		t.Fatalf("adding custom material: %v", err)
+	wood := &domain.MaterialDefinition{
+		Name: "Wood", DensityGCM3: 1.20, DryingTemperatureC: 45,
+		DryingDurationHours: 5, MaxDaysNoDry: 10,
 	}
-	woodProfile := &domain.DryingProfile{Material: "Wood", TemperatureC: 45, DurationHours: 5, MaxDaysNoDry: 10}
-	if err := app.settings.SaveDryingProfile(ctx, woodProfile); err != nil {
-		t.Fatalf("saving drying profile: %v", err)
+	if err := app.settings.CreateMaterial(ctx, wood); err != nil {
+		t.Fatalf("adding material: %v", err)
 	}
 
 	spool := &domain.Spool{
@@ -80,7 +80,7 @@ func TestCompleteFilamentTrackingWorkflow(t *testing.T) {
 	if err := app.spools.Create(ctx, spool); err != nil {
 		t.Fatalf("creating spool: %v", err)
 	}
-	if spool.ID == "" || spool.DiameterMM != 1.75 || spool.DensityGCM3 != 1.24 {
+	if spool.ID == "" || spool.DiameterMM != 1.75 || spool.DensityGCM3 != wood.DensityGCM3 {
 		t.Fatalf("spool defaults were not persisted: %+v", spool)
 	}
 

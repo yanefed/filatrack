@@ -1,12 +1,11 @@
 package service
 
 import (
+	"awesomeProject/internal/domain"
+	"awesomeProject/internal/repository"
 	"context"
 	"fmt"
 	"time"
-
-	"awesomeProject/internal/domain"
-	"awesomeProject/internal/repository"
 )
 
 type SpoolService struct {
@@ -24,14 +23,10 @@ func (s *SpoolService) Create(ctx context.Context, spool *domain.Spool) error {
 		return fmt.Errorf("total weight must be positive")
 	}
 	if spool.DiameterMM <= 0 {
-		spool.DiameterMM = 1.75
+		spool.DiameterMM = domain.DefaultDiameter
 	}
 	if spool.DensityGCM3 <= 0 {
-		if d, ok := domain.DefaultDensities[spool.Material]; ok {
-			spool.DensityGCM3 = d
-		} else {
-			spool.DensityGCM3 = 1.24
-		}
+		spool.DensityGCM3 = s.materialDensity(ctx, spool.Material)
 	}
 	now := time.Now()
 	spool.CreatedAt = now
@@ -47,16 +42,22 @@ func (s *SpoolService) Update(ctx context.Context, spool *domain.Spool) error {
 		return fmt.Errorf("total weight must be positive")
 	}
 	if spool.DiameterMM <= 0 {
-		spool.DiameterMM = 1.75
+		spool.DiameterMM = domain.DefaultDiameter
 	}
 	if spool.DensityGCM3 <= 0 {
-		if d, ok := domain.DefaultDensities[spool.Material]; ok {
-			spool.DensityGCM3 = d
-		} else {
-			spool.DensityGCM3 = 1.24
-		}
+		spool.DensityGCM3 = s.materialDensity(ctx, spool.Material)
 	}
 	return s.spools.Update(ctx, spool)
+}
+
+func (s *SpoolService) materialDensity(ctx context.Context, material domain.Material) float64 {
+	if s.settings != nil {
+		definition, err := s.settings.GetMaterial(ctx, material)
+		if err == nil && definition != nil && definition.DensityGCM3 > 0 {
+			return definition.DensityGCM3
+		}
+	}
+	return 1.24
 }
 
 func (s *SpoolService) Archive(ctx context.Context, id string) error {
@@ -99,18 +100,5 @@ func (s *SpoolService) NeedsDrying(ctx context.Context, spool *domain.Spool) (bo
 		}
 	}
 
-	// Fallback to defaults
-	profile, ok := domain.DefaultDryingProfiles[spool.Material]
-	if !ok {
-		return false, nil
-	}
-	last, err := s.dryings.GetLastDrying(ctx, spool.ID)
-	if err != nil {
-		return false, err
-	}
-	var lastDried time.Time
-	if last != nil {
-		lastDried = last.DriedAt
-	}
-	return domain.NeedsDrying(lastDried, profile), nil
+	return false, nil
 }

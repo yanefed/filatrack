@@ -28,15 +28,15 @@ func showEditSpoolDialog(ctx context.Context, parent *gtk.Window, spoolSvc *serv
 	}, onSave)
 }
 
-func availableMaterials(ctx context.Context, settingsSvc *service.SettingsService) []domain.Material {
-	materials, err := settingsSvc.AllMaterials(ctx)
-	if err != nil || len(materials) == 0 {
-		return domain.BuiltInMaterials
+func availableMaterials(ctx context.Context, settingsSvc *service.SettingsService) []domain.MaterialDefinition {
+	materials, err := settingsSvc.ListMaterials(ctx)
+	if err != nil {
+		return nil
 	}
 	return materials
 }
 
-func showSpoolFormDialog(t i18n.T, parent *gtk.Window, title string, materials []domain.Material, original *domain.Spool, save func(domain.Spool) error, onSave func()) {
+func showSpoolFormDialog(t i18n.T, parent *gtk.Window, title string, materials []domain.MaterialDefinition, original *domain.Spool, save func(domain.Spool) error, onSave func()) {
 	dialog := shared.NewModalWindow(parent)
 	dialog.SetTitle(title)
 	dialog.SetDefaultSize(480, -1)
@@ -68,6 +68,8 @@ func showSpoolFormDialog(t i18n.T, parent *gtk.Window, title string, materials [
 	}
 	form.weightEntry.NotifyProperty("text", updateSaveState)
 	form.priceEntry.NotifyProperty("text", updateSaveState)
+	form.diameterEntry.NotifyProperty("text", updateSaveState)
+	form.densityEntry.NotifyProperty("text", updateSaveState)
 	form.materialCombo.NotifyProperty("selected", updateSaveState)
 	updateSaveState()
 	saveBtn.ConnectClicked(func() {

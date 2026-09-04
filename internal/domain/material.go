@@ -2,7 +2,6 @@ package domain
 
 import (
 	"fmt"
-	"slices"
 )
 
 type Material string
@@ -17,42 +16,53 @@ const (
 	MaterialPC    Material = "PC"
 )
 
-var BuiltInMaterials = []Material{MaterialPLA, MaterialPETG, MaterialABS, MaterialASA, MaterialTPU, MaterialNylon, MaterialPC}
+const DefaultDensity float64 = 1.24
+const DefaultDiameter float64 = 1.75
+
+type MaterialDefinition struct {
+	Name                Material
+	DensityGCM3         float64
+	DryingTemperatureC  int
+	DryingDurationHours float64
+	MaxDaysNoDry        int
+}
+
+func (m MaterialDefinition) DryingProfile() DryingProfile {
+	return DryingProfile{
+		Material:      m.Name,
+		TemperatureC:  m.DryingTemperatureC,
+		DurationHours: m.DryingDurationHours,
+		MaxDaysNoDry:  m.MaxDaysNoDry,
+	}
+}
+
+func (m *MaterialDefinition) Validate() error {
+	if m == nil {
+		return fmt.Errorf("material is required")
+	}
+	if m.Name == "" {
+		return fmt.Errorf("material name is required")
+	}
+	if m.DensityGCM3 <= 0 {
+		return fmt.Errorf("material density must be positive")
+	}
+	if m.DryingTemperatureC <= 0 {
+		return fmt.Errorf("drying temperature must be positive")
+	}
+	if m.DryingDurationHours <= 0 {
+		return fmt.Errorf("drying duration must be positive")
+	}
+	if m.MaxDaysNoDry <= 0 {
+		return fmt.Errorf("max days without drying must be positive")
+	}
+	return nil
+}
 
 type DryingProfile struct {
 	Material      Material
 	TemperatureC  int
 	DurationHours float64
 	MaxDaysNoDry  int
-}
-
-type CustomMaterial struct {
-	Name                  Material
-	DryingProfileMaterial Material
-}
-
-var DefaultDryingProfiles = map[Material]DryingProfile{
-	MaterialPLA:   {Material: MaterialPLA, TemperatureC: 45, DurationHours: 4, MaxDaysNoDry: 30},
-	MaterialPETG:  {Material: MaterialPETG, TemperatureC: 65, DurationHours: 4, MaxDaysNoDry: 14},
-	MaterialABS:   {Material: MaterialABS, TemperatureC: 60, DurationHours: 4, MaxDaysNoDry: 30},
-	MaterialASA:   {Material: MaterialASA, TemperatureC: 60, DurationHours: 4, MaxDaysNoDry: 30},
-	MaterialTPU:   {Material: MaterialTPU, TemperatureC: 50, DurationHours: 5, MaxDaysNoDry: 7},
-	MaterialNylon: {Material: MaterialNylon, TemperatureC: 70, DurationHours: 6, MaxDaysNoDry: 7},
-	MaterialPC:    {Material: MaterialPC, TemperatureC: 70, DurationHours: 8, MaxDaysNoDry: 7},
-}
-
-var DefaultDensities = map[Material]float64{
-	MaterialPLA:   1.24,
-	MaterialPETG:  1.27,
-	MaterialABS:   1.04,
-	MaterialASA:   1.07,
-	MaterialTPU:   1.21,
-	MaterialNylon: 1.14,
-	MaterialPC:    1.20,
-}
-
-func (m Material) IsBuiltIn() bool {
-	return slices.Contains(BuiltInMaterials, m)
 }
 
 func (p *DryingProfile) ValidateDryingProfile() error {
