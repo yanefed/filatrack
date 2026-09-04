@@ -32,7 +32,7 @@ func TestPrintsListIsVirtualized(t *testing.T) {
 	window.SetChild(scrolled)
 	window.Present()
 	mainContext := glib.MainContextDefault()
-	for i := 0; i < 20; i++ {
+	for range 20 {
 		mainContext.Iteration(false)
 	}
 	if widgets := printDescendantCount(view); widgets >= count*3 {

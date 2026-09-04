@@ -27,7 +27,7 @@ type MaterialDefinition struct {
 	MaxDaysNoDry        int
 }
 
-func (m MaterialDefinition) DryingProfile() DryingProfile {
+func (m *MaterialDefinition) DryingProfile() DryingProfile {
 	return DryingProfile{
 		Material:      m.Name,
 		TemperatureC:  m.DryingTemperatureC,

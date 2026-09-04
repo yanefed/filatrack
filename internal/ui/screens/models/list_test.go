@@ -44,7 +44,7 @@ func wrapList(view *gtk.ListView) *gtk.ScrolledWindow {
 
 func iterateGTK() {
 	mainContext := glib.MainContextDefault()
-	for i := 0; i < 20; i++ {
+	for range 20 {
 		mainContext.Iteration(false)
 	}
 }

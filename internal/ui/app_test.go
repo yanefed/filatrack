@@ -1,11 +1,10 @@
 package ui
 
 import (
+	"awesomeProject/internal/service"
 	"runtime"
 	"strings"
 	"testing"
-
-	"awesomeProject/internal/service"
 
 	"github.com/diamondburned/gotk4-adwaita/pkg/adw"
 	"github.com/diamondburned/gotk4/pkg/glib/v2"
@@ -55,7 +54,7 @@ func TestSpoolToolbarButtonBecomesMapped(t *testing.T) {
 	stack.SetVisibleChildName("spools")
 	update()
 	mainContext := glib.MainContextDefault()
-	for i := 0; i < 20; i++ {
+	for range 20 {
 		mainContext.Iteration(false)
 	}
 	if button.Parent() == nil || !button.IsVisible() || !button.Mapped() {

@@ -60,7 +60,6 @@ func NewPrintersScreen(ctx context.Context, parent *gtk.Window, printerSvc *serv
 		spools := shared.ActiveSpools(ctx, spoolSvc)
 
 		for _, printer := range configuredPrinters {
-			printer := printer
 			card, statusSlot := newPrinterCard(t, printer, spools, func(index uint) {
 				var err error
 				if index == 0 {

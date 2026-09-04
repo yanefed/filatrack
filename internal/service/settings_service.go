@@ -96,12 +96,12 @@ func (s *SettingsService) CreateMaterial(ctx context.Context, material *domain.M
 	if material == nil {
 		return fmt.Errorf("material is required")
 	}
-	copy := *material
-	copy.Name = domain.Material(strings.TrimSpace(string(copy.Name)))
-	if err := copy.Validate(); err != nil {
+	materialCopy := *material
+	materialCopy.Name = domain.Material(strings.TrimSpace(string(materialCopy.Name)))
+	if err := materialCopy.Validate(); err != nil {
 		return err
 	}
-	return s.settings.CreateMaterial(ctx, &copy)
+	return s.settings.CreateMaterial(ctx, &materialCopy)
 }
 
 func (s *SettingsService) UpdateMaterial(ctx context.Context, material *domain.MaterialDefinition) error {

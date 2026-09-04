@@ -1,13 +1,13 @@
 package sqlite
 
 import (
-	"context"
-	"database/sql"
-	"fmt"
-
 	"awesomeProject/internal/domain"
 	"awesomeProject/internal/repository"
 	"awesomeProject/internal/repository/sqlite/entity"
+	"context"
+	"database/sql"
+	"errors"
+	"fmt"
 )
 
 type SettingsRepo struct {
@@ -66,7 +66,7 @@ func (r *SettingsRepo) GetMaterial(ctx context.Context, name domain.Material) (*
 		       drying_duration_hours, max_days_no_dry
 		FROM materials
 		WHERE name = ?`, string(name)))
-	if err == sql.ErrNoRows {
+	if errors.Is(err, sql.ErrNoRows) {
 		return nil, nil
 	}
 	if err != nil {
