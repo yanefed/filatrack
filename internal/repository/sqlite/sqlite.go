@@ -47,7 +47,7 @@ func (db *DB) Close() error {
 func execWithBusyRetry(ctx context.Context, run func() (sql.Result, error)) (sql.Result, error) {
 	var result sql.Result
 	var err error
-	for attempt := 0; attempt < 5; attempt++ {
+	for attempt := range 5 {
 		result, err = run()
 		if err == nil || !isSQLiteBusy(err) {
 			return result, err

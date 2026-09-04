@@ -9,6 +9,8 @@ import (
 	"fmt"
 	"time"
 
+	"awesomeProject/internal/repository/sqlite/entity"
+
 	"github.com/google/uuid"
 )
 
@@ -30,13 +32,14 @@ func (r *PrinterRepo) Create(ctx context.Context, printer *domain.Printer) error
 	if printer.State == "" {
 		printer.State = domain.PrinterStateUnknown
 	}
+	persisted := entity.PrinterFromDomain(*printer)
 	_, err := r.db.Conn().ExecContext(ctx,
 		`INSERT INTO printers (id, name, kind, moonraker_url, api_key, enabled, active_spool_id, state, current_file, progress, last_seen_at, created_at, updated_at)
 		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-		printer.ID, printer.Name, string(printer.Kind), printer.MoonrakerURL, printer.APIKey,
-		boolToInt(printer.Enabled), nullString(printer.ActiveSpoolID), string(printer.State),
-		printer.CurrentFile, printer.Progress, nullTime(printer.LastSeenAt),
-		printer.CreatedAt, printer.UpdatedAt,
+		persisted.ID, persisted.Name, persisted.Kind, persisted.MoonrakerURL, persisted.APIKey,
+		persisted.Enabled, persisted.ActiveSpoolID, persisted.State,
+		persisted.CurrentFile, persisted.Progress, persisted.LastSeenAt,
+		persisted.CreatedAt, persisted.UpdatedAt,
 	)
 	if err != nil {
 		return fmt.Errorf("inserting printer: %w", err)
@@ -46,21 +49,22 @@ func (r *PrinterRepo) Create(ctx context.Context, printer *domain.Printer) error
 
 func (r *PrinterRepo) GetByID(ctx context.Context, id string) (*domain.Printer, error) {
 	row := r.db.Conn().QueryRowContext(ctx,
-		`SELECT id, name, kind, moonraker_url, api_key, enabled, COALESCE(active_spool_id, ''), state, current_file, progress, last_seen_at, created_at, updated_at
+		`SELECT id, name, kind, moonraker_url, api_key, enabled, active_spool_id, state, current_file, progress, last_seen_at, created_at, updated_at
 		 FROM printers WHERE id = ?`, id)
-	printer, err := scanPrinter(row)
+	persisted, err := entity.ScanPrinter(row)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, fmt.Errorf("printer not found: %s", id)
 		}
 		return nil, fmt.Errorf("querying printer: %w", err)
 	}
-	return printer, nil
+	printer := persisted.Domain()
+	return &printer, nil
 }
 
 func (r *PrinterRepo) List(ctx context.Context) ([]domain.Printer, error) {
 	rows, err := r.db.Conn().QueryContext(ctx,
-		`SELECT id, name, kind, moonraker_url, api_key, enabled, COALESCE(active_spool_id, ''), state, current_file, progress, last_seen_at, created_at, updated_at
+		`SELECT id, name, kind, moonraker_url, api_key, enabled, active_spool_id, state, current_file, progress, last_seen_at, created_at, updated_at
 		 FROM printers ORDER BY name`)
 	if err != nil {
 		return nil, fmt.Errorf("listing printers: %w", err)
@@ -71,25 +75,26 @@ func (r *PrinterRepo) List(ctx context.Context) ([]domain.Printer, error) {
 
 	var printers []domain.Printer
 	for rows.Next() {
-		printer, err := scanPrinterRows(rows)
+		persisted, err := entity.ScanPrinter(rows)
 		if err != nil {
 			return nil, fmt.Errorf("scanning printer: %w", err)
 		}
-		printers = append(printers, *printer)
+		printers = append(printers, persisted.Domain())
 	}
 	return printers, rows.Err()
 }
 
 func (r *PrinterRepo) Update(ctx context.Context, printer *domain.Printer) error {
 	printer.UpdatedAt = time.Now()
+	persisted := entity.PrinterFromDomain(*printer)
 	result, err := r.db.Conn().ExecContext(ctx,
 		`UPDATE printers
 		 SET name=?, kind=?, moonraker_url=?, api_key=?, enabled=?, active_spool_id=?, state=?, current_file=?, progress=?, last_seen_at=?, updated_at=?
 		 WHERE id=?`,
-		printer.Name, string(printer.Kind), printer.MoonrakerURL, printer.APIKey,
-		boolToInt(printer.Enabled), nullString(printer.ActiveSpoolID), string(printer.State),
-		printer.CurrentFile, printer.Progress, nullTime(printer.LastSeenAt), printer.UpdatedAt,
-		printer.ID,
+		persisted.Name, persisted.Kind, persisted.MoonrakerURL, persisted.APIKey,
+		persisted.Enabled, persisted.ActiveSpoolID, persisted.State,
+		persisted.CurrentFile, persisted.Progress, persisted.LastSeenAt, persisted.UpdatedAt,
+		persisted.ID,
 	)
 	if err != nil {
 		return fmt.Errorf("updating printer: %w", err)
@@ -103,7 +108,7 @@ func (r *PrinterRepo) Update(ctx context.Context, printer *domain.Printer) error
 func (r *PrinterRepo) AssignSpool(ctx context.Context, printerID, spoolID string) error {
 	result, err := r.db.Conn().ExecContext(ctx,
 		`UPDATE printers SET active_spool_id = ?, updated_at = ? WHERE id = ?`,
-		nullString(spoolID), time.Now(), printerID,
+		entity.NullString(spoolID), time.Now(), printerID,
 	)
 	if err != nil {
 		return fmt.Errorf("assigning printer spool: %w", err)
@@ -116,11 +121,12 @@ func (r *PrinterRepo) AssignSpool(ctx context.Context, printerID, spoolID string
 
 func (r *PrinterRepo) UpdateStatus(ctx context.Context, printer *domain.Printer) error {
 	printer.UpdatedAt = time.Now()
+	persisted := entity.PrinterFromDomain(*printer)
 	result, err := execWithBusyRetry(ctx, func() (sql.Result, error) {
 		return r.db.Conn().ExecContext(ctx,
 			`UPDATE printers SET state=?, current_file=?, progress=?, last_seen_at=?, updated_at=? WHERE id=?`,
-			string(printer.State), printer.CurrentFile, printer.Progress, nullTime(printer.LastSeenAt),
-			printer.UpdatedAt, printer.ID,
+			persisted.State, persisted.CurrentFile, persisted.Progress, persisted.LastSeenAt,
+			persisted.UpdatedAt, persisted.ID,
 		)
 	})
 	if err != nil {
@@ -130,51 +136,4 @@ func (r *PrinterRepo) UpdateStatus(ctx context.Context, printer *domain.Printer)
 		return fmt.Errorf("printer not found: %s", printer.ID)
 	}
 	return nil
-}
-
-func scanPrinter(row *sql.Row) (*domain.Printer, error) {
-	var p domain.Printer
-	var kind, state string
-	var enabled int
-	var lastSeen sql.NullTime
-	err := row.Scan(&p.ID, &p.Name, &kind, &p.MoonrakerURL, &p.APIKey, &enabled,
-		&p.ActiveSpoolID, &state, &p.CurrentFile, &p.Progress, &lastSeen,
-		&p.CreatedAt, &p.UpdatedAt)
-	if err != nil {
-		return nil, err
-	}
-	p.Kind = domain.PrinterKind(kind)
-	p.State = domain.PrinterState(state)
-	p.Enabled = enabled != 0
-	if lastSeen.Valid {
-		p.LastSeenAt = lastSeen.Time
-	}
-	return &p, nil
-}
-
-func scanPrinterRows(rows *sql.Rows) (*domain.Printer, error) {
-	var p domain.Printer
-	var kind, state string
-	var enabled int
-	var lastSeen sql.NullTime
-	err := rows.Scan(&p.ID, &p.Name, &kind, &p.MoonrakerURL, &p.APIKey, &enabled,
-		&p.ActiveSpoolID, &state, &p.CurrentFile, &p.Progress, &lastSeen,
-		&p.CreatedAt, &p.UpdatedAt)
-	if err != nil {
-		return nil, err
-	}
-	p.Kind = domain.PrinterKind(kind)
-	p.State = domain.PrinterState(state)
-	p.Enabled = enabled != 0
-	if lastSeen.Valid {
-		p.LastSeenAt = lastSeen.Time
-	}
-	return &p, nil
-}
-
-func nullTime(value time.Time) any {
-	if value.IsZero() {
-		return nil
-	}
-	return value
 }

@@ -10,6 +10,7 @@ import (
 
 	"awesomeProject/internal/domain"
 	"awesomeProject/internal/repository"
+	"awesomeProject/internal/repository/sqlite/entity"
 
 	"github.com/google/uuid"
 )
@@ -30,21 +31,23 @@ func (r *SpoolRepo) Create(ctx context.Context, spool *domain.Spool) error {
 	if spool.DisplayCode == "" {
 		spool.DisplayCode = domain.NewSpoolDisplayCode(spool, spool.ID)
 	}
+	persisted := entity.SpoolFromDomain(*spool)
 	_, err := r.db.Conn().ExecContext(ctx,
 		`INSERT INTO spools (id, display_code, manufacturer, material, color, color_hex, diameter_mm, total_weight_g, price, density_g_cm3, purchased_at, archived, created_at, updated_at)
 		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-		spool.ID, spool.DisplayCode, spool.Manufacturer, string(spool.Material), spool.Color, spool.ColorHex,
-		spool.DiameterMM, spool.TotalWeightG, spool.Price, spool.DensityGCM3,
-		spool.PurchasedAt, boolToInt(spool.Archived), spool.CreatedAt, spool.UpdatedAt,
+		persisted.ID, persisted.DisplayCode, persisted.Manufacturer, persisted.Material, persisted.Color, persisted.ColorHex,
+		persisted.DiameterMM, persisted.TotalWeightG, persisted.Price, persisted.DensityGCM3,
+		persisted.PurchasedAt, persisted.Archived, persisted.CreatedAt, persisted.UpdatedAt,
 	)
 	if err != nil && strings.Contains(err.Error(), "display_code") {
 		spool.DisplayCode = domain.NewSpoolDisplayCode(spool, uuid.NewString())
+		persisted = entity.SpoolFromDomain(*spool)
 		_, err = r.db.Conn().ExecContext(ctx,
 			`INSERT INTO spools (id, display_code, manufacturer, material, color, color_hex, diameter_mm, total_weight_g, price, density_g_cm3, purchased_at, archived, created_at, updated_at)
 			 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-			spool.ID, spool.DisplayCode, spool.Manufacturer, string(spool.Material), spool.Color, spool.ColorHex,
-			spool.DiameterMM, spool.TotalWeightG, spool.Price, spool.DensityGCM3,
-			spool.PurchasedAt, boolToInt(spool.Archived), spool.CreatedAt, spool.UpdatedAt,
+			persisted.ID, persisted.DisplayCode, persisted.Manufacturer, persisted.Material, persisted.Color, persisted.ColorHex,
+			persisted.DiameterMM, persisted.TotalWeightG, persisted.Price, persisted.DensityGCM3,
+			persisted.PurchasedAt, persisted.Archived, persisted.CreatedAt, persisted.UpdatedAt,
 		)
 	}
 	if err != nil {
@@ -57,14 +60,15 @@ func (r *SpoolRepo) GetByID(ctx context.Context, id string) (*domain.Spool, erro
 	row := r.db.Conn().QueryRowContext(ctx,
 		`SELECT id, display_code, manufacturer, material, color, color_hex, diameter_mm, total_weight_g, price, density_g_cm3, purchased_at, archived, created_at, updated_at
 		 FROM spools WHERE id = ?`, id)
-	s, err := scanSpool(row)
+	persisted, err := entity.ScanSpool(row)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, fmt.Errorf("spool not found: %s", id)
 		}
 		return nil, fmt.Errorf("querying spool: %w", err)
 	}
-	return s, nil
+	spool := persisted.Domain()
+	return &spool, nil
 }
 
 func (r *SpoolRepo) List(ctx context.Context, filter repository.SpoolFilter) ([]domain.Spool, error) {
@@ -85,7 +89,7 @@ func (r *SpoolRepo) List(ctx context.Context, filter repository.SpoolFilter) ([]
 	}
 	if filter.Archived != nil {
 		query += " AND archived = ?"
-		args = append(args, boolToInt(*filter.Archived))
+		args = append(args, entity.BoolInt(*filter.Archived))
 	}
 	query += " ORDER BY created_at DESC"
 
@@ -97,11 +101,11 @@ func (r *SpoolRepo) List(ctx context.Context, filter repository.SpoolFilter) ([]
 
 	var spools []domain.Spool
 	for rows.Next() {
-		s, err := scanSpoolRows(rows)
+		persisted, err := entity.ScanSpool(rows)
 		if err != nil {
 			return nil, fmt.Errorf("scanning spool: %w", err)
 		}
-		spools = append(spools, *s)
+		spools = append(spools, persisted.Domain())
 	}
 	return spools, rows.Err()
 }
@@ -111,12 +115,13 @@ func (r *SpoolRepo) Update(ctx context.Context, spool *domain.Spool) error {
 	if spool.DisplayCode == "" {
 		spool.DisplayCode = domain.NewSpoolDisplayCode(spool, spool.ID)
 	}
+	persisted := entity.SpoolFromDomain(*spool)
 	_, err := r.db.Conn().ExecContext(ctx,
 		`UPDATE spools SET display_code=?, manufacturer=?, material=?, color=?, color_hex=?, diameter_mm=?, total_weight_g=?, price=?, density_g_cm3=?, purchased_at=?, archived=?, updated_at=?
 		 WHERE id=?`,
-		spool.DisplayCode, spool.Manufacturer, string(spool.Material), spool.Color, spool.ColorHex,
-		spool.DiameterMM, spool.TotalWeightG, spool.Price, spool.DensityGCM3,
-		spool.PurchasedAt, boolToInt(spool.Archived), spool.UpdatedAt, spool.ID,
+		persisted.DisplayCode, persisted.Manufacturer, persisted.Material, persisted.Color, persisted.ColorHex,
+		persisted.DiameterMM, persisted.TotalWeightG, persisted.Price, persisted.DensityGCM3,
+		persisted.PurchasedAt, persisted.Archived, persisted.UpdatedAt, persisted.ID,
 	)
 	if err != nil {
 		return fmt.Errorf("updating spool: %w", err)
@@ -144,49 +149,4 @@ func (r *SpoolRepo) GetUsedWeight(ctx context.Context, spoolID string) (float64,
 		return 0, fmt.Errorf("getting used weight: %w", err)
 	}
 	return used.Float64, nil
-}
-
-func boolToInt(b bool) int {
-	if b {
-		return 1
-	}
-	return 0
-}
-
-func scanSpool(row *sql.Row) (*domain.Spool, error) {
-	var s domain.Spool
-	var material string
-	var archived int
-	var purchasedAt sql.NullTime
-	err := row.Scan(&s.ID, &s.DisplayCode, &s.Manufacturer, &material, &s.Color, &s.ColorHex,
-		&s.DiameterMM, &s.TotalWeightG, &s.Price, &s.DensityGCM3,
-		&purchasedAt, &archived, &s.CreatedAt, &s.UpdatedAt)
-	if err != nil {
-		return nil, err
-	}
-	s.Material = domain.Material(material)
-	s.Archived = archived != 0
-	if purchasedAt.Valid {
-		s.PurchasedAt = purchasedAt.Time
-	}
-	return &s, nil
-}
-
-func scanSpoolRows(rows *sql.Rows) (*domain.Spool, error) {
-	var s domain.Spool
-	var material string
-	var archived int
-	var purchasedAt sql.NullTime
-	err := rows.Scan(&s.ID, &s.DisplayCode, &s.Manufacturer, &material, &s.Color, &s.ColorHex,
-		&s.DiameterMM, &s.TotalWeightG, &s.Price, &s.DensityGCM3,
-		&purchasedAt, &archived, &s.CreatedAt, &s.UpdatedAt)
-	if err != nil {
-		return nil, err
-	}
-	s.Material = domain.Material(material)
-	s.Archived = archived != 0
-	if purchasedAt.Valid {
-		s.PurchasedAt = purchasedAt.Time
-	}
-	return &s, nil
 }

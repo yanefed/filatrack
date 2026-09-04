@@ -7,6 +7,8 @@ import (
 	"database/sql"
 	"fmt"
 	"time"
+
+	"awesomeProject/internal/repository/sqlite/entity"
 )
 
 type PrinterModelRepo struct {
@@ -48,10 +50,11 @@ func (r *PrinterModelRepo) SaveForPrinter(ctx context.Context, printerID string,
 		if model.CachedAt.IsZero() {
 			model.CachedAt = now
 		}
+		persisted := entity.PrinterModelFromDomain(model)
 		if _, err := stmt.ExecContext(ctx,
-			model.PrinterID, model.Path, model.Filename, nullTime(model.ModifiedAt), model.SizeBytes,
-			model.EstimatedWeightG, int64(model.PrintDuration.Seconds()), model.Slicer,
-			model.PreviewImagePath, model.CachedAt,
+			persisted.PrinterID, persisted.Path, persisted.Filename, persisted.ModifiedAt, persisted.SizeBytes,
+			persisted.EstimatedWeightG, persisted.PrintDurationSec, persisted.Slicer,
+			persisted.PreviewImagePath, persisted.CachedAt,
 		); err != nil {
 			return fmt.Errorf("inserting printer model %s: %w", model.Path, err)
 		}
@@ -82,30 +85,11 @@ func (r *PrinterModelRepo) List(ctx context.Context, printerID *string) ([]domai
 
 	var models []domain.PrinterModelFile
 	for rows.Next() {
-		model, err := scanPrinterModel(rows)
+		persisted, err := entity.ScanPrinterModel(rows)
 		if err != nil {
 			return nil, fmt.Errorf("scanning printer model: %w", err)
 		}
-		models = append(models, model)
+		models = append(models, persisted.Domain())
 	}
 	return models, rows.Err()
-}
-
-func scanPrinterModel(rows *sql.Rows) (domain.PrinterModelFile, error) {
-	var model domain.PrinterModelFile
-	var modifiedAt sql.NullTime
-	var printDurationSec int64
-	err := rows.Scan(
-		&model.PrinterID, &model.Path, &model.Filename, &modifiedAt, &model.SizeBytes,
-		&model.EstimatedWeightG, &printDurationSec, &model.Slicer, &model.PreviewImagePath,
-		&model.CachedAt,
-	)
-	if err != nil {
-		return domain.PrinterModelFile{}, err
-	}
-	if modifiedAt.Valid {
-		model.ModifiedAt = modifiedAt.Time
-	}
-	model.PrintDuration = time.Duration(printDurationSec) * time.Second
-	return model, nil
 }

@@ -463,55 +463,52 @@ func TestSettingsRepoCRUD(t *testing.T) {
 		t.Fatal("expected missing setting error")
 	}
 
-	profiles, err := repo.ListDryingProfiles(ctx)
-	if err != nil || len(profiles) != len(domain.DefaultDryingProfiles) {
-		t.Fatalf("default profiles = (%d, %v)", len(profiles), err)
+	seededMaterials, err := repo.ListMaterials(ctx)
+	if err != nil || len(seededMaterials) != 7 {
+		t.Fatalf("default materials = (%d, %v)", len(seededMaterials), err)
 	}
-	customProfile := &domain.DryingProfile{Material: "Wood", TemperatureC: 45, DurationHours: 8, MaxDaysNoDry: 2}
-	if err := repo.UpsertDryingProfile(ctx, customProfile); err != nil {
-		t.Fatalf("inserting profile: %v", err)
+	pla, err := repo.GetMaterial(ctx, domain.MaterialPLA)
+	if err != nil || pla == nil || pla.DensityGCM3 != 1.24 || pla.DryingTemperatureC != 45 {
+		t.Fatalf("seeded PLA material = (%+v, %v)", pla, err)
 	}
-	customProfile.TemperatureC = 50
-	if err := repo.UpsertDryingProfile(ctx, customProfile); err != nil {
-		t.Fatalf("updating profile: %v", err)
+	pla.DensityGCM3 = 1.25
+	pla.DryingTemperatureC = 50
+	if err := repo.UpdateMaterial(ctx, pla); err != nil {
+		t.Fatalf("updating material: %v", err)
 	}
-	if err := repo.DeleteDryingProfile(ctx, string(customProfile.Material)); err != nil {
-		t.Fatalf("deleting profile: %v", err)
+	updatedPLA, err := repo.GetMaterial(ctx, domain.MaterialPLA)
+	if err != nil || updatedPLA.DensityGCM3 != 1.25 || updatedPLA.DryingTemperatureC != 50 {
+		t.Fatalf("updated PLA material = (%+v, %v)", updatedPLA, err)
 	}
 
-	for _, name := range []string{"Wood", "HIPS", "Wood"} {
-		if err := repo.AddCustomMaterial(ctx, name); err != nil {
-			t.Fatalf("adding material %q: %v", name, err)
-		}
+	wood := &domain.MaterialDefinition{
+		Name: "Wood", DensityGCM3: 1.20, DryingTemperatureC: 42,
+		DryingDurationHours: 6, MaxDaysNoDry: 5,
 	}
-	materials, err := repo.ListCustomMaterials(ctx)
-	if err != nil || len(materials) != 2 || materials[0] != "HIPS" || materials[1] != "Wood" {
-		t.Fatalf("custom materials = (%+v, %v)", materials, err)
+	if err := repo.CreateMaterial(ctx, wood); err != nil {
+		t.Fatalf("creating material: %v", err)
 	}
-	if err := repo.SetCustomMaterialDryingProfile(ctx, "HIPS", "PLA"); err != nil {
-		t.Fatalf("binding existing drying profile: %v", err)
+	materials, err := repo.ListMaterials(ctx)
+	if err != nil || len(materials) != 8 {
+		t.Fatalf("materials = (%+v, %v)", materials, err)
 	}
-	resolved, err := repo.GetDryingProfileForMaterial(ctx, "HIPS")
-	if err != nil || resolved == nil || resolved.Material != domain.MaterialPLA {
-		t.Fatalf("resolved shared profile = (%+v, %v)", resolved, err)
+	resolved, err := repo.GetDryingProfileForMaterial(ctx, "Wood")
+	if err != nil || resolved == nil || resolved.Material != "Wood" || resolved.TemperatureC != 42 {
+		t.Fatalf("material drying profile = (%+v, %v)", resolved, err)
 	}
-	woodProfile := &domain.DryingProfile{Material: "ignored", TemperatureC: 42, DurationHours: 6, MaxDaysNoDry: 5}
-	if err := repo.UpsertCustomMaterialDryingProfile(ctx, "Wood", woodProfile); err != nil {
-		t.Fatalf("creating custom drying profile: %v", err)
+	wood.DryingTemperatureC = 48
+	if err := repo.UpdateMaterial(ctx, wood); err != nil {
+		t.Fatalf("updating drying values: %v", err)
 	}
 	resolved, err = repo.GetDryingProfileForMaterial(ctx, "Wood")
-	if err != nil || resolved == nil || resolved.Material != "Wood" || resolved.TemperatureC != 42 {
-		t.Fatalf("resolved owned profile = (%+v, %v)", resolved, err)
+	if err != nil || resolved == nil || resolved.TemperatureC != 48 {
+		t.Fatalf("updated drying profile = (%+v, %v)", resolved, err)
 	}
-	bindings, err := repo.ListCustomMaterialBindings(ctx)
-	if err != nil || len(bindings) != 2 || bindings[0].DryingProfileMaterial != "PLA" || bindings[1].DryingProfileMaterial != "Wood" {
-		t.Fatalf("custom material bindings = (%+v, %v)", bindings, err)
-	}
-	if err := repo.DeleteCustomMaterial(ctx, "Wood"); err != nil {
+	if err := repo.DeleteMaterial(ctx, "Wood"); err != nil {
 		t.Fatalf("deleting material: %v", err)
 	}
-	materials, err = repo.ListCustomMaterials(ctx)
-	if err != nil || len(materials) != 1 || materials[0] != "HIPS" {
+	materials, err = repo.ListMaterials(ctx)
+	if err != nil || len(materials) != 7 {
 		t.Fatalf("materials after delete = (%+v, %v)", materials, err)
 	}
 	if profile, err := repo.GetDryingProfileForMaterial(ctx, "Wood"); err != nil || profile != nil {
@@ -526,19 +523,17 @@ func TestSettingsRepoDatabaseErrors(t *testing.T) {
 		t.Fatalf("closing database: %v", err)
 	}
 	ctx := context.Background()
-	profile := &domain.DryingProfile{}
 	checks := []struct {
 		name string
 		run  func() error
 	}{
 		{name: "get setting", run: func() error { _, err := repo.GetSetting(ctx, "key"); return err }},
 		{name: "set setting", run: func() error { return repo.SetSetting(ctx, "key", "value") }},
-		{name: "list profiles", run: func() error { _, err := repo.ListDryingProfiles(ctx); return err }},
-		{name: "upsert profile", run: func() error { return repo.UpsertDryingProfile(ctx, profile) }},
-		{name: "delete profile", run: func() error { return repo.DeleteDryingProfile(ctx, "PLA") }},
-		{name: "list materials", run: func() error { _, err := repo.ListCustomMaterials(ctx); return err }},
-		{name: "add material", run: func() error { return repo.AddCustomMaterial(ctx, "Wood") }},
-		{name: "delete material", run: func() error { return repo.DeleteCustomMaterial(ctx, "Wood") }},
+		{name: "list materials", run: func() error { _, err := repo.ListMaterials(ctx); return err }},
+		{name: "get material", run: func() error { _, err := repo.GetMaterial(ctx, "Wood"); return err }},
+		{name: "add material", run: func() error { return repo.CreateMaterial(ctx, &domain.MaterialDefinition{}) }},
+		{name: "update material", run: func() error { return repo.UpdateMaterial(ctx, &domain.MaterialDefinition{}) }},
+		{name: "delete material", run: func() error { return repo.DeleteMaterial(ctx, "Wood") }},
 	}
 	for _, check := range checks {
 		t.Run(check.name, func(t *testing.T) {

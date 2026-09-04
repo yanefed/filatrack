@@ -7,7 +7,8 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	"time"
+
+	"awesomeProject/internal/repository/sqlite/entity"
 
 	"github.com/google/uuid"
 )
@@ -25,15 +26,16 @@ func (r *PrintJobRepo) Create(ctx context.Context, job *domain.PrintJob) error {
 	if job.ID == "" {
 		job.ID = uuid.New().String()
 	}
+	persisted := entity.PrintJobFromDomain(*job)
 	_, err := execWithBusyRetry(ctx, func() (sql.Result, error) {
 		return r.db.Conn().ExecContext(ctx,
 			`INSERT INTO print_jobs (id, spool_id, printer_id, external_print_id, gcode_filename, model_name, status, completion_percent, estimated_weight_g, actual_weight_g, estimated_length_mm, print_duration_sec, nozzle_temp_c, bed_temp_c, slicer, preview_image_path, notes, printed_at, created_at)
 			 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-			job.ID, nullString(job.SpoolID), nullString(job.PrinterID), job.ExternalPrintID, job.GcodeFilename, job.ModelName,
-			string(job.Status), job.CompletionPercent,
-			job.EstimatedWeightG, job.ActualWeightG, job.EstimatedLengthMM,
-			int64(job.PrintDuration.Seconds()), job.NozzleTempC, job.BedTempC,
-			job.Slicer, job.PreviewImagePath, job.Notes, job.PrintedAt, job.CreatedAt,
+			persisted.ID, persisted.SpoolID, persisted.PrinterID, persisted.ExternalPrintID, persisted.GcodeFilename, persisted.ModelName,
+			persisted.Status, persisted.CompletionPercent,
+			persisted.EstimatedWeightG, persisted.ActualWeightG, persisted.EstimatedLengthMM,
+			persisted.PrintDurationSec, persisted.NozzleTempC, persisted.BedTempC,
+			persisted.Slicer, persisted.PreviewImagePath, persisted.Notes, persisted.PrintedAt, persisted.CreatedAt,
 		)
 	})
 	if err != nil {
@@ -44,20 +46,21 @@ func (r *PrintJobRepo) Create(ctx context.Context, job *domain.PrintJob) error {
 
 func (r *PrintJobRepo) GetByID(ctx context.Context, id string) (*domain.PrintJob, error) {
 	row := r.db.Conn().QueryRowContext(ctx,
-		`SELECT id, COALESCE(spool_id, ''), COALESCE(printer_id, ''), external_print_id, gcode_filename, model_name, status, completion_percent, estimated_weight_g, actual_weight_g, estimated_length_mm, print_duration_sec, nozzle_temp_c, bed_temp_c, slicer, preview_image_path, notes, printed_at, created_at
+		`SELECT id, spool_id, printer_id, external_print_id, gcode_filename, model_name, status, completion_percent, estimated_weight_g, actual_weight_g, estimated_length_mm, print_duration_sec, nozzle_temp_c, bed_temp_c, slicer, preview_image_path, notes, printed_at, created_at
 		 FROM print_jobs WHERE id = ?`, id)
-	j, err := scanPrintJob(row)
+	persisted, err := entity.ScanPrintJob(row)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, fmt.Errorf("print job not found: %s", id)
 		}
 		return nil, fmt.Errorf("querying print job: %w", err)
 	}
-	return j, nil
+	job := persisted.Domain()
+	return &job, nil
 }
 
 func (r *PrintJobRepo) List(ctx context.Context, filter repository.PrintJobFilter) ([]domain.PrintJob, error) {
-	query := `SELECT id, COALESCE(spool_id, ''), COALESCE(printer_id, ''), external_print_id, gcode_filename, model_name, status, completion_percent, estimated_weight_g, actual_weight_g, estimated_length_mm, print_duration_sec, nozzle_temp_c, bed_temp_c, slicer, preview_image_path, notes, printed_at, created_at FROM print_jobs WHERE 1=1`
+	query := `SELECT id, spool_id, printer_id, external_print_id, gcode_filename, model_name, status, completion_percent, estimated_weight_g, actual_weight_g, estimated_length_mm, print_duration_sec, nozzle_temp_c, bed_temp_c, slicer, preview_image_path, notes, printed_at, created_at FROM print_jobs WHERE 1=1`
 	var args []any
 
 	if filter.SpoolID != nil {
@@ -96,11 +99,11 @@ func (r *PrintJobRepo) List(ctx context.Context, filter repository.PrintJobFilte
 
 	var jobs []domain.PrintJob
 	for rows.Next() {
-		j, err := scanPrintJobRows(rows)
+		persisted, err := entity.ScanPrintJob(rows)
 		if err != nil {
 			return nil, fmt.Errorf("scanning print job: %w", err)
 		}
-		jobs = append(jobs, *j)
+		jobs = append(jobs, persisted.Domain())
 	}
 	return jobs, rows.Err()
 }
@@ -108,7 +111,7 @@ func (r *PrintJobRepo) List(ctx context.Context, filter repository.PrintJobFilte
 func (r *PrintJobRepo) UpdateSpool(ctx context.Context, jobID, spoolID string) error {
 	result, err := r.db.Conn().ExecContext(ctx,
 		`UPDATE print_jobs SET spool_id = ? WHERE id = ?`,
-		nullString(spoolID), jobID,
+		entity.NullString(spoolID), jobID,
 	)
 	if err != nil {
 		return fmt.Errorf("updating print job spool: %w", err)
@@ -162,43 +165,4 @@ func (r *PrintJobRepo) GetStats(ctx context.Context, filter repository.StatsFilt
 		return nil, fmt.Errorf("getting print stats: %w", err)
 	}
 	return &stats, nil
-}
-
-func scanPrintJob(row *sql.Row) (*domain.PrintJob, error) {
-	var j domain.PrintJob
-	var status string
-	var durationSec int64
-	err := row.Scan(&j.ID, &j.SpoolID, &j.PrinterID, &j.ExternalPrintID, &j.GcodeFilename, &j.ModelName,
-		&status, &j.CompletionPercent, &j.EstimatedWeightG, &j.ActualWeightG,
-		&j.EstimatedLengthMM, &durationSec, &j.NozzleTempC, &j.BedTempC,
-		&j.Slicer, &j.PreviewImagePath, &j.Notes, &j.PrintedAt, &j.CreatedAt)
-	if err != nil {
-		return nil, err
-	}
-	j.Status = domain.PrintStatus(status)
-	j.PrintDuration = time.Duration(durationSec) * time.Second
-	return &j, nil
-}
-
-func scanPrintJobRows(rows *sql.Rows) (*domain.PrintJob, error) {
-	var j domain.PrintJob
-	var status string
-	var durationSec int64
-	err := rows.Scan(&j.ID, &j.SpoolID, &j.PrinterID, &j.ExternalPrintID, &j.GcodeFilename, &j.ModelName,
-		&status, &j.CompletionPercent, &j.EstimatedWeightG, &j.ActualWeightG,
-		&j.EstimatedLengthMM, &durationSec, &j.NozzleTempC, &j.BedTempC,
-		&j.Slicer, &j.PreviewImagePath, &j.Notes, &j.PrintedAt, &j.CreatedAt)
-	if err != nil {
-		return nil, err
-	}
-	j.Status = domain.PrintStatus(status)
-	j.PrintDuration = time.Duration(durationSec) * time.Second
-	return &j, nil
-}
-
-func nullString(value string) any {
-	if value == "" {
-		return nil
-	}
-	return value
 }
