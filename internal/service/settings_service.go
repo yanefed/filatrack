@@ -6,16 +6,9 @@ import (
 	"awesomeProject/internal/repository"
 	"context"
 	"fmt"
-	"slices"
 	"strconv"
 	"strings"
 )
-
-// BuiltInMaterials are the default material types that cannot be deleted.
-var BuiltInMaterials = []domain.Material{
-	domain.MaterialPLA, domain.MaterialPETG, domain.MaterialABS,
-	domain.MaterialASA, domain.MaterialTPU, domain.MaterialNylon, domain.MaterialPC,
-}
 
 type SettingsService struct {
 	settings repository.SettingsRepository
@@ -88,29 +81,10 @@ func (s *SettingsService) ListDryingProfiles(ctx context.Context) ([]domain.Dryi
 }
 
 func (s *SettingsService) SaveDryingProfile(ctx context.Context, p *domain.DryingProfile) error {
-	if err := validateDryingProfile(p); err != nil {
+	if err := p.ValidateDryingProfile(); err != nil {
 		return err
 	}
 	return s.settings.UpsertDryingProfile(ctx, p)
-}
-
-func validateDryingProfile(p *domain.DryingProfile) error {
-	if p == nil {
-		return fmt.Errorf("drying profile is required")
-	}
-	if p.Material == "" {
-		return fmt.Errorf("material is required")
-	}
-	if p.TemperatureC <= 0 {
-		return fmt.Errorf("temperature must be positive")
-	}
-	if p.DurationHours <= 0 {
-		return fmt.Errorf("duration must be positive")
-	}
-	if p.MaxDaysNoDry <= 0 {
-		return fmt.Errorf("max days must be positive")
-	}
-	return nil
 }
 
 func (s *SettingsService) AllMaterials(ctx context.Context) ([]domain.Material, error) {
@@ -118,8 +92,8 @@ func (s *SettingsService) AllMaterials(ctx context.Context) ([]domain.Material, 
 	if err != nil {
 		return nil, err
 	}
-	result := make([]domain.Material, len(BuiltInMaterials))
-	copy(result, BuiltInMaterials)
+	result := make([]domain.Material, len(domain.BuiltInMaterials))
+	copy(result, domain.BuiltInMaterials)
 	for _, c := range custom {
 		result = append(result, domain.Material(c))
 	}
@@ -131,14 +105,16 @@ func (s *SettingsService) AddCustomMaterial(ctx context.Context, name string) er
 	if name == "" {
 		return fmt.Errorf("material name is required")
 	}
-	if slices.Contains(BuiltInMaterials, domain.Material(name)) {
+	material := domain.Material(name)
+	if material.IsBuiltIn() {
 		return fmt.Errorf("material %s is built-in", name)
 	}
 	return s.settings.AddCustomMaterial(ctx, name)
 }
 
 func (s *SettingsService) DeleteCustomMaterial(ctx context.Context, name string) error {
-	if slices.Contains(BuiltInMaterials, domain.Material(name)) {
+	material := domain.Material(name)
+	if material.IsBuiltIn() {
 		return fmt.Errorf("cannot delete built-in material %s", name)
 	}
 	return s.settings.DeleteCustomMaterial(ctx, name)
@@ -149,7 +125,7 @@ func (s *SettingsService) ListCustomMaterialBindings(ctx context.Context) ([]dom
 }
 
 func (s *SettingsService) BindCustomMaterialDryingProfile(ctx context.Context, material, profileMaterial domain.Material) error {
-	if s.IsBuiltIn(material) {
+	if material.IsBuiltIn() {
 		return fmt.Errorf("material %s is built-in", material)
 	}
 	if profileMaterial == "" {
@@ -166,7 +142,7 @@ func (s *SettingsService) BindCustomMaterialDryingProfile(ctx context.Context, m
 }
 
 func (s *SettingsService) CreateCustomMaterialDryingProfile(ctx context.Context, material domain.Material, profile *domain.DryingProfile) error {
-	if s.IsBuiltIn(material) {
+	if material.IsBuiltIn() {
 		return fmt.Errorf("material %s is built-in", material)
 	}
 	if profile == nil {
@@ -174,14 +150,10 @@ func (s *SettingsService) CreateCustomMaterialDryingProfile(ctx context.Context,
 	}
 	owned := *profile
 	owned.Material = material
-	if err := validateDryingProfile(&owned); err != nil {
+	if err := owned.ValidateDryingProfile(); err != nil {
 		return err
 	}
 	return s.settings.UpsertCustomMaterialDryingProfile(ctx, string(material), &owned)
-}
-
-func (s *SettingsService) IsBuiltIn(material domain.Material) bool {
-	return slices.Contains(BuiltInMaterials, material)
 }
 
 func (s *SettingsService) GetDryingProfile(ctx context.Context, material domain.Material) (*domain.DryingProfile, error) {

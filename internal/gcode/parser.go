@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"math"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -357,12 +356,4 @@ func parseDuration(s string) time.Duration {
 		total += time.Duration(v) * time.Second
 	}
 	return total
-}
-
-// WeightFromLength рассчитывает вес филамента по длине, диаметру и плотности.
-func WeightFromLength(lengthMM, diameterMM, densityGCM3 float64) float64 {
-	radiusCM := diameterMM / 2 / 10
-	lengthCM := lengthMM / 10
-	volumeCM3 := math.Pi * radiusCM * radiusCM * lengthCM
-	return volumeCM3 * densityGCM3
 }

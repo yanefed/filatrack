@@ -1,6 +1,7 @@
 package gcode
 
 import (
+	"awesomeProject/internal/domain"
 	"math"
 	"strings"
 	"testing"
@@ -291,7 +292,7 @@ func TestNormalizeSlicer(t *testing.T) {
 
 func TestWeightFromLength(t *testing.T) {
 	// PLA: 1.75mm diameter, 1.24 g/cm³, 1000mm length
-	weight := WeightFromLength(1000, 1.75, 1.24)
+	weight := domain.WeightFromLength(1000, 1.75, 1.24)
 	// Volume = π * (0.0875)² * 100 cm = π * 0.00765625 * 100 ≈ 2.405 cm³
 	// Weight = 2.405 * 1.24 ≈ 2.982 g
 	expectedVolume := math.Pi * 0.0875 * 0.0875 * 100

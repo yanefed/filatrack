@@ -31,7 +31,7 @@ func showEditSpoolDialog(ctx context.Context, parent *gtk.Window, spoolSvc *serv
 func availableMaterials(ctx context.Context, settingsSvc *service.SettingsService) []domain.Material {
 	materials, err := settingsSvc.AllMaterials(ctx)
 	if err != nil || len(materials) == 0 {
-		return service.BuiltInMaterials
+		return domain.BuiltInMaterials
 	}
 	return materials
 }

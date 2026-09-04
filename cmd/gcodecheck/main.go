@@ -1,12 +1,12 @@
 package main
 
 import (
+	"awesomeProject/internal/domain"
+	"awesomeProject/internal/gcode"
 	"fmt"
 	"io"
 	"os"
 	"time"
-
-	"awesomeProject/internal/gcode"
 )
 
 var (
@@ -47,7 +47,7 @@ func run(args []string, stdout, stderr io.Writer) int {
 
 	if meta.FilamentLengthMM > 0 && meta.FilamentWeightG == 0 {
 		fmt.Fprintln(stdout, "\n--- Расчёт веса по длине (PLA, 1.75мм, 1.24 г/см³) ---")
-		w := gcode.WeightFromLength(meta.FilamentLengthMM, 1.75, 1.24)
+		w := domain.WeightFromLength(meta.FilamentLengthMM, 1.75, 1.24)
 		fmt.Fprintf(stdout, "Расчётный вес:     %.2f г\n", w)
 	}
 	return 0

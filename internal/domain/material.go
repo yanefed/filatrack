@@ -1,5 +1,10 @@
 package domain
 
+import (
+	"fmt"
+	"slices"
+)
+
 type Material string
 
 const (
@@ -11,6 +16,8 @@ const (
 	MaterialNylon Material = "Nylon"
 	MaterialPC    Material = "PC"
 )
+
+var BuiltInMaterials = []Material{MaterialPLA, MaterialPETG, MaterialABS, MaterialASA, MaterialTPU, MaterialNylon, MaterialPC}
 
 type DryingProfile struct {
 	Material      Material
@@ -42,4 +49,27 @@ var DefaultDensities = map[Material]float64{
 	MaterialTPU:   1.21,
 	MaterialNylon: 1.14,
 	MaterialPC:    1.20,
+}
+
+func (m Material) IsBuiltIn() bool {
+	return slices.Contains(BuiltInMaterials, m)
+}
+
+func (p *DryingProfile) ValidateDryingProfile() error {
+	if p == nil {
+		return fmt.Errorf("drying profile is required")
+	}
+	if p.Material == "" {
+		return fmt.Errorf("material is required")
+	}
+	if p.TemperatureC <= 0 {
+		return fmt.Errorf("temperature must be positive")
+	}
+	if p.DurationHours <= 0 {
+		return fmt.Errorf("duration must be positive")
+	}
+	if p.MaxDaysNoDry <= 0 {
+		return fmt.Errorf("max days must be positive")
+	}
+	return nil
 }

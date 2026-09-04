@@ -2,7 +2,6 @@ package service
 
 import (
 	"awesomeProject/internal/domain"
-	"awesomeProject/internal/gcode"
 	"awesomeProject/internal/i18n"
 	"awesomeProject/internal/repository"
 	"context"
@@ -502,55 +501,6 @@ func TestSpoolServiceNeedsDrying(t *testing.T) {
 	}
 }
 
-func TestPrintServiceCreateFromGcode(t *testing.T) {
-	spool := &domain.Spool{ID: "spool", DiameterMM: 1.75, DensityGCM3: 1.24}
-	spools := &spoolRepoStub{spool: spool}
-	prints := &printRepoStub{}
-	service := NewPrintService(prints, spools)
-	meta := &domain.GcodeMetadata{
-		Filename: "part.gcode", ModelName: "part", FilamentWeightG: 20,
-		FilamentLengthMM: 7000, PrintDuration: time.Hour, NozzleTempC: 210,
-		BedTempC: 60, Slicer: "PrusaSlicer",
-	}
-
-	job, err := service.CreateFromGcode(t.Context(), spool.ID, meta, domain.PrintStatusSuccess, 25)
-	if err != nil {
-		t.Fatalf("CreateFromGcode: %v", err)
-	}
-	if job != prints.created || job.CompletionPercent != 100 || job.ActualWeightG != 20 {
-		t.Fatalf("unexpected successful print job: %+v", job)
-	}
-	if job.ModelName != meta.ModelName || job.PrintDuration != meta.PrintDuration || job.NozzleTempC != 210 || job.BedTempC != 60 {
-		t.Fatalf("metadata was not copied: %+v", job)
-	}
-}
-
-func TestPrintServiceDerivedWeightAndErrors(t *testing.T) {
-	spool := &domain.Spool{ID: "spool", DiameterMM: 1.75, DensityGCM3: 1.24}
-	spools := &spoolRepoStub{spool: spool}
-	prints := &printRepoStub{}
-	service := NewPrintService(prints, spools)
-	meta := &domain.GcodeMetadata{FilamentLengthMM: 1000}
-
-	job, err := service.CreateFromGcode(t.Context(), spool.ID, meta, domain.PrintStatusFailed, 40)
-	if err != nil {
-		t.Fatalf("CreateFromGcode: %v", err)
-	}
-	if job.EstimatedWeightG <= 0 || math.Abs(job.ActualWeightG-job.EstimatedWeightG*0.4) > 1e-9 {
-		t.Fatalf("unexpected derived weights: %+v", job)
-	}
-
-	spools.getErr = errors.New("spool missing")
-	if _, err := service.CreateFromGcode(t.Context(), spool.ID, meta, domain.PrintStatusFailed, 40); !errors.Is(err, spools.getErr) {
-		t.Fatalf("spool lookup error = %v", err)
-	}
-	spools.getErr = nil
-	prints.createErr = errors.New("insert failed")
-	if _, err := service.CreateFromGcode(t.Context(), spool.ID, meta, domain.PrintStatusFailed, 40); !errors.Is(err, prints.createErr) {
-		t.Fatalf("print creation error = %v", err)
-	}
-}
-
 func TestPrintServiceListAndStats(t *testing.T) {
 	wantErr := errors.New("repository error")
 	prints := &printRepoStub{
@@ -873,7 +823,7 @@ func TestPrinterServiceRefreshModelsCalculatesWeightFromLength(t *testing.T) {
 	if err != nil {
 		t.Fatalf("RefreshModels: %v", err)
 	}
-	want := gcode.WeightFromLength(6931.39, 1.75, 1.25)
+	want := domain.WeightFromLength(6931.39, 1.75, 1.25)
 	if len(models) != 1 || math.Abs(models[0].EstimatedWeightG-want) > 0.001 {
 		t.Fatalf("models = %+v, want weight %.3f", models, want)
 	}
@@ -1003,7 +953,7 @@ func TestPrinterServiceSyncPrinterHistoryUsesFilamentUsedForCancelledJobs(t *tes
 	if err != nil {
 		t.Fatalf("SyncPrinterHistory: %v", err)
 	}
-	wantActual := gcode.WeightFromLength(1000, spool.DiameterMM, spool.DensityGCM3)
+	wantActual := domain.WeightFromLength(1000, spool.DiameterMM, spool.DensityGCM3)
 	if created != 1 || prints.created == nil || prints.created.SpoolID != spool.ID || prints.created.Status != domain.PrintStatusCancelled || math.Abs(prints.created.ActualWeightG-wantActual) > 1e-9 || prints.created.CompletionPercent <= 0 {
 		t.Fatalf("sync result created=%d job=%+v want actual %.6f", created, prints.created, wantActual)
 	}
@@ -1042,7 +992,7 @@ func TestPrinterServiceSyncPrinterHistoryUpdatesExistingZeroUsage(t *testing.T) 
 	if err != nil {
 		t.Fatalf("SyncPrinterHistory: %v", err)
 	}
-	wantActual := gcode.WeightFromLength(1000, spool.DiameterMM, spool.DensityGCM3)
+	wantActual := domain.WeightFromLength(1000, spool.DiameterMM, spool.DensityGCM3)
 	if created != 0 || prints.usageJobID != "local-1" || prints.estimatedLength != 1000 || math.Abs(prints.actualWeight-wantActual) > 1e-9 || prints.completion <= 0 {
 		t.Fatalf("created=%d usage job=%q length=%.1f actual=%.6f completion=%d", created, prints.usageJobID, prints.estimatedLength, prints.actualWeight, prints.completion)
 	}
@@ -1182,32 +1132,6 @@ func TestPrinterServiceStartPrinterFileChecksFilament(t *testing.T) {
 	}
 	if !result.Started || client.startedFile != "warn.gcode" {
 		t.Fatalf("expected started launch, result=%+v started=%q", result, client.startedFile)
-	}
-}
-
-func TestPrinterServiceUploadAndStartLocalFileChecksFilament(t *testing.T) {
-	dir := t.TempDir()
-	path := filepath.Join(dir, "small.gcode")
-	if err := os.WriteFile(path, []byte("; filament used [g] = 10\n; input_filename = small.stl\n"), 0o644); err != nil {
-		t.Fatalf("writing gcode: %v", err)
-	}
-	printers := &printerRepoStub{printer: &domain.Printer{ID: "printer-1", ActiveSpoolID: "spool-1"}}
-	spools := &spoolRepoStub{spool: &domain.Spool{ID: "spool-1", TotalWeightG: 100, DiameterMM: 1.75, DensityGCM3: 1.24}, used: 10}
-	client := &printerJobClientStub{uploadedPath: "small.gcode"}
-	service := newTestPrinterService(printers, spools, &printRepoStub{})
-	cache := &printerModelRepoStub{}
-	service.SetJobClient(client)
-	service.SetModelCache(cache)
-
-	result, err := service.UploadAndStartLocalFile(t.Context(), domain.PrintLaunchRequest{PrinterID: "printer-1", LocalPath: path})
-	if err != nil {
-		t.Fatalf("UploadAndStartLocalFile: %v", err)
-	}
-	if !result.Uploaded || !result.Started || !client.uploadStarted || client.uploadedLocal != path || result.Filament.RequiredWeightG != 10 {
-		t.Fatalf("upload result=%+v client=%+v", result, client)
-	}
-	if len(cache.saved) != 1 || cache.saved[0].Path != "small.gcode" || cache.saved[0].EstimatedWeightG != 10 {
-		t.Fatalf("cached models = %+v", cache.saved)
 	}
 }
 
@@ -1457,7 +1381,7 @@ func TestSettingsServiceCustomMaterials(t *testing.T) {
 	service := NewSettingsService(repo)
 
 	materials, err := service.AllMaterials(t.Context())
-	if err != nil || len(materials) != len(BuiltInMaterials)+1 || materials[len(materials)-1] != "Wood" {
+	if err != nil || len(materials) != len(domain.BuiltInMaterials)+1 || materials[len(materials)-1] != "Wood" {
 		t.Fatalf("AllMaterials() = (%+v, %v)", materials, err)
 	}
 	repo.customErr = wantErr
@@ -1483,7 +1407,9 @@ func TestSettingsServiceCustomMaterials(t *testing.T) {
 	if err := service.DeleteCustomMaterial(t.Context(), "Wood"); !errors.Is(err, wantErr) || repo.deletedMaterial != "Wood" {
 		t.Fatalf("DeleteCustomMaterial() = %v, deleted=%q", err, repo.deletedMaterial)
 	}
-	if !service.IsBuiltIn(domain.MaterialABS) || service.IsBuiltIn("Wood") {
+	materialABS := domain.MaterialABS
+	materialWood := domain.Material("Wood")
+	if !materialABS.IsBuiltIn() || materialWood.IsBuiltIn() {
 		t.Fatal("IsBuiltIn returned unexpected result")
 	}
 	if !strings.Contains(service.DeleteCustomMaterial(t.Context(), "PLA").Error(), "built-in") {

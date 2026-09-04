@@ -7,7 +7,6 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
-	"net/url"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -82,7 +81,7 @@ func (s *PrinterService) CreateMoonrakerPrinter(ctx context.Context, printer *do
 	if strings.TrimSpace(printer.Name) == "" {
 		return fmt.Errorf("printer name is required")
 	}
-	if err := validateMoonrakerURL(printer.MoonrakerURL); err != nil {
+	if err := printer.ValidateMoonrakerURL(); err != nil {
 		return err
 	}
 	now := time.Now()
@@ -104,7 +103,7 @@ func (s *PrinterService) CheckMoonrakerConnection(ctx context.Context, printer *
 	if strings.TrimSpace(printer.Name) == "" {
 		printer.Name = "Moonraker"
 	}
-	if err := validateMoonrakerURL(printer.MoonrakerURL); err != nil {
+	if err := printer.ValidateMoonrakerURL(); err != nil {
 		return err
 	}
 	if s.checker == nil {
@@ -122,7 +121,7 @@ func (s *PrinterService) UpdateMoonrakerPrinter(ctx context.Context, printer *do
 	if strings.TrimSpace(printer.Name) == "" {
 		return fmt.Errorf("printer name is required")
 	}
-	if err := validateMoonrakerURL(printer.MoonrakerURL); err != nil {
+	if err := printer.ValidateMoonrakerURL(); err != nil {
 		return err
 	}
 
@@ -177,52 +176,7 @@ func (s *PrinterService) RecordPrinterPrint(ctx context.Context, event domain.Pr
 		return nil, fmt.Errorf("getting active spool: %w", err)
 	}
 
-	status := event.Status
-	if status == "" {
-		status = domain.PrintStatusSuccess
-	}
-	completion := event.CompletionPercent
-	if status == domain.PrintStatusSuccess || completion <= 0 {
-		completion = 100
-	}
-
-	estimatedWeight := event.EstimatedWeightG
-	if estimatedWeight == 0 && event.EstimatedLengthMM > 0 {
-		estimatedWeight = gcode.WeightFromLength(event.EstimatedLengthMM, spool.DiameterMM, spool.DensityGCM3)
-	}
-	actualWeight := event.ActualWeightG
-	if actualWeight == 0 {
-		actualWeight = estimatedWeight * float64(completion) / 100
-	}
-
-	printedAt := event.PrintedAt
-	if printedAt.IsZero() {
-		printedAt = time.Now()
-	}
-
-	job := &domain.PrintJob{
-		SpoolID:           printer.ActiveSpoolID,
-		PrinterID:         printer.ID,
-		ExternalPrintID:   event.ExternalPrintID,
-		GcodeFilename:     event.GcodeFilename,
-		ModelName:         event.ModelName,
-		Status:            status,
-		CompletionPercent: completion,
-		EstimatedWeightG:  estimatedWeight,
-		ActualWeightG:     actualWeight,
-		EstimatedLengthMM: event.EstimatedLengthMM,
-		PrintDuration:     event.PrintDuration,
-		NozzleTempC:       event.NozzleTempC,
-		BedTempC:          event.BedTempC,
-		Slicer:            event.Slicer,
-		PreviewImagePath:  event.PreviewImagePath,
-		PrintedAt:         printedAt,
-		CreatedAt:         time.Now(),
-	}
-	if job.ModelName == "" {
-		job.ModelName = modelNameFromGcode(event.GcodeFilename)
-	}
-
+	job := domain.CreatePrinterJobFromPrinterEvent(*printer, event, *spool)
 	if err := s.prints.Create(ctx, job); err != nil {
 		return nil, fmt.Errorf("creating printer print job: %w", err)
 	}
@@ -308,12 +262,12 @@ func (s *PrinterService) RefreshModels(ctx context.Context, printerID string) ([
 		if metadata.FilamentWeightG <= 0 && metadata.FilamentLengthMM <= 0 && models[i].EstimatedWeightG <= 0 {
 			localMetadata, downloadErr := s.downloadModelMetadata(ctx, *printer, models[i].Path)
 			if downloadErr == nil {
-				mergeMissingGcodeMetadata(metadata, localMetadata)
+				metadata.MergeMissingGcodeMetadata(localMetadata)
 			}
 		}
 		weightG := metadata.FilamentWeightG
 		if weightG <= 0 && metadata.FilamentLengthMM > 0 {
-			weightG = gcode.WeightFromLength(metadata.FilamentLengthMM, diameterMM, densityGCM3)
+			weightG = domain.WeightFromLength(metadata.FilamentLengthMM, diameterMM, densityGCM3)
 		}
 		if weightG > 0 {
 			models[i].EstimatedWeightG = weightG
@@ -337,8 +291,9 @@ func (s *PrinterService) RefreshModels(ctx context.Context, printerID string) ([
 	return models, nil
 }
 
+// TODO refactor
 func (s *PrinterService) modelFilamentProperties(ctx context.Context, printer *domain.Printer) (float64, float64) {
-	diameterMM := 1.75
+	diameterMM := 1.75 // TODO remove hardcoded values
 	densityGCM3 := domain.DefaultDensities[domain.MaterialPLA]
 	if printer.ActiveSpoolID == "" {
 		return diameterMM, densityGCM3
@@ -373,27 +328,6 @@ func (s *PrinterService) downloadModelMetadata(ctx context.Context, printer doma
 		return nil, err
 	}
 	return gcode.ParseFile(localPath)
-}
-
-func mergeMissingGcodeMetadata(target, fallback *domain.GcodeMetadata) {
-	if target == nil || fallback == nil {
-		return
-	}
-	if target.FilamentWeightG <= 0 {
-		target.FilamentWeightG = fallback.FilamentWeightG
-	}
-	if target.FilamentLengthMM <= 0 {
-		target.FilamentLengthMM = fallback.FilamentLengthMM
-	}
-	if target.PrintDuration <= 0 {
-		target.PrintDuration = fallback.PrintDuration
-	}
-	if target.Slicer == "" {
-		target.Slicer = fallback.Slicer
-	}
-	if target.PreviewImagePath == "" {
-		target.PreviewImagePath = fallback.PreviewImagePath
-	}
 }
 
 func (s *PrinterService) ListAllModels(ctx context.Context) ([]domain.PrinterModelFile, error) {
@@ -451,7 +385,7 @@ func (s *PrinterService) SyncPrinterHistory(ctx context.Context, printerID strin
 			existing[job.ExternalPrintID] = struct{}{}
 			existingJobs[job.ExternalPrintID] = job
 		}
-		if fingerprint := printJobFingerprint(job.GcodeFilename, job.PrintedAt); fingerprint != "" {
+		if fingerprint := job.Fingerprint(); fingerprint != "" {
 			existingFingerprints[fingerprint] = struct{}{}
 		}
 	}
@@ -470,7 +404,7 @@ func (s *PrinterService) SyncPrinterHistory(ctx context.Context, printerID strin
 				}
 				continue
 			}
-			if fingerprint := printJobFingerprint(job.GcodeFilename, job.EndedAt); fingerprint != "" {
+			if fingerprint := job.Fingerprint(); fingerprint != "" {
 				if _, ok := existingFingerprints[fingerprint]; ok {
 					continue
 				}
@@ -487,7 +421,7 @@ func (s *PrinterService) SyncPrinterHistory(ctx context.Context, printerID strin
 			if _, err := s.createPrintFromHistory(ctx, job, spoolForJob); err != nil {
 				return created, err
 			}
-			if fingerprint := printJobFingerprint(job.GcodeFilename, job.EndedAt); fingerprint != "" {
+			if fingerprint := job.Fingerprint(); fingerprint != "" {
 				existingFingerprints[fingerprint] = struct{}{}
 			}
 			existing[job.ExternalPrintID] = struct{}{}
@@ -648,10 +582,6 @@ func (s *PrinterService) PrintModel(ctx context.Context, req domain.PrintLaunchR
 	return result, nil
 }
 
-func (s *PrinterService) UploadAndStartLocalFile(ctx context.Context, req domain.PrintLaunchRequest) (*domain.PrintLaunchResult, error) {
-	return s.UploadLocalFile(ctx, req, true)
-}
-
 func (s *PrinterService) UploadLocalFile(ctx context.Context, req domain.PrintLaunchRequest, startPrint bool) (*domain.PrintLaunchResult, error) {
 	if s.jobClient == nil {
 		return nil, fmt.Errorf("printer job client is not configured")
@@ -759,7 +689,7 @@ func (s *PrinterService) updateExistingHistoryUsage(ctx context.Context, local d
 		spool = loaded
 	}
 	if estimatedLength > 0 && spool != nil {
-		actualWeight = gcode.WeightFromLength(estimatedLength, spool.DiameterMM, spool.DensityGCM3)
+		actualWeight = domain.WeightFromLength(estimatedLength, spool.DiameterMM, spool.DensityGCM3)
 		if estimatedWeight == 0 {
 			estimatedWeight = actualWeight
 		}
@@ -789,54 +719,9 @@ func (s *PrinterService) createPrintFromHistory(ctx context.Context, item domain
 	if !ok {
 		return nil, fmt.Errorf("only finished printer jobs can be assigned to a spool")
 	}
-	estimatedWeight := item.EstimatedWeightG
-	if estimatedWeight == 0 && item.FilamentUsedMM > 0 && spool != nil {
-		estimatedWeight = gcode.WeightFromLength(item.FilamentUsedMM, spool.DiameterMM, spool.DensityGCM3)
-	}
-	actualWeight := 0.0
-	if item.FilamentUsedMM > 0 && spool != nil {
-		actualWeight = gcode.WeightFromLength(item.FilamentUsedMM, spool.DiameterMM, spool.DensityGCM3)
-	}
-	completion := 100
-	if status != domain.PrintStatusSuccess {
-		completion = 0
-		if estimatedWeight > 0 && actualWeight > 0 {
-			completion = min(int(actualWeight/estimatedWeight*100), 100)
-		}
-	}
-	if actualWeight == 0 && status == domain.PrintStatusSuccess {
-		actualWeight = estimatedWeight
-	}
-	spoolID := ""
-	if spool != nil {
-		spoolID = spool.ID
-	}
-	printedAt := item.EndedAt
-	if printedAt.IsZero() {
-		printedAt = time.Now()
-	}
-	job := &domain.PrintJob{
-		SpoolID:           spoolID,
-		PrinterID:         item.PrinterID,
-		ExternalPrintID:   item.ExternalPrintID,
-		GcodeFilename:     item.GcodeFilename,
-		ModelName:         item.ModelName,
-		Status:            status,
-		CompletionPercent: completion,
-		EstimatedWeightG:  estimatedWeight,
-		ActualWeightG:     actualWeight,
-		EstimatedLengthMM: item.FilamentUsedMM,
-		PrintDuration:     item.PrintDuration,
-		NozzleTempC:       item.NozzleTempC,
-		BedTempC:          item.BedTempC,
-		Slicer:            item.Slicer,
-		PreviewImagePath:  item.PreviewImagePath,
-		PrintedAt:         printedAt,
-		CreatedAt:         time.Now(),
-	}
-	if job.ModelName == "" {
-		job.ModelName = modelNameFromGcode(item.GcodeFilename)
-	}
+
+	job := domain.CreatePrinterJobFromPrinterHistoryItem(item, spool, status)
+
 	if err := s.prints.Create(ctx, job); err != nil {
 		return nil, fmt.Errorf("creating print from printer history: %w", err)
 	}
@@ -888,7 +773,7 @@ func (s *PrinterService) checkFilament(ctx context.Context, printer domain.Print
 	}
 	required := metadata.FilamentWeightG
 	if required == 0 && metadata.FilamentLengthMM > 0 {
-		required = gcode.WeightFromLength(metadata.FilamentLengthMM, spool.DiameterMM, spool.DensityGCM3)
+		required = domain.WeightFromLength(metadata.FilamentLengthMM, spool.DiameterMM, spool.DensityGCM3)
 	}
 	remaining := spool.RemainingWeightG(used)
 	check := domain.FilamentCheck{
@@ -924,33 +809,6 @@ func (s *PrinterService) checkFilament(ctx context.Context, printer domain.Print
 		)
 	}
 	return check, nil
-}
-
-func validateMoonrakerURL(raw string) error {
-	parsed, err := url.Parse(strings.TrimSpace(raw))
-	if err != nil || parsed.Scheme == "" || parsed.Host == "" {
-		return fmt.Errorf("valid moonraker URL is required")
-	}
-	if parsed.Scheme != "http" && parsed.Scheme != "https" && parsed.Scheme != "ws" && parsed.Scheme != "wss" {
-		return fmt.Errorf("moonraker URL must use http, https, ws, or wss")
-	}
-	return nil
-}
-
-func modelNameFromGcode(filename string) string {
-	base := filepath.Base(filename)
-	ext := filepath.Ext(base)
-	if ext != "" {
-		base = strings.TrimSuffix(base, ext)
-	}
-	return base
-}
-
-func printJobFingerprint(filename string, printedAt time.Time) string {
-	if filename == "" || printedAt.IsZero() {
-		return ""
-	}
-	return fmt.Sprintf("%s:%d", filename, printedAt.Truncate(time.Minute).Unix())
 }
 
 func newestPrintTime(jobs []domain.PrintJob) time.Time {

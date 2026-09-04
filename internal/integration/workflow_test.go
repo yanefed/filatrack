@@ -21,6 +21,7 @@ type applicationServices struct {
 	db       *sqlite.DB
 	spools   *service.SpoolService
 	prints   *service.PrintService
+	printers *service.PrinterService
 	dryings  *service.DryingService
 	settings *service.SettingsService
 }
@@ -38,12 +39,14 @@ func openApplication(t *testing.T, path string) applicationServices {
 
 	spoolRepo := sqlite.NewSpoolRepo(db)
 	printRepo := sqlite.NewPrintJobRepo(db)
+	printerRepo := sqlite.NewPrinterRepo(db)
 	dryingRepo := sqlite.NewDryingRepo(db)
 	settingsRepo := sqlite.NewSettingsRepo(db)
 	return applicationServices{
 		db:       db,
 		spools:   service.NewSpoolService(spoolRepo, dryingRepo, settingsRepo),
 		prints:   service.NewPrintService(printRepo, spoolRepo),
+		printers: service.NewPrinterService(printerRepo, spoolRepo, printRepo, settingsRepo),
 		dryings:  service.NewDryingService(dryingRepo, settingsRepo),
 		settings: service.NewSettingsService(settingsRepo),
 	}
@@ -110,7 +113,27 @@ func TestCompleteFilamentTrackingWorkflow(t *testing.T) {
 		t.Fatalf("parsing G-code: %v", err)
 	}
 	meta.Filename = "calibration_cube.gcode"
-	job, err := app.prints.CreateFromGcode(ctx, spool.ID, meta, domain.PrintStatusSuccess, 80)
+	printer := &domain.Printer{Name: "Integration Printer", MoonrakerURL: "http://printer.local"}
+	if err := app.printers.CreateMoonrakerPrinter(ctx, printer); err != nil {
+		t.Fatalf("creating printer: %v", err)
+	}
+	if err := app.printers.AssignSpool(ctx, printer.ID, spool.ID); err != nil {
+		t.Fatalf("assigning spool: %v", err)
+	}
+	job, err := app.printers.RecordPrinterPrint(ctx, domain.PrinterPrintEvent{
+		PrinterID:         printer.ID,
+		ExternalPrintID:   "integration-print-1",
+		GcodeFilename:     meta.Filename,
+		ModelName:         meta.ModelName,
+		Status:            domain.PrintStatusSuccess,
+		CompletionPercent: 80,
+		EstimatedWeightG:  meta.FilamentWeightG,
+		EstimatedLengthMM: meta.FilamentLengthMM,
+		PrintDuration:     meta.PrintDuration,
+		NozzleTempC:       meta.NozzleTempC,
+		BedTempC:          meta.BedTempC,
+		Slicer:            meta.Slicer,
+	})
 	if err != nil {
 		t.Fatalf("recording print: %v", err)
 	}

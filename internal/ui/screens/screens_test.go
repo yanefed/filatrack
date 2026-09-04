@@ -55,7 +55,18 @@ func TestScreenConstructorsWithRealServices(t *testing.T) {
 	if err := spoolSvc.Create(ctx, spool); err != nil {
 		t.Fatalf("creating spool: %v", err)
 	}
-	if _, err := printSvc.CreateFromGcode(ctx, spool.ID, &domain.GcodeMetadata{Filename: "part.gcode", ModelName: "part", FilamentWeightG: 10}, domain.PrintStatusSuccess, 100); err != nil {
+	now := time.Now()
+	if err := printRepo.Create(ctx, &domain.PrintJob{
+		SpoolID:           spool.ID,
+		GcodeFilename:     "part.gcode",
+		ModelName:         "part",
+		Status:            domain.PrintStatusSuccess,
+		CompletionPercent: 100,
+		EstimatedWeightG:  10,
+		ActualWeightG:     10,
+		PrintedAt:         now,
+		CreatedAt:         now,
+	}); err != nil {
 		t.Fatalf("creating print: %v", err)
 	}
 	if err := dryingSvc.Create(ctx, &domain.DryingSession{SpoolID: spool.ID, TemperatureC: 45, DurationHours: 4, DriedAt: time.Now()}); err != nil {

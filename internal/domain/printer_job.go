@@ -1,6 +1,8 @@
 package domain
 
-import "time"
+import (
+	"time"
+)
 
 type PrinterHistoryStatus string
 
@@ -47,7 +49,7 @@ type PrinterModelFile struct {
 	CachedAt         time.Time
 }
 
-func (j PrinterHistoryJob) PrintStatus() (PrintStatus, bool) {
+func (j *PrinterHistoryJob) PrintStatus() (PrintStatus, bool) {
 	switch j.Status {
 	case PrinterHistoryStatusCompleted, PrinterHistoryStatusSuccess:
 		return PrintStatusSuccess, true
@@ -58,6 +60,45 @@ func (j PrinterHistoryJob) PrintStatus() (PrintStatus, bool) {
 	default:
 		return "", false
 	}
+}
+
+func (j *PrinterHistoryJob) getEstimatedWeightG(spool *Spool) float64 {
+	if j.EstimatedWeightG == 0 && j.FilamentUsedMM > 0 && spool != nil {
+		return WeightFromLength(j.FilamentUsedMM, spool.DiameterMM, spool.DensityGCM3)
+	}
+	return j.EstimatedWeightG
+}
+
+func (j *PrinterHistoryJob) getActualWeightG(spool *Spool) float64 {
+	if j.FilamentUsedMM > 0 && spool != nil {
+		return WeightFromLength(j.FilamentUsedMM, spool.DiameterMM, spool.DensityGCM3)
+	}
+	return 0
+}
+
+func (j *PrinterHistoryJob) getCompletionPercent(status PrintStatus, estimatedWeight, actualWeight float64) int {
+	completion := 100
+	if status != PrintStatusSuccess {
+		completion = 0
+		if estimatedWeight > 0 && actualWeight > 0 {
+			completion = min(int(actualWeight/estimatedWeight*100), 100)
+		}
+	}
+	return completion
+}
+
+func (j *PrinterHistoryJob) getEndedAt() time.Time {
+	if j.EndedAt.IsZero() {
+		return time.Now()
+	}
+	return j.EndedAt
+}
+
+func (j *PrinterHistoryJob) getModelName() string {
+	if j.ModelName == "" {
+		return modelNameFromGcode(j.GcodeFilename)
+	}
+	return j.ModelName
 }
 
 type FilamentCheck struct {

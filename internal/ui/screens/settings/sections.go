@@ -149,7 +149,7 @@ func newMaterialsSection(ctx context.Context, parent *gtk.Window, settingsSvc *s
 			label.SetHAlign(gtk.AlignStart)
 			label.SetHExpand(true)
 			row.Append(label)
-			if settingsSvc.IsBuiltIn(material) {
+			if material.IsBuiltIn() {
 				builtIn := gtk.NewLabel(i18n.L().BuiltInMaterial)
 				builtIn.AddCSSClass("dim-label")
 				row.Append(builtIn)

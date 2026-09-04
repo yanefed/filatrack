@@ -1,6 +1,8 @@
 package domain
 
-import "time"
+import (
+	"time"
+)
 
 type PrintStatus string
 
@@ -34,4 +36,66 @@ type PrintJob struct {
 
 func (p *PrintJob) CalculateActualWeight() float64 {
 	return p.EstimatedWeightG * float64(p.CompletionPercent) / 100
+}
+
+func CreatePrinterJobFromPrinterEvent(printer Printer, printEvent PrinterPrintEvent, spool Spool) *PrintJob {
+	status := printEvent.getStatus()
+	completion := printEvent.getCompletionPercent()
+	estimatedWeight := printEvent.getEstimatedWeightG(spool)
+	actualWeight := printEvent.getActualWeightG(estimatedWeight, completion)
+
+	return &PrintJob{
+		SpoolID:           printer.ActiveSpoolID,
+		PrinterID:         printer.ID,
+		ExternalPrintID:   printEvent.ExternalPrintID,
+		GcodeFilename:     printEvent.GcodeFilename,
+		ModelName:         printEvent.getModelName(),
+		Status:            status,
+		CompletionPercent: completion,
+		EstimatedWeightG:  estimatedWeight,
+		ActualWeightG:     actualWeight,
+		EstimatedLengthMM: printEvent.EstimatedLengthMM,
+		PrintDuration:     printEvent.PrintDuration,
+		NozzleTempC:       printEvent.NozzleTempC,
+		BedTempC:          printEvent.BedTempC,
+		Slicer:            printEvent.Slicer,
+		PreviewImagePath:  printEvent.PreviewImagePath,
+		PrintedAt:         printEvent.getPrintedAt(),
+		CreatedAt:         time.Now(),
+	}
+}
+
+func CreatePrinterJobFromPrinterHistoryItem(item PrinterHistoryJob, spool *Spool, status PrintStatus) *PrintJob {
+	estimatedWeight := item.getEstimatedWeightG(spool)
+	actualWeight := item.getActualWeightG(spool)
+	completion := item.getCompletionPercent(status, estimatedWeight, actualWeight)
+
+	if actualWeight == 0 && status == PrintStatusSuccess {
+		actualWeight = estimatedWeight
+	}
+
+	spoolID := ""
+	if spool != nil {
+		spoolID = spool.ID
+	}
+
+	return &PrintJob{
+		SpoolID:           spoolID,
+		PrinterID:         item.PrinterID,
+		ExternalPrintID:   item.ExternalPrintID,
+		GcodeFilename:     item.GcodeFilename,
+		ModelName:         item.getModelName(),
+		Status:            status,
+		CompletionPercent: completion,
+		EstimatedWeightG:  estimatedWeight,
+		ActualWeightG:     actualWeight,
+		EstimatedLengthMM: item.FilamentUsedMM,
+		PrintDuration:     item.PrintDuration,
+		NozzleTempC:       item.NozzleTempC,
+		BedTempC:          item.BedTempC,
+		Slicer:            item.Slicer,
+		PreviewImagePath:  item.PreviewImagePath,
+		PrintedAt:         item.getEndedAt(),
+		CreatedAt:         time.Now(),
+	}
 }

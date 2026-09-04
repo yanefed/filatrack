@@ -1,6 +1,9 @@
 package domain
 
-import "time"
+import (
+	"math"
+	"time"
+)
 
 type Spool struct {
 	ID           string
@@ -28,4 +31,12 @@ func (s *Spool) RemainingPercent(usedG float64) float64 {
 		return 0
 	}
 	return s.RemainingWeightG(usedG) / s.TotalWeightG * 100
+}
+
+// WeightFromLength рассчитывает вес филамента по длине, диаметру и плотности.
+func WeightFromLength(lengthMM, diameterMM, densityGCM3 float64) float64 {
+	radiusCM := diameterMM / 2 / 10
+	lengthCM := lengthMM / 10
+	volumeCM3 := math.Pi * radiusCM * radiusCM * lengthCM
+	return volumeCM3 * densityGCM3
 }
