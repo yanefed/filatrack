@@ -1,7 +1,6 @@
 package domain
 
 import (
-	"math"
 	"testing"
 	"time"
 )
@@ -81,16 +80,16 @@ func TestDryingSchedule(t *testing.T) {
 	}
 }
 
-func TestDefaultMaterialData(t *testing.T) {
-	materials := []Material{MaterialPLA, MaterialPETG, MaterialABS, MaterialASA, MaterialTPU, MaterialNylon, MaterialPC}
-	for _, material := range materials {
-		profile, ok := DefaultDryingProfiles[material]
-		if !ok || profile.Material != material || profile.TemperatureC <= 0 || profile.DurationHours <= 0 || profile.MaxDaysNoDry <= 0 {
-			t.Errorf("invalid drying profile for %s: %+v", material, profile)
-		}
-		if density := DefaultDensities[material]; density <= 0 || math.IsNaN(density) {
-			t.Errorf("invalid density for %s: %v", material, density)
-		}
+func TestMaterialDefinition(t *testing.T) {
+	material := MaterialDefinition{
+		Name: MaterialPLA, DensityGCM3: 1.24, DryingTemperatureC: 45,
+		DryingDurationHours: 4, MaxDaysNoDry: 30,
+	}
+	if err := material.Validate(); err != nil {
+		t.Fatalf("valid material definition: %v", err)
+	}
+	if profile := material.DryingProfile(); profile.Material != MaterialPLA || profile.TemperatureC != 45 {
+		t.Fatalf("drying profile = %+v", profile)
 	}
 }
 
