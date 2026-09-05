@@ -117,3 +117,18 @@ func (s *SettingsService) DeleteMaterial(ctx context.Context, name domain.Materi
 	}
 	return s.settings.DeleteMaterial(ctx, name)
 }
+
+func (s *SettingsService) GetCurrency(ctx context.Context) string {
+	currency, err := s.settings.GetSetting(ctx, "currency")
+	if err != nil || !domain.ValidCurrency(currency) {
+		return domain.DefaultCurrency
+	}
+	return currency
+}
+
+func (s *SettingsService) SetCurrency(ctx context.Context, currency string) error {
+	if !domain.ValidCurrency(currency) {
+		return fmt.Errorf("unsupported currency: %s", currency)
+	}
+	return s.settings.SetSetting(ctx, "currency", currency)
+}

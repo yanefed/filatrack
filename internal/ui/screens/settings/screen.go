@@ -18,6 +18,7 @@ func NewSettingsScreen(ctx context.Context, parent *gtk.Window, settingsSvc *ser
 	box.Append(widgets.NewScrolled(content))
 
 	content.Append(newLanguageSettingsSection(ctx, settingsSvc, onLanguageChanged))
+	content.Append(newCurrencySettingsSection(ctx, settingsSvc, onChanged))
 	content.Append(newPrintSettingsSection(ctx, settingsSvc, onChanged))
 
 	matSection, refreshMaterials := newMaterialsSection(ctx, parent, settingsSvc, onChanged)

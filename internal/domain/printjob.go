@@ -13,6 +13,10 @@ const (
 )
 
 type PrintJob struct {
+	PricePerGram  float64
+	CostCurrency  string
+	UsageMeasured bool
+
 	ID                string
 	SpoolID           string
 	PrinterID         string
@@ -62,6 +66,7 @@ func CreatePrinterJobFromPrinterEvent(printer Printer, printEvent PrinterPrintEv
 		CompletionPercent: completion,
 		EstimatedWeightG:  estimatedWeight,
 		ActualWeightG:     actualWeight,
+		UsageMeasured:     printEvent.ActualLengthMM > 0 || printEvent.ActualWeightG > 0,
 		EstimatedLengthMM: usedLength,
 		PrintDuration:     printEvent.PrintDuration,
 		NozzleTempC:       printEvent.NozzleTempC,
@@ -97,6 +102,7 @@ func CreatePrinterJobFromPrinterHistoryItem(item PrinterHistoryJob, spool *Spool
 		CompletionPercent: completion,
 		EstimatedWeightG:  estimatedWeight,
 		ActualWeightG:     actualWeight,
+		UsageMeasured:     item.FilamentUsedMM > 0 && spool != nil,
 		EstimatedLengthMM: item.FilamentUsedMM,
 		PrintDuration:     item.PrintDuration,
 		NozzleTempC:       item.NozzleTempC,

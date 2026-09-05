@@ -14,6 +14,7 @@ import (
 
 func showAddSpoolDialog(ctx context.Context, parent *gtk.Window, spoolSvc *service.SpoolService, settingsSvc *service.SettingsService, onSave func()) {
 	t := i18n.L()
+	t.PricePH += " (" + settingsSvc.GetCurrency(ctx) + ")"
 	materials := availableMaterials(ctx, settingsSvc)
 	showSpoolFormDialog(t, parent, t.AddSpoolBtn, materials, nil, func(spool domain.Spool) error {
 		return spoolSvc.Create(ctx, &spool)
@@ -22,6 +23,7 @@ func showAddSpoolDialog(ctx context.Context, parent *gtk.Window, spoolSvc *servi
 
 func showEditSpoolDialog(ctx context.Context, parent *gtk.Window, spoolSvc *service.SpoolService, settingsSvc *service.SettingsService, spool domain.Spool, onSave func()) {
 	t := i18n.L()
+	t.PricePH += " (" + settingsSvc.GetCurrency(ctx) + ")"
 	materials := availableMaterials(ctx, settingsSvc)
 	showSpoolFormDialog(t, parent, t.Edit, materials, &spool, func(updated domain.Spool) error {
 		return spoolSvc.Update(ctx, &updated)

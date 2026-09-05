@@ -31,6 +31,7 @@ func TestPrintJobRoundTrip(t *testing.T) {
 		ID: "job-1", ExternalPrintID: "remote-1", GcodeFilename: "cube.gcode",
 		ModelName: "cube", Status: domain.PrintStatusSuccess, CompletionPercent: 100,
 		EstimatedWeightG: 10, ActualWeightG: 10, EstimatedLengthMM: 3000,
+		UsageMeasured: true,
 		PrintDuration: 90 * time.Second, NozzleTempC: 210, BedTempC: 60,
 		Slicer: "OrcaSlicer", PreviewImagePath: "/tmp/cube.png",
 		PrintedAt: now, CreatedAt: now,

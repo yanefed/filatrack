@@ -30,6 +30,9 @@ func initGTK(t *testing.T) {
 }
 
 func TestScreenConstructorsWithRealServices(t *testing.T) {
+	if runtime.GOOS == "darwin" {
+		t.Skip("the constructor exercise presents GTK windows outside the macOS main thread")
+	}
 	initGTK(t)
 	db, err := sqlite.New(":memory:")
 	if err != nil {

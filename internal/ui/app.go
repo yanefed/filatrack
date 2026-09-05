@@ -159,7 +159,7 @@ func (a *App) activate(app *adw.Application) {
 		refreshSpoolDependencies := func() { markDirty("dashboard", "prints", "models", "drying", "printers", "settings") }
 		refreshPrinterDependencies := func() { markDirty("dashboard", "prints") }
 		refreshDryingDependencies := func() { markDirty("dashboard", "spools") }
-		refreshSettingsDependencies := func() { markDirty("spools", "drying") }
+		refreshSettingsDependencies := func() { markDirty("spools", "drying", "prints") }
 		refreshModelDependencies := func() { markDirty("dashboard", "printers") }
 
 		dashboardPage, refreshDashboard, refreshDashboardLive := dashboard.NewDashboard(ctx, a.SpoolService, a.PrintService, a.PrinterService)
@@ -272,6 +272,12 @@ func installAppCSS() {
 	}
 	provider := gtk.NewCSSProvider()
 	css := `
+.card-list,
+.card-list > row {
+	background: transparent;
+	border: none;
+	box-shadow: none;
+}
 .printer-status-dot {
 	min-width: 12px;
 	min-height: 12px;

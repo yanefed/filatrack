@@ -1,6 +1,11 @@
 package i18n
 
 var langEn = T{
+	PrintCostFmt:  "Plastic: %s%.2f %s",
+	CostNotSet:    "Cost not specified",
+	CurrencyLabel: "Currency",
+	CurrencyHelp:  "Print costs use the current spool price and this currency. Prices are not converted.",
+
 	Dashboard:             "Dashboard",
 	Spools:                "Spools",
 	Prints:                "Prints",

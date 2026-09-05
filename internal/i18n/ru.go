@@ -1,6 +1,11 @@
 package i18n
 
 var langRu = T{
+	PrintCostFmt:  "Пластик: %s%.2f %s",
+	CostNotSet:    "Стоимость не задана",
+	CurrencyLabel: "Валюта",
+	CurrencyHelp:  "Стоимость печатей рассчитывается по текущей цене катушки в выбранной валюте. Цены не конвертируются.",
+
 	Dashboard:             "Главная",
 	Spools:                "Материалы",
 	Prints:                "История печати",

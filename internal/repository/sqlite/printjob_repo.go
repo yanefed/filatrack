@@ -29,13 +29,14 @@ func (r *PrintJobRepo) Create(ctx context.Context, job *domain.PrintJob) error {
 	persisted := entity.PrintJobFromDomain(*job)
 	_, err := execWithBusyRetry(ctx, func() (sql.Result, error) {
 		return r.db.Conn().ExecContext(ctx,
-			`INSERT INTO print_jobs (id, spool_id, printer_id, external_print_id, gcode_filename, model_name, status, completion_percent, estimated_weight_g, actual_weight_g, estimated_length_mm, print_duration_sec, nozzle_temp_c, bed_temp_c, slicer, preview_image_path, notes, printed_at, created_at)
-			 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+			`INSERT INTO print_jobs (id, spool_id, printer_id, external_print_id, gcode_filename, model_name, status, completion_percent, estimated_weight_g, actual_weight_g, estimated_length_mm, print_duration_sec, nozzle_temp_c, bed_temp_c, slicer, preview_image_path, notes, printed_at, created_at, usage_measured)
+			 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 			persisted.ID, persisted.SpoolID, persisted.PrinterID, persisted.ExternalPrintID, persisted.GcodeFilename, persisted.ModelName,
 			persisted.Status, persisted.CompletionPercent,
 			persisted.EstimatedWeightG, persisted.ActualWeightG, persisted.EstimatedLengthMM,
 			persisted.PrintDurationSec, persisted.NozzleTempC, persisted.BedTempC,
 			persisted.Slicer, persisted.PreviewImagePath, persisted.Notes, persisted.PrintedAt, persisted.CreatedAt,
+			persisted.UsageMeasured,
 		)
 	})
 	if err != nil {
@@ -46,7 +47,7 @@ func (r *PrintJobRepo) Create(ctx context.Context, job *domain.PrintJob) error {
 
 func (r *PrintJobRepo) GetByID(ctx context.Context, id string) (*domain.PrintJob, error) {
 	row := r.db.Conn().QueryRowContext(ctx,
-		`SELECT id, spool_id, printer_id, external_print_id, gcode_filename, model_name, status, completion_percent, estimated_weight_g, actual_weight_g, estimated_length_mm, print_duration_sec, nozzle_temp_c, bed_temp_c, slicer, preview_image_path, notes, printed_at, created_at
+		`SELECT id, spool_id, printer_id, external_print_id, gcode_filename, model_name, status, completion_percent, estimated_weight_g, actual_weight_g, estimated_length_mm, print_duration_sec, nozzle_temp_c, bed_temp_c, slicer, preview_image_path, notes, printed_at, created_at, COALESCE((SELECT s.price / s.total_weight_g FROM spools s WHERE s.id = print_jobs.spool_id AND s.price > 0 AND s.total_weight_g > 0), 0), COALESCE((SELECT value FROM app_settings WHERE key = 'currency'), 'RUB'), usage_measured
 		 FROM print_jobs WHERE id = ?`, id)
 	persisted, err := entity.ScanPrintJob(row)
 	if err != nil {
@@ -60,7 +61,7 @@ func (r *PrintJobRepo) GetByID(ctx context.Context, id string) (*domain.PrintJob
 }
 
 func (r *PrintJobRepo) List(ctx context.Context, filter repository.PrintJobFilter) ([]domain.PrintJob, error) {
-	query := `SELECT id, spool_id, printer_id, external_print_id, gcode_filename, model_name, status, completion_percent, estimated_weight_g, actual_weight_g, estimated_length_mm, print_duration_sec, nozzle_temp_c, bed_temp_c, slicer, preview_image_path, notes, printed_at, created_at FROM print_jobs WHERE 1=1`
+	query := `SELECT id, spool_id, printer_id, external_print_id, gcode_filename, model_name, status, completion_percent, estimated_weight_g, actual_weight_g, estimated_length_mm, print_duration_sec, nozzle_temp_c, bed_temp_c, slicer, preview_image_path, notes, printed_at, created_at, COALESCE((SELECT s.price / s.total_weight_g FROM spools s WHERE s.id = print_jobs.spool_id AND s.price > 0 AND s.total_weight_g > 0), 0), COALESCE((SELECT value FROM app_settings WHERE key = 'currency'), 'RUB'), usage_measured FROM print_jobs WHERE 1=1`
 	var args []any
 
 	if filter.SpoolID != nil {
@@ -122,10 +123,10 @@ func (r *PrintJobRepo) UpdateSpool(ctx context.Context, jobID, spoolID string) e
 	return nil
 }
 
-func (r *PrintJobRepo) UpdateUsage(ctx context.Context, jobID string, estimatedWeightG, actualWeightG, estimatedLengthMM float64, completionPercent int) error {
+func (r *PrintJobRepo) UpdateUsage(ctx context.Context, jobID string, estimatedWeightG, actualWeightG, estimatedLengthMM float64, completionPercent int, usageMeasured bool) error {
 	result, err := r.db.Conn().ExecContext(ctx,
-		`UPDATE print_jobs SET estimated_weight_g = ?, actual_weight_g = ?, estimated_length_mm = ?, completion_percent = ? WHERE id = ?`,
-		estimatedWeightG, actualWeightG, estimatedLengthMM, completionPercent, jobID,
+		`UPDATE print_jobs SET estimated_weight_g = ?, actual_weight_g = ?, estimated_length_mm = ?, completion_percent = ?, usage_measured = ? WHERE id = ?`,
+		estimatedWeightG, actualWeightG, estimatedLengthMM, completionPercent, usageMeasured, jobID,
 	)
 	if err != nil {
 		return fmt.Errorf("updating print job usage: %w", err)

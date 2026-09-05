@@ -79,6 +79,10 @@ func ScanSpool(scanner Scanner) (Spool, error) {
 }
 
 type PrintJob struct {
+	PricePerGram  float64
+	CostCurrency  string
+	UsageMeasured bool
+
 	ID                string
 	SpoolID           sql.NullString
 	PrinterID         sql.NullString
@@ -110,6 +114,7 @@ func PrintJobFromDomain(job domain.PrintJob) PrintJob {
 		NozzleTempC: job.NozzleTempC, BedTempC: job.BedTempC, Slicer: job.Slicer,
 		PreviewImagePath: job.PreviewImagePath, Notes: job.Notes,
 		PrintedAt: job.PrintedAt, CreatedAt: job.CreatedAt,
+		UsageMeasured: job.UsageMeasured,
 	}
 }
 
@@ -124,6 +129,8 @@ func (job PrintJob) Domain() domain.PrintJob {
 		NozzleTempC:   job.NozzleTempC, BedTempC: job.BedTempC, Slicer: job.Slicer,
 		PreviewImagePath: job.PreviewImagePath, Notes: job.Notes,
 		PrintedAt: job.PrintedAt, CreatedAt: job.CreatedAt,
+		PricePerGram: job.PricePerGram, CostCurrency: job.CostCurrency,
+		UsageMeasured: job.UsageMeasured,
 	}
 }
 
@@ -135,6 +142,7 @@ func ScanPrintJob(scanner Scanner) (PrintJob, error) {
 		&job.EstimatedWeightG, &job.ActualWeightG, &job.EstimatedLengthMM,
 		&job.PrintDurationSec, &job.NozzleTempC, &job.BedTempC, &job.Slicer,
 		&job.PreviewImagePath, &job.Notes, &job.PrintedAt, &job.CreatedAt,
+		&job.PricePerGram, &job.CostCurrency, &job.UsageMeasured,
 	)
 	return job, err
 }

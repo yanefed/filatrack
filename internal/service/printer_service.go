@@ -708,10 +708,11 @@ func (s *PrinterService) updateExistingHistoryUsage(ctx context.Context, local d
 	if estimatedWeight == local.EstimatedWeightG &&
 		actualWeight == local.ActualWeightG &&
 		estimatedLength == local.EstimatedLengthMM &&
-		completion == local.CompletionPercent {
+		completion == local.CompletionPercent &&
+		(item.FilamentUsedMM <= 0 || local.UsageMeasured) {
 		return nil
 	}
-	return s.prints.UpdateUsage(ctx, local.ID, estimatedWeight, actualWeight, estimatedLength, completion)
+	return s.prints.UpdateUsage(ctx, local.ID, estimatedWeight, actualWeight, estimatedLength, completion, local.UsageMeasured || (item.FilamentUsedMM > 0 && spool != nil))
 }
 
 func (s *PrinterService) createPrintFromHistory(ctx context.Context, item domain.PrinterHistoryJob, spool *domain.Spool) (*domain.PrintJob, error) {

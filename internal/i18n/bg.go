@@ -1,6 +1,11 @@
 package i18n
 
 var langBg = T{
+	PrintCostFmt:  "Пластмаса: %s%.2f %s",
+	CostNotSet:    "Цената не е зададена",
+	CurrencyLabel: "Валута",
+	CurrencyHelp:  "Цената на печата се изчислява по текущата цена на ролката в избраната валута. Цените не се конвертират.",
+
 	Dashboard:             "Табло",
 	Spools:                "Макари",
 	Prints:                "Печатове",

@@ -32,7 +32,7 @@ func (s *PrintService) ChangeSpool(ctx context.Context, printJobID, spoolID stri
 	if err := s.prints.UpdateSpool(ctx, printJobID, spoolID); err != nil {
 		return fmt.Errorf("changing print job spool: %w", err)
 	}
-	if spool != nil && job.ActualWeightG == 0 && job.EstimatedLengthMM > 0 {
+	if spool != nil && (job.ActualWeightG == 0 || job.SpoolID != spoolID) && job.EstimatedLengthMM > 0 {
 		actualWeight := domain.WeightFromLength(job.EstimatedLengthMM, spool.DiameterMM, spool.DensityGCM3)
 		estimatedWeight := job.EstimatedWeightG
 		if estimatedWeight == 0 && job.Status == domain.PrintStatusSuccess {
@@ -42,7 +42,7 @@ func (s *PrintService) ChangeSpool(ctx context.Context, printJobID, spoolID stri
 		if completion <= 0 && estimatedWeight > 0 {
 			completion = min(max(int(actualWeight/estimatedWeight*100), 0), 100)
 		}
-		if err := s.prints.UpdateUsage(ctx, printJobID, estimatedWeight, actualWeight, job.EstimatedLengthMM, completion); err != nil {
+		if err := s.prints.UpdateUsage(ctx, printJobID, estimatedWeight, actualWeight, job.EstimatedLengthMM, completion, job.UsageMeasured); err != nil {
 			return fmt.Errorf("updating print job usage: %w", err)
 		}
 	}
@@ -55,4 +55,8 @@ func (s *PrintService) List(ctx context.Context, filter repository.PrintJobFilte
 
 func (s *PrintService) GetStats(ctx context.Context, filter repository.StatsFilter) (*repository.PrintStats, error) {
 	return s.prints.GetStats(ctx, filter)
+}
+
+func (s *PrintService) GetByID(ctx context.Context, id string) (*domain.PrintJob, error) {
+	return s.prints.GetByID(ctx, id)
 }

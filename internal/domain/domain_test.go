@@ -139,3 +139,17 @@ func TestCancelledHistoryWithoutEstimateDoesNotReportComplete(t *testing.T) {
 		t.Fatalf("cancelled history = %+v", job)
 	}
 }
+
+func TestFilamentCost(t *testing.T) {
+	for _, tc := range []struct {
+		weight, price, want float64
+		known               bool
+	}{
+		{25, 2, 50, true}, {4, 2, 8, true}, {0, 2, 0, true}, {25, 0, 0, false}, {1.234, 2, 2.47, true},
+	} {
+		job := PrintJob{ActualWeightG: tc.weight, PricePerGram: tc.price, CostCurrency: "RUB"}
+		if got, known := job.FilamentCost(); got != tc.want || known != tc.known {
+			t.Fatalf("cost(%v, %v) = %v, %v", tc.weight, tc.price, got, known)
+		}
+	}
+}

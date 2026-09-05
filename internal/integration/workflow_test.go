@@ -201,3 +201,44 @@ func TestCancelledPrintDeductsMeasuredFilament(t *testing.T) {
 		t.Fatalf("cancelled print: remaining=%v job=%+v err=%v", remaining, job, err)
 	}
 }
+
+func TestPrintCostChangesWithAssignedSpool(t *testing.T) {
+	app := openApplication(t, filepath.Join(t.TempDir(), "cost.db"))
+	t.Cleanup(func() { _ = app.db.Close() })
+	ctx := t.Context()
+	first := &domain.Spool{Manufacturer: "Test", Material: domain.MaterialPLA, TotalWeightG: 1000, Price: 2000, DensityGCM3: 1.24}
+	second := &domain.Spool{Manufacturer: "Test", Material: domain.MaterialPETG, TotalWeightG: 1000, Price: 3000, DensityGCM3: 1.27}
+	for _, spool := range []*domain.Spool{first, second} {
+		if err := app.spools.Create(ctx, spool); err != nil {
+			t.Fatal(err)
+		}
+	}
+	printer := &domain.Printer{Name: "Test", MoonrakerURL: "http://printer.local"}
+	if err := app.printers.CreateMoonrakerPrinter(ctx, printer); err != nil {
+		t.Fatal(err)
+	}
+	if err := app.printers.AssignSpool(ctx, printer.ID, first.ID); err != nil {
+		t.Fatal(err)
+	}
+	job, err := app.printers.RecordPrinterPrint(ctx, domain.PrinterPrintEvent{
+		PrinterID: printer.ID, GcodeFilename: "part.gcode", Status: domain.PrintStatusCancelled,
+		CompletionPercent: 25, ActualLengthMM: 1000,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := app.prints.ChangeSpool(ctx, job.ID, second.ID); err != nil {
+		t.Fatal(err)
+	}
+	jobs, err := app.prints.List(ctx, repository.PrintJobFilter{})
+	if err != nil || len(jobs) != 1 {
+		t.Fatalf("jobs: %+v, %v", jobs, err)
+	}
+	loaded := jobs[0]
+	wantWeight := domain.WeightFromLength(1000, second.DiameterMM, second.DensityGCM3)
+	wantCost := math.Round(wantWeight*3*100) / 100
+	cost, known := loaded.FilamentCost()
+	if !known || cost != wantCost || math.Abs(loaded.ActualWeightG-wantWeight) > 1e-9 || loaded.PricePerGram != 3 {
+		t.Fatalf("reassigned cost: %+v", loaded)
+	}
+}

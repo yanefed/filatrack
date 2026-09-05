@@ -26,6 +26,9 @@ func TestNewAppStoresServices(t *testing.T) {
 }
 
 func TestSpoolToolbarButtonBecomesMapped(t *testing.T) {
+	if runtime.GOOS == "darwin" {
+		t.Skip("GTK windows cannot be presented from Go's test goroutine on macOS")
+	}
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
 	if !gtk.InitCheck() {

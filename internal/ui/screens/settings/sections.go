@@ -245,3 +245,43 @@ func newMaterialEntry(title string, numeric bool) *adw.EntryRow {
 	}
 	return entry
 }
+
+func newCurrencySettingsSection(ctx context.Context, settingsSvc *service.SettingsService, onChanged func()) *gtk.Box {
+	t := i18n.L()
+	section := gtk.NewBox(gtk.OrientationVertical, 6)
+	section.Append(widgets.NewSectionTitle(t.CurrencyLabel))
+	row := gtk.NewBox(gtk.OrientationHorizontal, 6)
+	currency := gtk.NewDropDown(gtk.NewStringList(domain.Currencies), nil)
+	for i, code := range domain.Currencies {
+		if code == settingsSvc.GetCurrency(ctx) {
+			currency.SetSelected(uint(i))
+		}
+	}
+	row.Append(currency)
+	message := widgets.NewMessageLabel()
+	save := gtk.NewButtonWithLabel(t.Save)
+	save.ConnectClicked(func() {
+		idx := currency.Selected()
+		if int(idx) >= len(domain.Currencies) {
+			return
+		}
+		if err := settingsSvc.SetCurrency(ctx, domain.Currencies[idx]); err != nil {
+			message.SetLabel(fmt.Sprintf("%s: %v", t.SaveError, err))
+			message.SetVisible(true)
+			return
+		}
+		message.SetVisible(false)
+		if onChanged != nil {
+			onChanged()
+		}
+	})
+	row.Append(save)
+	section.Append(row)
+	help := gtk.NewLabel(t.CurrencyHelp)
+	help.SetWrap(true)
+	help.SetHAlign(gtk.AlignStart)
+	help.AddCSSClass("dim-label")
+	section.Append(help)
+	section.Append(message)
+	return section
+}

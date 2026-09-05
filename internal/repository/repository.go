@@ -28,7 +28,7 @@ type PrintJobRepository interface {
 	GetByID(ctx context.Context, id string) (*domain.PrintJob, error)
 	List(ctx context.Context, filter PrintJobFilter) ([]domain.PrintJob, error)
 	UpdateSpool(ctx context.Context, jobID, spoolID string) error
-	UpdateUsage(ctx context.Context, jobID string, estimatedWeightG, actualWeightG, estimatedLengthMM float64, completionPercent int) error
+	UpdateUsage(ctx context.Context, jobID string, estimatedWeightG, actualWeightG, estimatedLengthMM float64, completionPercent int, usageMeasured bool) error
 	GetStats(ctx context.Context, filter StatsFilter) (*PrintStats, error)
 }
 

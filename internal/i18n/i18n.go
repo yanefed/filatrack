@@ -53,6 +53,10 @@ type T struct {
 	SpoolWeightFmt     string
 
 	// Prints
+	PrintCostFmt   string
+	CostNotSet     string
+	CurrencyLabel  string
+	CurrencyHelp   string
 	SelectGCode    string
 	ErrorPrefix    string
 	UsageFormat    string

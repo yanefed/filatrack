@@ -24,6 +24,7 @@ type printRowWidgets struct {
 	status    *gtk.Image
 	header    *gtk.Label
 	details   *gtk.Label
+	cost      *gtk.Label
 	assignRow *gtk.Box
 	assignBtn *gtk.Button
 }
@@ -90,6 +91,14 @@ func newVirtualPrintsList(t i18n.T, ctx context.Context, printSvc *service.Print
 		}
 		messageLabel.SetVisible(false)
 		finishChoosing()
+		updated, err := printSvc.GetByID(ctx, job.ID)
+		if err != nil {
+			messageLabel.SetLabel(fmt.Sprintf("%s: %v", t.ErrorPrefix, err))
+			messageLabel.SetVisible(true)
+			return
+		}
+		state.jobs[jobIndex] = *updated
+		model.Splice(uint(jobIndex), 1, []string{updated.ID})
 	})
 	focus := gtk.NewEventControllerFocus()
 	focus.ConnectLeave(func() {
@@ -142,6 +151,11 @@ func newVirtualPrintsList(t i18n.T, ctx context.Context, printSvc *service.Print
 		details.SetHAlign(gtk.AlignStart)
 		details.AddCSSClass("dim-label")
 		content.Append(details)
+		cost := gtk.NewLabel("")
+		cost.SetHAlign(gtk.AlignStart)
+		cost.SetWrap(true)
+		cost.AddCSSClass("caption")
+		content.Append(cost)
 		assignRow := gtk.NewBox(gtk.OrientationHorizontal, 6)
 		assignRow.SetHAlign(gtk.AlignStart)
 		assignBtn := gtk.NewButtonWithLabel(t.SpoolColon)
@@ -152,7 +166,7 @@ func newVirtualPrintsList(t i18n.T, ctx context.Context, printSvc *service.Print
 		card.Append(row)
 		item.SetChild(card)
 
-		rowWidgets := &printRowWidgets{picture: picture, status: status, header: header, details: details, assignRow: assignRow, assignBtn: assignBtn}
+		rowWidgets := &printRowWidgets{picture: picture, status: status, header: header, details: details, cost: cost, assignRow: assignRow, assignBtn: assignBtn}
 		rows[item.Native()] = rowWidgets
 		assignBtn.ConnectClicked(func() {
 			rowWidgets := rows[item.Native()]
@@ -213,6 +227,7 @@ func newVirtualPrintsList(t i18n.T, ctx context.Context, printSvc *service.Print
 		row.status.AddCSSClass(statusClass)
 		row.header.SetLabel(title)
 		row.details.SetLabel(printJobUsageText(t, job))
+		row.cost.SetLabel(printCostText(t, job))
 		texture := widgets.LoadPreviewTexture(job.PreviewImagePath)
 		if texture != nil {
 			row.picture.SetPaintable(texture)

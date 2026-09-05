@@ -66,6 +66,7 @@ type printRepoStub struct {
 	actualWeight    float64
 	estimatedLength float64
 	completion      int
+	usageMeasured   bool
 	updateErr       error
 }
 
@@ -87,12 +88,13 @@ func (r *printRepoStub) UpdateSpool(_ context.Context, jobID, spoolID string) er
 	r.jobID, r.spoolID = jobID, spoolID
 	return r.updateErr
 }
-func (r *printRepoStub) UpdateUsage(_ context.Context, jobID string, estimatedWeightG, actualWeightG, estimatedLengthMM float64, completionPercent int) error {
+func (r *printRepoStub) UpdateUsage(_ context.Context, jobID string, estimatedWeightG, actualWeightG, estimatedLengthMM float64, completionPercent int, usageMeasured bool) error {
 	r.usageJobID = jobID
 	r.estimatedWeight = estimatedWeightG
 	r.actualWeight = actualWeightG
 	r.estimatedLength = estimatedLengthMM
 	r.completion = completionPercent
+	r.usageMeasured = usageMeasured
 	return r.updateErr
 }
 
@@ -966,8 +968,8 @@ func TestPrinterServiceSyncPrinterHistoryUpdatesExistingZeroUsage(t *testing.T) 
 		t.Fatalf("SyncPrinterHistory: %v", err)
 	}
 	wantActual := domain.WeightFromLength(1000, spool.DiameterMM, spool.DensityGCM3)
-	if created != 0 || prints.usageJobID != "local-1" || prints.estimatedLength != 1000 || math.Abs(prints.actualWeight-wantActual) > 1e-9 || prints.completion <= 0 {
-		t.Fatalf("created=%d usage job=%q length=%.1f actual=%.6f completion=%d", created, prints.usageJobID, prints.estimatedLength, prints.actualWeight, prints.completion)
+	if created != 0 || prints.usageJobID != "local-1" || prints.estimatedLength != 1000 || math.Abs(prints.actualWeight-wantActual) > 1e-9 || prints.completion <= 0 || !prints.usageMeasured {
+		t.Fatalf("created=%d usage job=%q length=%.1f actual=%.6f completion=%d measured=%t", created, prints.usageJobID, prints.estimatedLength, prints.actualWeight, prints.completion, prints.usageMeasured)
 	}
 }
 
