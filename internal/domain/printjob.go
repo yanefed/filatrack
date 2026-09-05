@@ -43,6 +43,14 @@ func CreatePrinterJobFromPrinterEvent(printer Printer, printEvent PrinterPrintEv
 	completion := printEvent.getCompletionPercent()
 	estimatedWeight := printEvent.getEstimatedWeightG(spool)
 	actualWeight := printEvent.getActualWeightG(estimatedWeight, completion)
+	// Persist consumed length, as history imports and spool reassignment expect.
+	usedLength := printEvent.EstimatedLengthMM * float64(completion) / 100
+	if printEvent.ActualLengthMM > 0 {
+		usedLength = printEvent.ActualLengthMM
+		if printEvent.ActualWeightG == 0 {
+			actualWeight = WeightFromLength(usedLength, spool.DiameterMM, spool.DensityGCM3)
+		}
+	}
 
 	return &PrintJob{
 		SpoolID:           printer.ActiveSpoolID,
@@ -54,7 +62,7 @@ func CreatePrinterJobFromPrinterEvent(printer Printer, printEvent PrinterPrintEv
 		CompletionPercent: completion,
 		EstimatedWeightG:  estimatedWeight,
 		ActualWeightG:     actualWeight,
-		EstimatedLengthMM: printEvent.EstimatedLengthMM,
+		EstimatedLengthMM: usedLength,
 		PrintDuration:     printEvent.PrintDuration,
 		NozzleTempC:       printEvent.NozzleTempC,
 		BedTempC:          printEvent.BedTempC,

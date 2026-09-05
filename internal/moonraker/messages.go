@@ -137,24 +137,28 @@ func decodeStatusObjects(objects map[string]json.RawMessage) (StatusUpdate, erro
 
 	if rawVirtualSD, ok := objects["virtual_sdcard"]; ok {
 		var virtualSD struct {
-			Progress float64 `json:"progress"`
+			Progress *float64 `json:"progress"`
 		}
 		if err := json.Unmarshal(rawVirtualSD, &virtualSD); err != nil {
 			return StatusUpdate{}, fmt.Errorf("decoding virtual_sdcard: %w", err)
 		}
-		update.Progress = normalizeProgress(virtualSD.Progress)
-		update.HasProgress = true
+		if virtualSD.Progress != nil {
+			update.Progress = normalizeProgress(*virtualSD.Progress)
+			update.HasProgress = true
+		}
 	}
 
 	if rawDisplay, ok := objects["display_status"]; ok {
 		var display struct {
-			Progress float64 `json:"progress"`
+			Progress *float64 `json:"progress"`
 		}
 		if err := json.Unmarshal(rawDisplay, &display); err != nil {
 			return StatusUpdate{}, fmt.Errorf("decoding display_status: %w", err)
 		}
-		update.Progress = normalizeProgress(display.Progress)
-		update.HasProgress = true
+		if display.Progress != nil {
+			update.Progress = normalizeProgress(*display.Progress)
+			update.HasProgress = true
+		}
 	}
 
 	if rawWebhooks, ok := objects["webhooks"]; ok {

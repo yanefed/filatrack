@@ -85,10 +85,7 @@ func (p *Processor) Apply(update StatusUpdate, now time.Time) (domain.Printer, *
 		if progress == 0 {
 			progress = p.active.highestProgress
 		}
-		completion = int(progress * 100)
-	}
-	if completion <= 0 {
-		completion = 100
+		completion = min(max(int(progress*100), 0), 100)
 	}
 
 	filename := p.filename
@@ -102,13 +99,14 @@ func (p *Processor) Apply(update StatusUpdate, now time.Time) (domain.Printer, *
 		GcodeFilename:     filename,
 		Status:            status,
 		CompletionPercent: completion,
-		EstimatedLengthMM: p.filamentUsedMM,
+		ActualLengthMM:    p.filamentUsedMM,
 		PrintDuration:     p.printDuration,
 		PrintedAt:         now,
 	}
 	p.active = activePrint{}
 	p.filamentUsedMM = 0
 	p.printDuration = 0
+	p.progress = 0
 	return printer, event
 }
 

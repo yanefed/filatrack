@@ -110,3 +110,32 @@ func TestNewSpoolDisplayCode(t *testing.T) {
 		t.Fatalf("fallback display code = %q", got)
 	}
 }
+
+func TestCancelledPrinterEventUsage(t *testing.T) {
+	spool := Spool{DiameterMM: 1.75, DensityGCM3: 1.24}
+	for _, progress := range []int{0, 25} {
+		event := PrinterPrintEvent{
+			Status: PrintStatusCancelled, CompletionPercent: progress,
+			EstimatedWeightG: 40, EstimatedLengthMM: 10000, ActualLengthMM: 100,
+		}
+		job := CreatePrinterJobFromPrinterEvent(Printer{}, event, spool)
+		if job.CompletionPercent != progress || job.ActualWeightG != WeightFromLength(100, 1.75, 1.24) || job.EstimatedLengthMM != 100 {
+			t.Fatalf("cancelled job = %+v", job)
+		}
+	}
+	job := CreatePrinterJobFromPrinterEvent(Printer{}, PrinterPrintEvent{
+		Status: PrintStatusCancelled, EstimatedWeightG: 40,
+	}, spool)
+	if job.CompletionPercent != 0 || job.ActualWeightG != 0 {
+		t.Fatalf("cancelled before extrusion = %+v", job)
+	}
+}
+
+func TestCancelledHistoryWithoutEstimateDoesNotReportComplete(t *testing.T) {
+	job := CreatePrinterJobFromPrinterHistoryItem(PrinterHistoryJob{
+		Status: PrinterHistoryStatusCancelled, FilamentUsedMM: 100,
+	}, &Spool{DiameterMM: 1.75, DensityGCM3: 1.24}, PrintStatusCancelled)
+	if job.CompletionPercent != 0 || job.ActualWeightG <= 0 || job.EstimatedWeightG != 0 {
+		t.Fatalf("cancelled history = %+v", job)
+	}
+}

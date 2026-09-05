@@ -140,3 +140,14 @@ func TestDecodeStatusUpdateMapsKlippyError(t *testing.T) {
 		t.Fatalf("klippy error update = (%+v, %v, %v)", update, ok, err)
 	}
 }
+
+func TestPartialDisplayUpdatePreservesVirtualSDProgress(t *testing.T) {
+	update, ok, err := DecodeStatusUpdate([]byte(`{"method":"notify_status_update","params":[{"virtual_sdcard":{"progress":0.42},"display_status":{"message":"Printing"}}]}`))
+	if err != nil || !ok || !update.HasProgress || update.Progress != 0.42 {
+		t.Fatalf("partial update = %+v, %v, %v", update, ok, err)
+	}
+	update, ok, err = DecodeStatusUpdate([]byte(`{"method":"notify_status_update","params":[{"virtual_sdcard":{"is_active":false},"display_status":{"message":""}}]}`))
+	if err != nil || !ok || update.HasProgress {
+		t.Fatalf("update without progress = %+v, %v, %v", update, ok, err)
+	}
+}

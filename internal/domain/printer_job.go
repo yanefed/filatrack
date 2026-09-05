@@ -63,7 +63,8 @@ func (j *PrinterHistoryJob) PrintStatus() (PrintStatus, bool) {
 }
 
 func (j *PrinterHistoryJob) getEstimatedWeightG(spool *Spool) float64 {
-	if j.EstimatedWeightG == 0 && j.FilamentUsedMM > 0 && spool != nil {
+	if j.EstimatedWeightG == 0 && j.FilamentUsedMM > 0 && spool != nil &&
+		(j.Status == PrinterHistoryStatusCompleted || j.Status == PrinterHistoryStatusSuccess) {
 		return WeightFromLength(j.FilamentUsedMM, spool.DiameterMM, spool.DensityGCM3)
 	}
 	return j.EstimatedWeightG

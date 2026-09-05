@@ -171,3 +171,33 @@ func TestCompleteFilamentTrackingWorkflow(t *testing.T) {
 		t.Fatalf("persisted materials = (%+v, %v)", materials, err)
 	}
 }
+
+func TestCancelledPrintDeductsMeasuredFilament(t *testing.T) {
+	app := openApplication(t, filepath.Join(t.TempDir(), "cancelled.db"))
+	t.Cleanup(func() { _ = app.db.Close() })
+	ctx := t.Context()
+	spool := &domain.Spool{Manufacturer: "Test", Material: domain.MaterialPLA, Color: "White", TotalWeightG: 1000}
+	if err := app.spools.Create(ctx, spool); err != nil {
+		t.Fatal(err)
+	}
+	printer := &domain.Printer{Name: "Test", MoonrakerURL: "http://printer.local"}
+	if err := app.printers.CreateMoonrakerPrinter(ctx, printer); err != nil {
+		t.Fatal(err)
+	}
+	if err := app.printers.AssignSpool(ctx, printer.ID, spool.ID); err != nil {
+		t.Fatal(err)
+	}
+	job, err := app.printers.RecordPrinterPrint(ctx, domain.PrinterPrintEvent{
+		PrinterID: printer.ID, ExternalPrintID: "cancelled", GcodeFilename: "part.gcode",
+		Status: domain.PrintStatusCancelled, CompletionPercent: 25,
+		EstimatedWeightG: 40, EstimatedLengthMM: 10000, ActualLengthMM: 100,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	wantUsed := domain.WeightFromLength(100, spool.DiameterMM, spool.DensityGCM3)
+	_, remaining, err := app.spools.GetWithRemaining(ctx, spool.ID)
+	if err != nil || math.Abs(remaining-(1000-wantUsed)) > 1e-9 || job.CompletionPercent != 25 {
+		t.Fatalf("cancelled print: remaining=%v job=%+v err=%v", remaining, job, err)
+	}
+}

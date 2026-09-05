@@ -33,7 +33,7 @@ func TestProcessorRecordsCompletedPrint(t *testing.T) {
 	if event == nil {
 		t.Fatal("expected completed print event")
 	}
-	if event.PrinterID != "printer-1" || event.GcodeFilename != "benchy.gcode" || event.Status != domain.PrintStatusSuccess || event.CompletionPercent != 100 || event.EstimatedLengthMM != 7654 || event.PrintDuration != time.Hour || event.PrintedAt != finished {
+	if event.PrinterID != "printer-1" || event.GcodeFilename != "benchy.gcode" || event.Status != domain.PrintStatusSuccess || event.CompletionPercent != 100 || event.ActualLengthMM != 7654 || event.PrintDuration != time.Hour || event.PrintedAt != finished {
 		t.Fatalf("completed event = %+v", event)
 	}
 	if event.ExternalPrintID != "printer-1:benchy.gcode:1000" {
@@ -88,7 +88,27 @@ func TestProcessorPreservesFilamentUsedUntilFinalUpdate(t *testing.T) {
 	_, event := processor.Apply(StatusUpdate{
 		RawPrintState: "complete",
 	}, now.Add(time.Hour))
-	if event == nil || event.EstimatedLengthMM != 1234 || event.PrintDuration != time.Minute {
+	if event == nil || event.ActualLengthMM != 1234 || event.PrintDuration != time.Minute {
 		t.Fatalf("final event = %+v", event)
+	}
+}
+
+func TestProcessorCancelledWithZeroProgress(t *testing.T) {
+	processor := NewProcessor("printer-1")
+	now := time.Unix(1000, 0)
+	processor.Apply(StatusUpdate{RawPrintState: "printing", Filename: "part.gcode"}, now)
+	_, event := processor.Apply(StatusUpdate{RawPrintState: "cancelled", HasProgress: true}, now.Add(time.Minute))
+	if event == nil || event.CompletionPercent != 0 {
+		t.Fatalf("cancelled event = %+v", event)
+	}
+}
+
+func TestProcessorCancelledAfterProgressReset(t *testing.T) {
+	processor := NewProcessor("printer-1")
+	now := time.Unix(1000, 0)
+	processor.Apply(StatusUpdate{RawPrintState: "printing", Filename: "part.gcode", Progress: 0.42, FilamentUsedMM: 100}, now)
+	_, event := processor.Apply(StatusUpdate{RawPrintState: "cancelled", HasProgress: true}, now.Add(time.Minute))
+	if event == nil || event.CompletionPercent != 42 || event.ActualLengthMM != 100 {
+		t.Fatalf("cancelled event = %+v", event)
 	}
 }

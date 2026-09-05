@@ -81,7 +81,7 @@ func TestMonitorSubscribesAndProcessesMessages(t *testing.T) {
 	if len(sink.statuses) != 2 || sink.statuses[0].State != domain.PrinterStatePrinting {
 		t.Fatalf("statuses = %+v", sink.statuses)
 	}
-	if len(sink.events) != 1 || sink.events[0].Status != domain.PrintStatusSuccess || sink.events[0].EstimatedLengthMM != 1000 || sink.events[0].EstimatedWeightG != 9.5 {
+	if len(sink.events) != 1 || sink.events[0].Status != domain.PrintStatusSuccess || sink.events[0].ActualLengthMM != 1000 || sink.events[0].EstimatedWeightG != 9.5 {
 		t.Fatalf("events = %+v", sink.events)
 	}
 }

@@ -690,7 +690,7 @@ func (s *PrinterService) updateExistingHistoryUsage(ctx context.Context, local d
 	}
 	if estimatedLength > 0 && spool != nil {
 		actualWeight = domain.WeightFromLength(estimatedLength, spool.DiameterMM, spool.DensityGCM3)
-		if estimatedWeight == 0 {
+		if estimatedWeight == 0 && local.Status == domain.PrintStatusSuccess {
 			estimatedWeight = actualWeight
 		}
 	}

@@ -48,6 +48,7 @@ type PrinterPrintEvent struct {
 	CompletionPercent int
 	EstimatedWeightG  float64
 	ActualWeightG     float64
+	ActualLengthMM    float64
 	EstimatedLengthMM float64
 	PrintDuration     time.Duration
 	NozzleTempC       int
@@ -65,10 +66,10 @@ func (e *PrinterPrintEvent) getStatus() PrintStatus {
 }
 
 func (e *PrinterPrintEvent) getCompletionPercent() int {
-	if e.Status == PrintStatusSuccess || e.CompletionPercent <= 0 {
+	if e.getStatus() == PrintStatusSuccess {
 		return 100
 	}
-	return e.CompletionPercent
+	return min(max(e.CompletionPercent, 0), 100)
 }
 
 func (e *PrinterPrintEvent) getEstimatedWeightG(spool Spool) float64 {

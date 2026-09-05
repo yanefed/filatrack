@@ -35,7 +35,7 @@ func (s *PrintService) ChangeSpool(ctx context.Context, printJobID, spoolID stri
 	if spool != nil && job.ActualWeightG == 0 && job.EstimatedLengthMM > 0 {
 		actualWeight := domain.WeightFromLength(job.EstimatedLengthMM, spool.DiameterMM, spool.DensityGCM3)
 		estimatedWeight := job.EstimatedWeightG
-		if estimatedWeight == 0 {
+		if estimatedWeight == 0 && job.Status == domain.PrintStatusSuccess {
 			estimatedWeight = actualWeight
 		}
 		completion := job.CompletionPercent

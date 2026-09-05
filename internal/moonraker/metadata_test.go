@@ -135,6 +135,7 @@ func TestEnrichEventWithMetadata(t *testing.T) {
 	event := &domain.PrinterPrintEvent{
 		GcodeFilename:     "benchy.gcode",
 		EstimatedLengthMM: 1000,
+		ActualLengthMM:    100,
 		PrintDuration:     0,
 	}
 	enrichEventWithMetadata(t.Context(), fakeMetadataFetcher{metadata: FileMetadata{
@@ -147,7 +148,7 @@ func TestEnrichEventWithMetadata(t *testing.T) {
 		PreviewImagePath:    "/tmp/preview.png",
 	}}, domain.Printer{}, event)
 
-	if event.EstimatedWeightG != 12.3 || event.EstimatedLengthMM != 4567 || event.PrintDuration != 30*time.Minute || event.NozzleTempC != 220 || event.BedTempC != 65 || event.Slicer != "PrusaSlicer" || event.PreviewImagePath != "/tmp/preview.png" {
+	if event.ActualLengthMM != 100 || event.EstimatedWeightG != 12.3 || event.EstimatedLengthMM != 4567 || event.PrintDuration != 30*time.Minute || event.NozzleTempC != 220 || event.BedTempC != 65 || event.Slicer != "PrusaSlicer" || event.PreviewImagePath != "/tmp/preview.png" {
 		t.Fatalf("enriched event = %+v", event)
 	}
 }
