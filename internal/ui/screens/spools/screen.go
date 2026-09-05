@@ -17,6 +17,7 @@ func NewSpoolsScreen(ctx context.Context, parent *gtk.Window, spoolSvc *service.
 	box := widgets.NewScreen(t.Spools)
 
 	spoolGrid := gtk.NewFlowBox()
+	spoolGrid.SetVAlign(gtk.AlignStart)
 	spoolGrid.SetSelectionMode(gtk.SelectionNone)
 	spoolGrid.SetHomogeneous(true)
 	spoolGrid.SetMinChildrenPerLine(1)
