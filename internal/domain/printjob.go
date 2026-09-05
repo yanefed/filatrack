@@ -1,6 +1,7 @@
 package domain
 
 import (
+	"math"
 	"time"
 )
 
@@ -40,6 +41,17 @@ type PrintJob struct {
 
 func (p *PrintJob) CalculateActualWeight() float64 {
 	return p.EstimatedWeightG * float64(p.CompletionPercent) / 100
+}
+
+func (p PrintJob) FilamentCost() (float64, bool) {
+	if p.PricePerGram <= 0 {
+		return 0, false
+	}
+	return math.Round(p.ActualWeightG*p.PricePerGram*100) / 100, true
+}
+
+func (p PrintJob) CostIsEstimate() bool {
+	return !p.UsageMeasured
 }
 
 func CreatePrinterJobFromPrinterEvent(printer Printer, printEvent PrinterPrintEvent, spool Spool) *PrintJob {

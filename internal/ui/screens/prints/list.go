@@ -280,6 +280,18 @@ func printSpoolButtonLabel(t i18n.T, spoolID string, spools []domain.Spool) stri
 	return fmt.Sprintf("%s %s", t.SpoolColon, t.UnassignedSpool)
 }
 
+func printCostText(t i18n.T, job domain.PrintJob) string {
+	cost, known := job.FilamentCost()
+	if !known {
+		return t.CostNotSet
+	}
+	estimatePrefix := ""
+	if job.CostIsEstimate() {
+		estimatePrefix = "≈"
+	}
+	return fmt.Sprintf(t.PrintCostFmt, estimatePrefix, cost, job.CostCurrency)
+}
+
 func limitDropDownHeight(root gtk.Widgetter, maxHeight int) {
 	if scrolled, ok := root.(*gtk.ScrolledWindow); ok {
 		scrolled.SetPolicy(gtk.PolicyNever, gtk.PolicyAutomatic)

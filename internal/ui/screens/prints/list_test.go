@@ -44,6 +44,22 @@ func TestPrintsListIsVirtualized(t *testing.T) {
 	window.Destroy()
 }
 
+func TestPrintCostText(t *testing.T) {
+	translations := i18n.T{PrintCostFmt: "Cost: %s%.2f %s", CostNotSet: "not set"}
+	for _, tc := range []struct {
+		job  domain.PrintJob
+		want string
+	}{
+		{domain.PrintJob{}, "not set"},
+		{domain.PrintJob{ActualWeightG: 4, PricePerGram: 3, CostCurrency: "EUR", UsageMeasured: true}, "Cost: 12.00 EUR"},
+		{domain.PrintJob{ActualWeightG: 4, PricePerGram: 3, CostCurrency: "EUR"}, "Cost: ≈12.00 EUR"},
+	} {
+		if got := printCostText(translations, tc.job); got != tc.want {
+			t.Errorf("printCostText(%+v) = %q, want %q", tc.job, got, tc.want)
+		}
+	}
+}
+
 func printDescendantCount(root gtk.Widgetter) int {
 	count := 0
 	for child := gtk.BaseWidget(root).FirstChild(); child != nil; child = gtk.BaseWidget(child).NextSibling() {
