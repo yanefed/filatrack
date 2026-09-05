@@ -33,7 +33,7 @@ var langEn = T{
 	FilamentDiameter:      "Filament diameter (mm)",
 	FilamentDensity:       "Filament density (g/cm³)",
 	SpoolInfoFmt:          "%s — %s %s (%s) — %.0f g / %.0f g (%.0f%%)",
-	SpoolWeightFmt:        "%.0f g / %.0f g · %.0f%%",
+	SpoolWeightFmt:        "%.1f g / %.0f g · %.2f%%",
 	SelectGCode:           "Select G-code file",
 	LanguageLabel:         "Language",
 	Print:                 "Print",

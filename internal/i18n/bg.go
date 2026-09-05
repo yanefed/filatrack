@@ -33,7 +33,7 @@ var langBg = T{
 	FilamentDiameter:      "Диаметър на филамента (мм)",
 	FilamentDensity:       "Плътност на филамента (г/см³)",
 	SpoolInfoFmt:          "%s — %s %s (%s) — %.0f г / %.0f г (%.0f%%)",
-	SpoolWeightFmt:        "%.0f г / %.0f г · %.0f%%",
+	SpoolWeightFmt:        "%.1f г / %.0f г · %.2f%%",
 	SelectGCode:           "Избери G-code файл",
 	LanguageLabel:         "Език",
 	Print:                 "Печат",

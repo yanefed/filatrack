@@ -34,7 +34,7 @@ var langRu = T{
 	FilamentDiameter:      "Диаметр филамента (мм)",
 	FilamentDensity:       "Плотность филамента (г/см³)",
 	SpoolInfoFmt:          "%s — %s %s (%s) — %.0f g / %.0f g (%.0f%%)",
-	SpoolWeightFmt:        "%.0f г / %.0f г · %.0f%%",
+	SpoolWeightFmt:        "%.1f г / %.0f г · %.2f%%",
 	SelectGCode:           "Выбрать G-code файл",
 	LanguageLabel:         "Язык",
 	MaterialSettings:      "Материалы",
