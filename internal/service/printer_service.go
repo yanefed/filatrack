@@ -11,8 +11,11 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 )
+
+const metadataSyncConcurrency = 4
 
 type PrinterService struct {
 	logger    *slog.Logger
@@ -248,7 +251,7 @@ func (s *PrinterService) RefreshModels(ctx context.Context, printerID string) ([
 		}
 	}
 	diameterMM, densityGCM3 := s.modelFilamentProperties(ctx, printer)
-	for i := range models {
+	parallelFor(ctx, len(models), metadataSyncConcurrency, func(i int) {
 		if cached, ok := cachedByPath[models[i].Path]; ok {
 			models[i].EstimatedWeightG = cached.EstimatedWeightG
 			models[i].PrintDuration = cached.PrintDuration
@@ -281,7 +284,7 @@ func (s *PrinterService) RefreshModels(ctx context.Context, printerID string) ([
 		if metadata.PreviewImagePath != "" {
 			models[i].PreviewImagePath = metadata.PreviewImagePath
 		}
-	}
+	})
 	if s.models != nil {
 		if err := s.models.SaveForPrinter(ctx, printerID, models); err != nil {
 			return nil, err
@@ -376,13 +379,11 @@ func (s *PrinterService) SyncPrinterHistory(ctx context.Context, printerID strin
 	if err != nil {
 		return 0, fmt.Errorf("listing local printer prints: %w", err)
 	}
-	existing := make(map[string]struct{}, len(localJobs))
 	existingJobs := make(map[string]domain.PrintJob, len(localJobs))
 	existingFingerprints := make(map[string]struct{}, len(localJobs))
 	newestLocal := newestPrintTime(localJobs)
 	for _, job := range localJobs {
 		if job.ExternalPrintID != "" {
-			existing[job.ExternalPrintID] = struct{}{}
 			existingJobs[job.ExternalPrintID] = job
 		}
 		if fingerprint := job.Fingerprint(); fingerprint != "" {
@@ -391,6 +392,31 @@ func (s *PrinterService) SyncPrinterHistory(ctx context.Context, printerID strin
 	}
 
 	importJobs := func(remoteJobs []domain.PrinterHistoryJob) (int, error) {
+		enrichIndexes := make([]int, 0, len(remoteJobs))
+		for i := range remoteJobs {
+			job := remoteJobs[i]
+			if job.ExternalPrintID == "" {
+				continue
+			}
+			if _, ok := existingJobs[job.ExternalPrintID]; ok {
+				enrichIndexes = append(enrichIndexes, i)
+				continue
+			}
+			if fingerprint := job.Fingerprint(); fingerprint != "" {
+				if _, ok := existingFingerprints[fingerprint]; ok {
+					continue
+				}
+			}
+			if _, ok := job.PrintStatus(); ok {
+				enrichIndexes = append(enrichIndexes, i)
+			}
+		}
+		parallelFor(ctx, len(enrichIndexes), metadataSyncConcurrency, func(i int) {
+			index := enrichIndexes[i]
+			remoteJobs[index].PrinterID = printerID
+			s.enrichHistoryJob(ctx, *printer, &remoteJobs[index])
+		})
+
 		created := 0
 		for _, job := range remoteJobs {
 			if job.ExternalPrintID == "" {
@@ -398,7 +424,6 @@ func (s *PrinterService) SyncPrinterHistory(ctx context.Context, printerID strin
 			}
 			if local, ok := existingJobs[job.ExternalPrintID]; ok {
 				job.PrinterID = printerID
-				s.enrichHistoryJob(ctx, *printer, &job)
 				if err := s.updateExistingHistoryUsage(ctx, local, job); err != nil {
 					return created, err
 				}
@@ -417,14 +442,12 @@ func (s *PrinterService) SyncPrinterHistory(ctx context.Context, printerID strin
 			if newestLocal.IsZero() || !job.EndedAt.After(newestLocal) {
 				spoolForJob = nil
 			}
-			s.enrichHistoryJob(ctx, *printer, &job)
 			if _, err := s.createPrintFromHistory(ctx, job, spoolForJob); err != nil {
 				return created, err
 			}
 			if fingerprint := job.Fingerprint(); fingerprint != "" {
 				existingFingerprints[fingerprint] = struct{}{}
 			}
-			existing[job.ExternalPrintID] = struct{}{}
 			created++
 		}
 		return created, nil
@@ -463,6 +486,36 @@ func (s *PrinterService) SyncPrinterHistory(ctx context.Context, printerID strin
 		return 0, err
 	}
 	return importJobs(remoteJobs)
+}
+
+func parallelFor(ctx context.Context, count, limit int, work func(int)) {
+	if count == 0 {
+		return
+	}
+	if limit <= 0 || limit > count {
+		limit = count
+	}
+
+	indexes := make(chan int)
+	var wg sync.WaitGroup
+	for range limit {
+		wg.Go(func() {
+			for index := range indexes {
+				work(index)
+			}
+		})
+	}
+	for index := range count {
+		select {
+		case <-ctx.Done():
+			close(indexes)
+			wg.Wait()
+			return
+		case indexes <- index:
+		}
+	}
+	close(indexes)
+	wg.Wait()
 }
 
 func (s *PrinterService) AssignHistoryJobSpool(ctx context.Context, printerID, externalPrintID, spoolID string) (*domain.PrintJob, error) {

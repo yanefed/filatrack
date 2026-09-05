@@ -10,6 +10,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 )
@@ -224,6 +225,7 @@ type printerJobClientStub struct {
 	modelsErr     error
 	metadata      *domain.GcodeMetadata
 	metadataErr   error
+	fetchMetadata func(context.Context, domain.Printer, string) (*domain.GcodeMetadata, error)
 	startedFile   string
 	startErr      error
 	downloaded    string
@@ -262,7 +264,10 @@ func (c *printerJobClientStub) ListModels(context.Context, domain.Printer) ([]do
 	return c.models, c.modelsErr
 }
 
-func (c *printerJobClientStub) FetchMetadata(context.Context, domain.Printer, string) (*domain.GcodeMetadata, error) {
+func (c *printerJobClientStub) FetchMetadata(ctx context.Context, printer domain.Printer, filename string) (*domain.GcodeMetadata, error) {
+	if c.fetchMetadata != nil {
+		return c.fetchMetadata(ctx, printer, filename)
+	}
 	return c.metadata, c.metadataErr
 }
 
@@ -784,6 +789,36 @@ func TestPrinterServiceRefreshModelsSavesCache(t *testing.T) {
 	}
 }
 
+func TestPrinterServiceRefreshModelsFetchesMetadataWithBoundedConcurrency(t *testing.T) {
+	printers := &printerRepoStub{printer: &domain.Printer{ID: "printer-1"}}
+	client := &printerJobClientStub{models: []domain.PrinterModelFile{
+		{Path: "1.gcode"}, {Path: "2.gcode"}, {Path: "3.gcode"}, {Path: "4.gcode"},
+		{Path: "5.gcode"}, {Path: "6.gcode"}, {Path: "7.gcode"}, {Path: "8.gcode"},
+	}}
+	var inFlight atomic.Int32
+	var maximum atomic.Int32
+	client.fetchMetadata = func(context.Context, domain.Printer, string) (*domain.GcodeMetadata, error) {
+		current := inFlight.Add(1)
+		updateAtomicMaximum(&maximum, current)
+		defer inFlight.Add(-1)
+		time.Sleep(20 * time.Millisecond)
+		return &domain.GcodeMetadata{FilamentWeightG: 1}, nil
+	}
+	service := newTestPrinterService(printers, &spoolRepoStub{}, &printRepoStub{})
+	service.SetJobClient(client)
+
+	models, err := service.RefreshModels(t.Context(), "printer-1")
+	if err != nil {
+		t.Fatalf("RefreshModels: %v", err)
+	}
+	if len(models) != 8 {
+		t.Fatalf("models = %d, want 8", len(models))
+	}
+	if got := maximum.Load(); got <= 1 || got > metadataSyncConcurrency {
+		t.Fatalf("maximum concurrent metadata requests = %d, want 2..%d", got, metadataSyncConcurrency)
+	}
+}
+
 func TestPrinterServiceRefreshModelsCalculatesWeightFromLength(t *testing.T) {
 	printers := &printerRepoStub{printer: &domain.Printer{ID: "printer-1", ActiveSpoolID: "spool-1"}}
 	spools := &spoolRepoStub{spool: &domain.Spool{ID: "spool-1", DiameterMM: 1.75, DensityGCM3: 1.25}}
@@ -866,6 +901,51 @@ func TestPrinterServiceSyncPrinterHistoryBackfillsWithoutSpool(t *testing.T) {
 	}
 	if created != 1 || prints.created == nil || prints.created.SpoolID != "" || prints.created.ExternalPrintID != "remote-1" || prints.created.EstimatedWeightG != 16 || prints.created.ActualWeightG != 16 || prints.created.PreviewImagePath != "/tmp/cube.png" {
 		t.Fatalf("sync result created=%d job=%+v", created, prints.created)
+	}
+}
+
+func TestPrinterServiceSyncPrinterHistoryFetchesMetadataWithBoundedConcurrency(t *testing.T) {
+	printers := &printerRepoStub{printer: &domain.Printer{ID: "printer-1", Name: "Voron"}}
+	prints := &printRepoStub{}
+	client := &printerJobClientStub{history: []domain.PrinterHistoryJob{
+		{ExternalPrintID: "1", GcodeFilename: "1.gcode", Status: domain.PrinterHistoryStatusCompleted},
+		{ExternalPrintID: "2", GcodeFilename: "2.gcode", Status: domain.PrinterHistoryStatusCompleted},
+		{ExternalPrintID: "3", GcodeFilename: "3.gcode", Status: domain.PrinterHistoryStatusCompleted},
+		{ExternalPrintID: "4", GcodeFilename: "4.gcode", Status: domain.PrinterHistoryStatusCompleted},
+		{ExternalPrintID: "5", GcodeFilename: "5.gcode", Status: domain.PrinterHistoryStatusCompleted},
+		{ExternalPrintID: "6", GcodeFilename: "6.gcode", Status: domain.PrinterHistoryStatusCompleted},
+		{ExternalPrintID: "7", GcodeFilename: "7.gcode", Status: domain.PrinterHistoryStatusCompleted},
+		{ExternalPrintID: "8", GcodeFilename: "8.gcode", Status: domain.PrinterHistoryStatusCompleted},
+	}}
+	var inFlight atomic.Int32
+	var maximum atomic.Int32
+	client.fetchMetadata = func(context.Context, domain.Printer, string) (*domain.GcodeMetadata, error) {
+		current := inFlight.Add(1)
+		updateAtomicMaximum(&maximum, current)
+		defer inFlight.Add(-1)
+		time.Sleep(20 * time.Millisecond)
+		return &domain.GcodeMetadata{FilamentWeightG: 1}, nil
+	}
+	service := newTestPrinterService(printers, &spoolRepoStub{}, prints)
+	service.SetJobClient(client)
+
+	created, err := service.SyncPrinterHistory(t.Context(), "printer-1", 50)
+	if err != nil {
+		t.Fatalf("SyncPrinterHistory: %v", err)
+	}
+	if created != 8 {
+		t.Fatalf("created = %d, want 8", created)
+	}
+	if got := maximum.Load(); got <= 1 || got > metadataSyncConcurrency {
+		t.Fatalf("maximum concurrent metadata requests = %d, want 2..%d", got, metadataSyncConcurrency)
+	}
+}
+
+func updateAtomicMaximum(maximum *atomic.Int32, value int32) {
+	for current := maximum.Load(); value > current; current = maximum.Load() {
+		if maximum.CompareAndSwap(current, value) {
+			return
+		}
 	}
 }
 
