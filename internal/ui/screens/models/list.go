@@ -130,6 +130,7 @@ func newVirtualModelsList(t i18n.T, ctx context.Context, parent *gtk.Window, pri
 	})
 
 	view := gtk.NewListView(selection, &factory.ListItemFactory)
+	view.AddCSSClass("card-list")
 	view.SetVExpand(true)
 	update := func(models []domain.PrinterModelFile, printers []domain.Printer, spools []domain.Spool) {
 		state.models = models

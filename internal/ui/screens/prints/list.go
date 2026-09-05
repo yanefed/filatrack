@@ -240,6 +240,7 @@ func newVirtualPrintsList(t i18n.T, ctx context.Context, printSvc *service.Print
 	})
 
 	view := gtk.NewListView(selection, &factory.ListItemFactory)
+	view.AddCSSClass("card-list")
 	view.SetVExpand(true)
 	update := func(jobs []domain.PrintJob, spools []domain.Spool) {
 		finishChoosing()

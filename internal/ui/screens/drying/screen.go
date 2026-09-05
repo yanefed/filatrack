@@ -26,6 +26,7 @@ func NewDryingScreen(ctx context.Context, parent *gtk.Window, dryingSvc *service
 	box.Append(emptyLabel)
 
 	historyList := gtk.NewListBox()
+	historyList.AddCSSClass("card-list")
 	historyList.SetSelectionMode(gtk.SelectionNone)
 	box.Append(widgets.NewScrolled(historyList))
 

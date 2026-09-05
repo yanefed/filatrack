@@ -185,6 +185,7 @@ func NewPrintsScreen(ctx context.Context, parent *gtk.Window, printSvc *service.
 
 func newPrintsListBox() *gtk.ListBox {
 	list := gtk.NewListBox()
+	list.AddCSSClass("card-list")
 	list.SetSelectionMode(gtk.SelectionNone)
 	return list
 }

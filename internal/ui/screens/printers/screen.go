@@ -24,6 +24,7 @@ func NewPrintersScreen(ctx context.Context, parent *gtk.Window, printerSvc *serv
 	box.Append(emptyLabel)
 
 	list := gtk.NewListBox()
+	list.AddCSSClass("card-list")
 	list.SetSelectionMode(gtk.SelectionNone)
 	box.Append(widgets.NewScrolled(list))
 
