@@ -1,5 +1,7 @@
 package domain
 
+import "slices"
+
 const DefaultCurrency = "RUB"
 
 var Currencies = []string{
@@ -9,10 +11,5 @@ var Currencies = []string{
 }
 
 func ValidCurrency(currency string) bool {
-	for _, supported := range Currencies {
-		if currency == supported {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(Currencies, currency)
 }
