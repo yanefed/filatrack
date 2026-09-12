@@ -191,6 +191,145 @@ func TestRunnerMarksPrinterOfflineWhenMonitorFails(t *testing.T) {
 
 type runnerSinkFunc func(context.Context, *domain.Printer) error
 
+type runnerHistoryFunc func(context.Context, string, int) (int, error)
+
+func (f runnerHistoryFunc) SyncPrinterHistory(ctx context.Context, id string, limit int) (int, error) {
+	return f(ctx, id, limit)
+}
+
+func TestRunnerSyncCancelsHistoryWithOldSettings(t *testing.T) {
+	for _, change := range []string{"url", "api_key", "disabled"} {
+		t.Run(change, func(t *testing.T) {
+			lister := &fakePrinterLister{printers: []domain.Printer{{
+				ID: "printer", Kind: domain.PrinterKindMoonraker, Enabled: true,
+				MoonrakerURL: "http://192.168.1.66", APIKey: "old-key",
+			}}}
+			runner := NewRunner(lister, &fakeSink{}, runnerDialFunc(func(ctx context.Context, printer domain.Printer) (Conn, error) {
+				return &blockingConn{done: make(chan struct{})}, nil
+			}))
+			started := make(chan context.Context, 1)
+			runner.History = runnerHistoryFunc(func(ctx context.Context, id string, limit int) (int, error) {
+				started <- ctx
+				<-ctx.Done()
+				return 0, ctx.Err()
+			})
+			runner.SyncInterval = time.Hour
+			runner.HistorySyncInterval = time.Hour
+			runner.Logger = slog.New(slog.DiscardHandler)
+			if err := runner.Start(t.Context()); err != nil {
+				t.Fatal(err)
+			}
+			t.Cleanup(func() { _ = runner.Stop() })
+			var requestCtx context.Context
+			select {
+			case requestCtx = <-started:
+			case <-time.After(time.Second):
+				t.Fatal("history request did not start")
+			}
+			if err := runner.Sync(t.Context()); err != nil {
+				t.Fatal(err)
+			}
+			if requestCtx.Err() != nil {
+				t.Fatal("unchanged settings canceled history")
+			}
+			switch change {
+			case "url":
+				lister.printers[0].MoonrakerURL = "http://192.168.1.67"
+			case "api_key":
+				lister.printers[0].APIKey = "new-key"
+			case "disabled":
+				lister.printers[0].Enabled = false
+			}
+			if err := runner.Sync(t.Context()); err != nil {
+				t.Fatal(err)
+			}
+			select {
+			case <-requestCtx.Done():
+			case <-time.After(time.Second):
+				t.Fatal("history request using old settings was not canceled")
+			}
+		})
+	}
+}
+
+type runnerDialFunc func(context.Context, domain.Printer) (Conn, error)
+
+func (f runnerDialFunc) Dial(ctx context.Context, printer domain.Printer) (Conn, error) {
+	return f(ctx, printer)
+}
+
+func TestRunnerSyncRestartsChangedConnection(t *testing.T) {
+	for _, field := range []string{"url", "api_key"} {
+		t.Run(field, func(t *testing.T) {
+			lister := &fakePrinterLister{printers: []domain.Printer{{
+				ID: "printer", Kind: domain.PrinterKindMoonraker, Enabled: true,
+				MoonrakerURL: "http://192.168.1.10", APIKey: "old-key",
+			}}}
+			type connection struct {
+				printer domain.Printer
+				conn    *blockingConn
+			}
+			dialed := make(chan connection, 4)
+			runner := NewRunner(lister, &fakeSink{}, runnerDialFunc(func(ctx context.Context, printer domain.Printer) (Conn, error) {
+				conn := &blockingConn{done: make(chan struct{})}
+				dialed <- connection{printer: printer, conn: conn}
+				return conn, nil
+			}))
+			runner.SyncInterval = time.Hour
+			runner.Logger = slog.New(slog.DiscardHandler)
+			if err := runner.Start(t.Context()); err != nil {
+				t.Fatal(err)
+			}
+			t.Cleanup(func() { _ = runner.Stop() })
+			nextConnection := func() connection {
+				t.Helper()
+				select {
+				case conn := <-dialed:
+					return conn
+				case <-time.After(time.Second):
+					t.Fatal("timed out waiting for connection")
+					return connection{}
+				}
+			}
+			old := nextConnection()
+			if field == "url" {
+				lister.printers[0].MoonrakerURL = "http://192.168.1.20"
+			} else {
+				lister.printers[0].APIKey = "new-key"
+			}
+			if err := runner.Sync(t.Context()); err != nil {
+				t.Fatal(err)
+			}
+			updated := nextConnection()
+			if updated.printer != lister.printers[0] {
+				t.Fatal("new connection did not use updated printer settings")
+			}
+			select {
+			case <-old.conn.done:
+			case <-time.After(time.Second):
+				t.Fatal("old connection was not closed")
+			}
+
+			// Status and display changes must not interrupt the connection.
+			runner.mu.Lock()
+			handle := runner.monitors["printer"]
+			runner.mu.Unlock()
+			lister.printers[0].Name = "Renamed"
+			lister.printers[0].Progress = 0.5
+			lister.printers[0].UpdatedAt = time.Now()
+			if err := runner.Sync(t.Context()); err != nil {
+				t.Fatal(err)
+			}
+			runner.mu.Lock()
+			unchanged := runner.monitors["printer"] == handle
+			runner.mu.Unlock()
+			if !unchanged {
+				t.Fatal("unchanged connection settings restarted the monitor")
+			}
+		})
+	}
+}
+
 func (f runnerSinkFunc) UpdateStatus(ctx context.Context, printer *domain.Printer) error {
 	return f(ctx, printer)
 }

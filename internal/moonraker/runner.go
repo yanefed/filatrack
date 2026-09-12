@@ -26,15 +26,18 @@ type Runner struct {
 	SyncInterval        time.Duration
 	HistorySyncInterval time.Duration
 
-	mu       sync.Mutex
-	runCtx   context.Context
-	cancel   context.CancelFunc
-	monitors map[string]*monitorHandle
-	wg       sync.WaitGroup
+	mu              sync.Mutex
+	runCtx          context.Context
+	cancel          context.CancelFunc
+	monitors        map[string]*monitorHandle
+	historyRequests map[string]*monitorHandle
+	wg              sync.WaitGroup
 }
 
 type monitorHandle struct {
-	cancel context.CancelFunc
+	cancel       context.CancelFunc
+	moonrakerURL string
+	apiKey       string
 }
 
 func NewRunner(printers PrinterLister, sink Sink, dialer Dialer) *Runner {
@@ -65,6 +68,7 @@ func (r *Runner) Start(ctx context.Context) error {
 	r.runCtx = runCtx
 	r.cancel = cancel
 	r.monitors = make(map[string]*monitorHandle)
+	r.historyRequests = make(map[string]*monitorHandle)
 	r.mu.Unlock()
 
 	if err := r.Sync(ctx); err != nil {
@@ -99,15 +103,25 @@ func (r *Runner) Sync(ctx context.Context) error {
 			continue
 		}
 		wanted[printer.ID] = printer
-		if _, running := r.monitors[printer.ID]; !running {
-			r.startMonitorLocked(printer)
+		if monitor, running := r.monitors[printer.ID]; running {
+			if monitor.moonrakerURL == printer.MoonrakerURL && monitor.apiKey == printer.APIKey {
+				continue
+			}
+			monitor.cancel()
 		}
+		r.startMonitorLocked(printer)
 	}
 
 	for printerID, monitor := range r.monitors {
 		if _, ok := wanted[printerID]; !ok {
 			monitor.cancel()
 			delete(r.monitors, printerID)
+		}
+	}
+	for printerID, request := range r.historyRequests {
+		printer, ok := wanted[printerID]
+		if !ok || request.moonrakerURL != printer.MoonrakerURL || request.apiKey != printer.APIKey {
+			request.cancel()
 		}
 	}
 	return nil
@@ -186,15 +200,34 @@ func (r *Runner) syncHistory(ctx context.Context) {
 		if !printer.Enabled || printer.Kind != domain.PrinterKindMoonraker {
 			continue
 		}
-		if _, err := r.History.SyncPrinterHistory(ctx, printer.ID, 0); err != nil && ctx.Err() == nil {
-			r.Logger.Error("moonraker history sync failed", "printer_id", printer.ID, "printer", printer.Name, "error", err)
+		requestCtx, cancel := context.WithCancel(ctx)
+		request := &monitorHandle{cancel: cancel, moonrakerURL: printer.MoonrakerURL, apiKey: printer.APIKey}
+		r.mu.Lock()
+		if r.historyRequests == nil {
+			r.historyRequests = make(map[string]*monitorHandle)
 		}
+		r.historyRequests[printer.ID] = request
+		r.mu.Unlock()
+		_, syncErr := r.History.SyncPrinterHistory(requestCtx, printer.ID, 0)
+		if syncErr != nil && requestCtx.Err() == nil {
+			r.Logger.Error("moonraker history sync failed", "printer_id", printer.ID, "printer", printer.Name, "error", syncErr)
+		}
+		cancel()
+		r.mu.Lock()
+		if r.historyRequests[printer.ID] == request {
+			delete(r.historyRequests, printer.ID)
+		}
+		r.mu.Unlock()
 	}
 }
 
 func (r *Runner) startMonitorLocked(printer domain.Printer) {
 	monitorCtx, cancel := context.WithCancel(r.runCtx)
-	handle := &monitorHandle{cancel: cancel}
+	handle := &monitorHandle{
+		cancel:       cancel,
+		moonrakerURL: printer.MoonrakerURL,
+		apiKey:       printer.APIKey,
+	}
 	r.monitors[printer.ID] = handle
 	r.wg.Go(func() {
 		monitor := Monitor{
