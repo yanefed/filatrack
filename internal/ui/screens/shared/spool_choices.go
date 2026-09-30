@@ -7,8 +7,6 @@ import (
 	"awesomeProject/internal/service"
 	"context"
 	"fmt"
-
-	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 )
 
 func ActiveSpools(ctx context.Context, spoolSvc *service.SpoolService) []domain.Spool {
@@ -38,5 +36,5 @@ func SelectedSpoolIndex(activeSpoolID string, spools []domain.Spool) uint {
 			return uint(i + 1)
 		}
 	}
-	return gtk.InvalidListPosition
+	return 0
 }
