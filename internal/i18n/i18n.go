@@ -95,6 +95,13 @@ type T struct {
 	Close              string
 	DatabaseLabel      string
 	DatabaseURL        string
+	DatabaseHost       string
+	DatabasePort       string
+	DatabaseName       string
+	DatabaseUser       string
+	DatabasePassword   string
+	ShowPassword       string
+	HidePassword       string
 	DatabaseSQLitePath string
 	DatabaseMigrate    string
 	DatabaseApply      string
