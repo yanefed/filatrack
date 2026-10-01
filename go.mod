@@ -1,6 +1,6 @@
 module awesomeProject
 
-go 1.26.0
+go 1.27.1
 
 // Запустите `go mod tidy` для загрузки зависимостей:
 require modernc.org/sqlite v1.60.1

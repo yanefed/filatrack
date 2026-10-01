@@ -25,7 +25,7 @@
     "minimum_version": "15.0"
   },
   "flatpak": {
-    "runtime_version": "50",
-    "golang_sdk_version": "25.08"
+    "runtime_version": "51",
+    "golang_sdk_version": "26.08"
   }
 }
