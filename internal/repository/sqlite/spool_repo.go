@@ -10,7 +10,7 @@ import (
 
 	"awesomeProject/internal/domain"
 	"awesomeProject/internal/repository"
-	"awesomeProject/internal/repository/sqlite/entity"
+	"awesomeProject/internal/repository/entity"
 
 	"github.com/google/uuid"
 )
@@ -32,7 +32,7 @@ func (r *SpoolRepo) Create(ctx context.Context, spool *domain.Spool) error {
 		spool.DisplayCode = domain.NewSpoolDisplayCode(spool, spool.ID)
 	}
 	persisted := entity.SpoolFromDomain(*spool)
-	_, err := r.db.Conn().ExecContext(ctx,
+	_, err := r.db.conn.ExecContext(ctx,
 		`INSERT INTO spools (id, display_code, manufacturer, material, color, color_hex, diameter_mm, total_weight_g, price, density_g_cm3, purchased_at, archived, created_at, updated_at)
 		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		persisted.ID, persisted.DisplayCode, persisted.Manufacturer, persisted.Material, persisted.Color, persisted.ColorHex,
@@ -42,7 +42,7 @@ func (r *SpoolRepo) Create(ctx context.Context, spool *domain.Spool) error {
 	if err != nil && strings.Contains(err.Error(), "display_code") {
 		spool.DisplayCode = domain.NewSpoolDisplayCode(spool, uuid.NewString())
 		persisted = entity.SpoolFromDomain(*spool)
-		_, err = r.db.Conn().ExecContext(ctx,
+		_, err = r.db.conn.ExecContext(ctx,
 			`INSERT INTO spools (id, display_code, manufacturer, material, color, color_hex, diameter_mm, total_weight_g, price, density_g_cm3, purchased_at, archived, created_at, updated_at)
 			 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 			persisted.ID, persisted.DisplayCode, persisted.Manufacturer, persisted.Material, persisted.Color, persisted.ColorHex,
@@ -57,7 +57,7 @@ func (r *SpoolRepo) Create(ctx context.Context, spool *domain.Spool) error {
 }
 
 func (r *SpoolRepo) GetByID(ctx context.Context, id string) (*domain.Spool, error) {
-	row := r.db.Conn().QueryRowContext(ctx,
+	row := r.db.conn.QueryRowContext(ctx,
 		`SELECT id, display_code, manufacturer, material, color, color_hex, diameter_mm, total_weight_g, price, density_g_cm3, purchased_at, archived, created_at, updated_at
 		 FROM spools WHERE id = ?`, id)
 	persisted, err := entity.ScanSpool(row)
@@ -93,7 +93,7 @@ func (r *SpoolRepo) List(ctx context.Context, filter repository.SpoolFilter) ([]
 	}
 	query += " ORDER BY created_at DESC"
 
-	rows, err := r.db.Conn().QueryContext(ctx, query, args...)
+	rows, err := r.db.conn.QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, fmt.Errorf("listing spools: %w", err)
 	}
@@ -116,7 +116,7 @@ func (r *SpoolRepo) Update(ctx context.Context, spool *domain.Spool) error {
 		spool.DisplayCode = domain.NewSpoolDisplayCode(spool, spool.ID)
 	}
 	persisted := entity.SpoolFromDomain(*spool)
-	_, err := r.db.Conn().ExecContext(ctx,
+	_, err := r.db.conn.ExecContext(ctx,
 		`UPDATE spools SET display_code=?, manufacturer=?, material=?, color=?, color_hex=?, diameter_mm=?, total_weight_g=?, price=?, density_g_cm3=?, purchased_at=?, archived=?, updated_at=?
 		 WHERE id=?`,
 		persisted.DisplayCode, persisted.Manufacturer, persisted.Material, persisted.Color, persisted.ColorHex,
@@ -130,7 +130,7 @@ func (r *SpoolRepo) Update(ctx context.Context, spool *domain.Spool) error {
 }
 
 func (r *SpoolRepo) Archive(ctx context.Context, id string) error {
-	_, err := r.db.Conn().ExecContext(ctx,
+	_, err := r.db.conn.ExecContext(ctx,
 		`UPDATE spools SET archived = 1, updated_at = ? WHERE id = ?`,
 		time.Now(), id,
 	)
@@ -142,7 +142,7 @@ func (r *SpoolRepo) Archive(ctx context.Context, id string) error {
 
 func (r *SpoolRepo) GetUsedWeight(ctx context.Context, spoolID string) (float64, error) {
 	var used sql.NullFloat64
-	err := r.db.Conn().QueryRowContext(ctx,
+	err := r.db.conn.QueryRowContext(ctx,
 		`SELECT COALESCE(SUM(actual_weight_g), 0) FROM print_jobs WHERE spool_id = ?`, spoolID,
 	).Scan(&used)
 	if err != nil {

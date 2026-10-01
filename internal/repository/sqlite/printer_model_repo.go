@@ -8,7 +8,7 @@ import (
 	"fmt"
 	"time"
 
-	"awesomeProject/internal/repository/sqlite/entity"
+	"awesomeProject/internal/repository/entity"
 )
 
 type PrinterModelRepo struct {
@@ -20,7 +20,7 @@ func NewPrinterModelRepo(db *DB) repository.PrinterModelRepository {
 }
 
 func (r *PrinterModelRepo) SaveForPrinter(ctx context.Context, printerID string, models []domain.PrinterModelFile) (err error) {
-	tx, err := r.db.Conn().BeginTx(ctx, nil)
+	tx, err := r.db.conn.BeginTx(ctx, nil)
 	if err != nil {
 		return fmt.Errorf("starting printer models transaction: %w", err)
 	}
@@ -75,7 +75,7 @@ func (r *PrinterModelRepo) List(ctx context.Context, printerID *string) ([]domai
 	}
 	query += ` ORDER BY modified_at IS NULL ASC, modified_at DESC, cached_at DESC, path ASC`
 
-	rows, err := r.db.Conn().QueryContext(ctx, query, args...)
+	rows, err := r.db.conn.QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, fmt.Errorf("listing printer models: %w", err)
 	}

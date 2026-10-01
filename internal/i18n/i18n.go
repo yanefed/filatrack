@@ -83,16 +83,22 @@ type T struct {
 	DrySpool              string
 
 	// Settings
-	LanguageLabel    string
-	Print            string
-	MaterialSettings string
-	AddMaterial      string
-	MaterialName     string
-	Days             string
-	Hours            string
-	Edit             string
-	Delete           string
-	Close            string
+	LanguageLabel      string
+	Print              string
+	MaterialSettings   string
+	AddMaterial        string
+	MaterialName       string
+	Days               string
+	Hours              string
+	Edit               string
+	Delete             string
+	Close              string
+	DatabaseLabel      string
+	DatabaseURL        string
+	DatabaseSQLitePath string
+	DatabaseMigrate    string
+	DatabaseApply      string
+	DatabaseHelp       string
 
 	// Printers
 	Printers           string

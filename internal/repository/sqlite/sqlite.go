@@ -8,16 +8,13 @@ import (
 	"time"
 )
 
-type DB struct {
-	conn *sql.DB
-}
+type DB struct{ conn *sql.DB }
 
 func New(dbPath string) (*DB, error) {
 	conn, err := sql.Open("sqlite", dbPath)
 	if err != nil {
 		return nil, fmt.Errorf("opening database: %w", err)
 	}
-
 	if _, err := conn.Exec("PRAGMA journal_mode=WAL"); err != nil {
 		_ = conn.Close()
 		return nil, fmt.Errorf("setting WAL mode: %w", err)
@@ -32,17 +29,11 @@ func New(dbPath string) (*DB, error) {
 	}
 	conn.SetMaxOpenConns(1)
 	conn.SetMaxIdleConns(1)
-
 	return &DB{conn: conn}, nil
 }
 
-func (db *DB) Conn() *sql.DB {
-	return db.conn
-}
-
-func (db *DB) Close() error {
-	return db.conn.Close()
-}
+func (db *DB) Conn() *sql.DB { return db.conn }
+func (db *DB) Close() error  { return db.conn.Close() }
 
 func execWithBusyRetry(ctx context.Context, run func() (sql.Result, error)) (sql.Result, error) {
 	var result sql.Result

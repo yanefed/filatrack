@@ -10,7 +10,7 @@ import (
 	"strings"
 	"time"
 
-	"awesomeProject/internal/repository/sqlite/entity"
+	"awesomeProject/internal/repository/entity"
 
 	"github.com/google/uuid"
 )
@@ -30,7 +30,7 @@ func (r *PrintJobRepo) Create(ctx context.Context, job *domain.PrintJob) error {
 	}
 	persisted := entity.PrintJobFromDomain(*job)
 	_, err := execWithBusyRetry(ctx, func() (sql.Result, error) {
-		return r.db.Conn().ExecContext(ctx,
+		return r.db.conn.ExecContext(ctx,
 			`INSERT INTO print_jobs (id, spool_id, printer_id, external_print_id, gcode_filename, model_name, status, completion_percent, estimated_weight_g, actual_weight_g, estimated_length_mm, print_duration_sec, nozzle_temp_c, bed_temp_c, slicer, preview_image_path, notes, printed_at, created_at, usage_measured)
 			 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 			persisted.ID, persisted.SpoolID, persisted.PrinterID, persisted.ExternalPrintID, persisted.GcodeFilename, persisted.ModelName,
@@ -48,7 +48,7 @@ func (r *PrintJobRepo) Create(ctx context.Context, job *domain.PrintJob) error {
 }
 
 func (r *PrintJobRepo) GetByID(ctx context.Context, id string) (*domain.PrintJob, error) {
-	row := r.db.Conn().QueryRowContext(ctx,
+	row := r.db.conn.QueryRowContext(ctx,
 		`SELECT id, spool_id, printer_id, external_print_id, gcode_filename, model_name, status, completion_percent, estimated_weight_g, actual_weight_g, estimated_length_mm, print_duration_sec, nozzle_temp_c, bed_temp_c, slicer, preview_image_path, notes, printed_at, created_at, COALESCE((SELECT s.price / s.total_weight_g FROM spools s WHERE s.id = print_jobs.spool_id AND s.price > 0 AND s.total_weight_g > 0), 0), COALESCE((SELECT value FROM app_settings WHERE key = 'currency'), 'RUB'), usage_measured
 		 FROM print_jobs WHERE id = ?`, id)
 	persisted, err := entity.ScanPrintJob(row)
@@ -108,7 +108,7 @@ func (r *PrintJobRepo) List(ctx context.Context, filter repository.PrintJobFilte
 		args = append(args, filter.Limit)
 	}
 
-	rows, err := r.db.Conn().QueryContext(ctx, query.String(), args...)
+	rows, err := r.db.conn.QueryContext(ctx, query.String(), args...)
 	if err != nil {
 		return nil, fmt.Errorf("listing print jobs: %w", err)
 	}
@@ -128,7 +128,7 @@ func (r *PrintJobRepo) List(ctx context.Context, filter repository.PrintJobFilte
 }
 
 func (r *PrintJobRepo) UpdateSpool(ctx context.Context, jobID, spoolID string) error {
-	result, err := r.db.Conn().ExecContext(ctx,
+	result, err := r.db.conn.ExecContext(ctx,
 		`UPDATE print_jobs SET spool_id = ? WHERE id = ?`,
 		entity.NullString(spoolID), jobID,
 	)
@@ -142,7 +142,7 @@ func (r *PrintJobRepo) UpdateSpool(ctx context.Context, jobID, spoolID string) e
 }
 
 func (r *PrintJobRepo) UpdateUsage(ctx context.Context, jobID string, estimatedWeightG, actualWeightG, estimatedLengthMM float64, completionPercent int, usageMeasured bool) error {
-	result, err := r.db.Conn().ExecContext(ctx,
+	result, err := r.db.conn.ExecContext(ctx,
 		`UPDATE print_jobs SET estimated_weight_g = ?, actual_weight_g = ?, estimated_length_mm = ?, completion_percent = ?, usage_measured = ? WHERE id = ?`,
 		estimatedWeightG, actualWeightG, estimatedLengthMM, completionPercent, usageMeasured, jobID,
 	)
@@ -176,7 +176,7 @@ func (r *PrintJobRepo) GetStats(ctx context.Context, filter repository.StatsFilt
 	}
 
 	var stats repository.PrintStats
-	err := r.db.Conn().QueryRowContext(ctx, query, args...).Scan(
+	err := r.db.conn.QueryRowContext(ctx, query, args...).Scan(
 		&stats.TotalPrints, &stats.SuccessCount, &stats.FailedCount,
 		&stats.CancelledCount, &stats.TotalWeightG, &stats.AvgWeightG,
 	)

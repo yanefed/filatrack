@@ -1,6 +1,7 @@
 package settings
 
 import (
+	"awesomeProject/internal/database"
 	"awesomeProject/internal/i18n"
 	"awesomeProject/internal/service"
 	"awesomeProject/internal/ui/widgets"
@@ -9,8 +10,13 @@ import (
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 )
 
+type DatabaseOptions struct {
+	Manager    *database.Manager
+	OnSwitched func()
+}
+
 // NewSettingsScreen создаёт экран настроек приложения.
-func NewSettingsScreen(ctx context.Context, parent *gtk.Window, settingsSvc *service.SettingsService, onChanged func(), onLanguageChanged func()) (*gtk.Box, func()) {
+func NewSettingsScreen(ctx context.Context, parent *gtk.Window, settingsSvc *service.SettingsService, onChanged func(), onLanguageChanged func(), databaseOptions ...DatabaseOptions) (*gtk.Box, func()) {
 	box := widgets.NewScreen(i18n.L().Settings)
 
 	content := gtk.NewBox(gtk.OrientationVertical, 18)
@@ -20,6 +26,9 @@ func NewSettingsScreen(ctx context.Context, parent *gtk.Window, settingsSvc *ser
 	content.Append(newLanguageSettingsSection(ctx, settingsSvc, onLanguageChanged))
 	content.Append(newCurrencySettingsSection(ctx, settingsSvc, onChanged))
 	content.Append(newPrintSettingsSection(ctx, settingsSvc, onChanged))
+	if len(databaseOptions) > 0 && databaseOptions[0].Manager != nil {
+		content.Append(newDatabaseSection(ctx, parent, databaseOptions[0]))
+	}
 
 	matSection, refreshMaterials := newMaterialsSection(ctx, parent, settingsSvc, onChanged)
 	content.Append(matSection)

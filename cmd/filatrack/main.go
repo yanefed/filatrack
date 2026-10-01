@@ -2,6 +2,7 @@ package main
 
 import (
 	"awesomeProject/internal/config"
+	"awesomeProject/internal/database"
 	"awesomeProject/internal/i18n"
 	"awesomeProject/internal/moonraker"
 	"awesomeProject/internal/repository"
@@ -46,13 +47,13 @@ func appOptions() []fx.Option {
 		fx.Provide(
 			provideLogger,
 			config.Default,
-			newDB,
-			sqlite.NewSpoolRepo,
-			sqlite.NewPrintJobRepo,
-			sqlite.NewDryingRepoWithLogger,
-			sqlite.NewSettingsRepo,
-			sqlite.NewPrinterRepo,
-			sqlite.NewPrinterModelRepo,
+			newDatabaseManager,
+			func(m *database.Manager) repository.SpoolRepository { return m.Spools() },
+			func(m *database.Manager) repository.PrintJobRepository { return m.Prints() },
+			func(m *database.Manager) repository.DryingSessionRepository { return m.Dryings() },
+			func(m *database.Manager) repository.SettingsRepository { return m.Settings() },
+			func(m *database.Manager) repository.PrinterRepository { return m.Printers() },
+			func(m *database.Manager) repository.PrinterModelRepository { return m.Models() },
 			service.NewSpoolService,
 			service.NewPrintService,
 			service.NewDryingService,
@@ -62,13 +63,28 @@ func appOptions() []fx.Option {
 				fx.As(new(languageProvider)),
 				fx.As(fx.Self()),
 			),
-			fx.Annotate(ui.NewApp, fx.As(new(applicationRunner))),
+			fx.Annotate(newUIApp, fx.As(new(applicationRunner))),
 		),
 		fx.Invoke(configurePrinterConnectionChecker),
 		fx.Invoke(configurePrinterJobClient),
 		fx.Invoke(configurePrinterModelCache),
 		fx.Invoke(startPrinterMonitors),
 	}
+}
+
+func newDatabaseManager(lifecycle fx.Lifecycle, cfg *config.Config, logger *slog.Logger) (*database.Manager, error) {
+	m, err := database.New(context.Background(), cfg, logger)
+	if err != nil {
+		return nil, err
+	}
+	lifecycle.Append(fx.Hook{OnStop: func(context.Context) error { return m.Close() }})
+	return m, nil
+}
+
+func newUIApp(spools *service.SpoolService, prints *service.PrintService, dryings *service.DryingService, settings *service.SettingsService, printers *service.PrinterService, db *database.Manager) *ui.App {
+	app := ui.NewApp(spools, prints, dryings, settings, printers)
+	app.Database = db
+	return app
 }
 
 func provideLogger() *slog.Logger {
@@ -118,10 +134,11 @@ func newDB(cfg *config.Config) (*sqlite.DB, error) {
 	return db, nil
 }
 
-func startPrinterMonitors(lifecycle fx.Lifecycle, cfg *config.Config, printerSvc *service.PrinterService) {
+func startPrinterMonitors(lifecycle fx.Lifecycle, cfg *config.Config, printerSvc *service.PrinterService, db *database.Manager) {
 	runner := moonraker.NewRunner(printerSvc, printerSvc, moonraker.WebSocketDialer{})
 	runner.Metadata = moonraker.HTTPMetadataFetcher{CacheDir: filepath.Join(cfg.DataDir, "cache", "gcode-previews")}
 	runner.History = printerSvc
+	db.SetActivityControl(runner.Stop, runner.Start)
 	lifecycle.Append(fx.Hook{
 		OnStart: func(ctx context.Context) error {
 			return runner.Start(ctx)

@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"awesomeProject/internal/database"
 	"awesomeProject/internal/i18n"
 	"awesomeProject/internal/service"
 	"awesomeProject/internal/ui/screens/dashboard"
@@ -26,6 +27,7 @@ import (
 
 // App содержит зависимости для GTK-интерфейса.
 type App struct {
+	Database        *database.Manager
 	SpoolService    *service.SpoolService
 	PrintService    *service.PrintService
 	DryingService   *service.DryingService
@@ -180,7 +182,7 @@ func (a *App) activate(app *adw.Application) {
 		printersPage, refreshPrinters, refreshPrintersLive, addPrinterButton := printers.NewPrintersScreen(ctx, parentWindow, a.PrinterService, a.SpoolService, refreshPrinterDependencies)
 		stack.AddTitled(printersPage, "printers", t.Printers)
 
-		settingsPage, refreshSettings := settings.NewSettingsScreen(ctx, parentWindow, a.SettingsService, refreshSettingsDependencies, rebuildUI)
+		settingsPage, refreshSettings := settings.NewSettingsScreen(ctx, parentWindow, a.SettingsService, refreshSettingsDependencies, rebuildUI, settings.DatabaseOptions{Manager: a.Database, OnSwitched: app.Quit})
 		stack.AddNamed(settingsPage, "settings")
 
 		sidebar := gtk.NewStackSidebar()

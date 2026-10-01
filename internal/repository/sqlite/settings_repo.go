@@ -3,7 +3,7 @@ package sqlite
 import (
 	"awesomeProject/internal/domain"
 	"awesomeProject/internal/repository"
-	"awesomeProject/internal/repository/sqlite/entity"
+	"awesomeProject/internal/repository/entity"
 	"context"
 	"database/sql"
 	"errors"
@@ -20,7 +20,7 @@ func NewSettingsRepo(db *DB) repository.SettingsRepository {
 
 func (r *SettingsRepo) GetSetting(ctx context.Context, key string) (string, error) {
 	var value string
-	err := r.db.Conn().QueryRowContext(ctx,
+	err := r.db.conn.QueryRowContext(ctx,
 		`SELECT value FROM app_settings WHERE key = ?`, key).Scan(&value)
 	if err != nil {
 		return "", fmt.Errorf("getting setting %s: %w", key, err)
@@ -29,7 +29,7 @@ func (r *SettingsRepo) GetSetting(ctx context.Context, key string) (string, erro
 }
 
 func (r *SettingsRepo) SetSetting(ctx context.Context, key, value string) error {
-	_, err := r.db.Conn().ExecContext(ctx,
+	_, err := r.db.conn.ExecContext(ctx,
 		`INSERT INTO app_settings (key, value) VALUES (?, ?)
 		 ON CONFLICT(key) DO UPDATE SET value = excluded.value`, key, value)
 	if err != nil {
@@ -39,7 +39,7 @@ func (r *SettingsRepo) SetSetting(ctx context.Context, key, value string) error 
 }
 
 func (r *SettingsRepo) ListMaterials(ctx context.Context) ([]domain.MaterialDefinition, error) {
-	rows, err := r.db.Conn().QueryContext(ctx, `
+	rows, err := r.db.conn.QueryContext(ctx, `
 		SELECT name, density_g_cm3, drying_temperature_c,
 		       drying_duration_hours, max_days_no_dry
 		FROM materials
@@ -61,7 +61,7 @@ func (r *SettingsRepo) ListMaterials(ctx context.Context) ([]domain.MaterialDefi
 }
 
 func (r *SettingsRepo) GetMaterial(ctx context.Context, name domain.Material) (*domain.MaterialDefinition, error) {
-	persisted, err := entity.ScanMaterial(r.db.Conn().QueryRowContext(ctx, `
+	persisted, err := entity.ScanMaterial(r.db.conn.QueryRowContext(ctx, `
 		SELECT name, density_g_cm3, drying_temperature_c,
 		       drying_duration_hours, max_days_no_dry
 		FROM materials
@@ -78,7 +78,7 @@ func (r *SettingsRepo) GetMaterial(ctx context.Context, name domain.Material) (*
 
 func (r *SettingsRepo) CreateMaterial(ctx context.Context, material *domain.MaterialDefinition) error {
 	persisted := entity.MaterialFromDomain(*material)
-	_, err := r.db.Conn().ExecContext(ctx, `
+	_, err := r.db.conn.ExecContext(ctx, `
 		INSERT INTO materials (
 			name, density_g_cm3, drying_temperature_c,
 			drying_duration_hours, max_days_no_dry
@@ -93,7 +93,7 @@ func (r *SettingsRepo) CreateMaterial(ctx context.Context, material *domain.Mate
 
 func (r *SettingsRepo) UpdateMaterial(ctx context.Context, material *domain.MaterialDefinition) error {
 	persisted := entity.MaterialFromDomain(*material)
-	result, err := r.db.Conn().ExecContext(ctx, `
+	result, err := r.db.conn.ExecContext(ctx, `
 		UPDATE materials
 		SET density_g_cm3 = ?, drying_temperature_c = ?,
 		    drying_duration_hours = ?, max_days_no_dry = ?
@@ -111,14 +111,14 @@ func (r *SettingsRepo) UpdateMaterial(ctx context.Context, material *domain.Mate
 
 func (r *SettingsRepo) DeleteMaterial(ctx context.Context, name domain.Material) error {
 	var used bool
-	if err := r.db.Conn().QueryRowContext(ctx,
+	if err := r.db.conn.QueryRowContext(ctx,
 		`SELECT EXISTS(SELECT 1 FROM spools WHERE material = ?)`, string(name)).Scan(&used); err != nil {
 		return fmt.Errorf("checking material usage: %w", err)
 	}
 	if used {
 		return fmt.Errorf("material %s is used by one or more spools", name)
 	}
-	_, err := r.db.Conn().ExecContext(ctx, `DELETE FROM materials WHERE name = ?`, string(name))
+	_, err := r.db.conn.ExecContext(ctx, `DELETE FROM materials WHERE name = ?`, string(name))
 	if err != nil {
 		return fmt.Errorf("deleting material: %w", err)
 	}

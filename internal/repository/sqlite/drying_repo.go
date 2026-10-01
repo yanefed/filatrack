@@ -9,7 +9,7 @@ import (
 	"fmt"
 	"log/slog"
 
-	"awesomeProject/internal/repository/sqlite/entity"
+	"awesomeProject/internal/repository/entity"
 
 	"github.com/google/uuid"
 )
@@ -37,7 +37,7 @@ func (r *DryingRepo) Create(ctx context.Context, session *domain.DryingSession) 
 		session.ID = uuid.New().String()
 	}
 	persisted := entity.DryingSessionFromDomain(*session)
-	_, err := r.db.Conn().ExecContext(ctx,
+	_, err := r.db.conn.ExecContext(ctx,
 		`INSERT INTO drying_sessions (id, spool_id, temperature_c, duration_hours, dried_at, created_at)
 		 VALUES (?, ?, ?, ?, ?, ?)`,
 		persisted.ID, persisted.SpoolID, persisted.TemperatureC, persisted.DurationHours, persisted.DriedAt, persisted.CreatedAt,
@@ -49,7 +49,7 @@ func (r *DryingRepo) Create(ctx context.Context, session *domain.DryingSession) 
 }
 
 func (r *DryingRepo) List(ctx context.Context, spoolID string) ([]domain.DryingSession, error) {
-	rows, err := r.db.Conn().QueryContext(ctx,
+	rows, err := r.db.conn.QueryContext(ctx,
 		`SELECT id, spool_id, temperature_c, duration_hours, dried_at, created_at
 		 FROM drying_sessions WHERE spool_id = ? ORDER BY dried_at DESC`, spoolID)
 	if err != nil {
@@ -74,7 +74,7 @@ func (r *DryingRepo) List(ctx context.Context, spoolID string) ([]domain.DryingS
 }
 
 func (r *DryingRepo) GetLastDrying(ctx context.Context, spoolID string) (*domain.DryingSession, error) {
-	row := r.db.Conn().QueryRowContext(ctx,
+	row := r.db.conn.QueryRowContext(ctx,
 		`SELECT id, spool_id, temperature_c, duration_hours, dried_at, created_at
 		 FROM drying_sessions WHERE spool_id = ? ORDER BY dried_at DESC LIMIT 1`, spoolID)
 

@@ -9,7 +9,7 @@ import (
 	"fmt"
 	"time"
 
-	"awesomeProject/internal/repository/sqlite/entity"
+	"awesomeProject/internal/repository/entity"
 
 	"github.com/google/uuid"
 )
@@ -33,7 +33,7 @@ func (r *PrinterRepo) Create(ctx context.Context, printer *domain.Printer) error
 		printer.State = domain.PrinterStateUnknown
 	}
 	persisted := entity.PrinterFromDomain(*printer)
-	_, err := r.db.Conn().ExecContext(ctx,
+	_, err := r.db.conn.ExecContext(ctx,
 		`INSERT INTO printers (id, name, kind, moonraker_url, api_key, enabled, active_spool_id, state, current_file, progress, last_seen_at, created_at, updated_at)
 		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		persisted.ID, persisted.Name, persisted.Kind, persisted.MoonrakerURL, persisted.APIKey,
@@ -48,7 +48,7 @@ func (r *PrinterRepo) Create(ctx context.Context, printer *domain.Printer) error
 }
 
 func (r *PrinterRepo) GetByID(ctx context.Context, id string) (*domain.Printer, error) {
-	row := r.db.Conn().QueryRowContext(ctx,
+	row := r.db.conn.QueryRowContext(ctx,
 		`SELECT id, name, kind, moonraker_url, api_key, enabled, active_spool_id, state, current_file, progress, last_seen_at, created_at, updated_at
 		 FROM printers WHERE id = ?`, id)
 	persisted, err := entity.ScanPrinter(row)
@@ -63,7 +63,7 @@ func (r *PrinterRepo) GetByID(ctx context.Context, id string) (*domain.Printer, 
 }
 
 func (r *PrinterRepo) List(ctx context.Context) ([]domain.Printer, error) {
-	rows, err := r.db.Conn().QueryContext(ctx,
+	rows, err := r.db.conn.QueryContext(ctx,
 		`SELECT id, name, kind, moonraker_url, api_key, enabled, active_spool_id, state, current_file, progress, last_seen_at, created_at, updated_at
 		 FROM printers ORDER BY name`)
 	if err != nil {
@@ -87,7 +87,7 @@ func (r *PrinterRepo) List(ctx context.Context) ([]domain.Printer, error) {
 func (r *PrinterRepo) Update(ctx context.Context, printer *domain.Printer) error {
 	printer.UpdatedAt = time.Now()
 	persisted := entity.PrinterFromDomain(*printer)
-	result, err := r.db.Conn().ExecContext(ctx,
+	result, err := r.db.conn.ExecContext(ctx,
 		`UPDATE printers
 		 SET name=?, kind=?, moonraker_url=?, api_key=?, enabled=?, active_spool_id=?, state=?, current_file=?, progress=?, last_seen_at=?, updated_at=?
 		 WHERE id=?`,
@@ -106,7 +106,7 @@ func (r *PrinterRepo) Update(ctx context.Context, printer *domain.Printer) error
 }
 
 func (r *PrinterRepo) AssignSpool(ctx context.Context, printerID, spoolID string) error {
-	result, err := r.db.Conn().ExecContext(ctx,
+	result, err := r.db.conn.ExecContext(ctx,
 		`UPDATE printers SET active_spool_id = ?, updated_at = ? WHERE id = ?`,
 		entity.NullString(spoolID), time.Now(), printerID,
 	)
@@ -123,7 +123,7 @@ func (r *PrinterRepo) UpdateStatus(ctx context.Context, printer *domain.Printer)
 	printer.UpdatedAt = time.Now()
 	persisted := entity.PrinterFromDomain(*printer)
 	result, err := execWithBusyRetry(ctx, func() (sql.Result, error) {
-		return r.db.Conn().ExecContext(ctx,
+		return r.db.conn.ExecContext(ctx,
 			`UPDATE printers SET state=?, current_file=?, progress=?, last_seen_at=?, updated_at=? WHERE id=?`,
 			persisted.State, persisted.CurrentFile, persisted.Progress, persisted.LastSeenAt,
 			persisted.UpdatedAt, persisted.ID,
