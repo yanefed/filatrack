@@ -9,10 +9,51 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
 )
+
+func TestHTTPControlClientHistorySinceAndPageCounts(t *testing.T) {
+	requests := 0
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requests++
+		query := r.URL.Query()
+		if query.Get("since") != "1000.500000000" || query.Get("order") != "desc" || r.Header.Get("X-Api-Key") != "secret" {
+			t.Errorf("unexpected request: %s", r.URL)
+		}
+		_, _ = fmt.Fprint(w, `{"count":1,"jobs":[{"job_id":"p","start_time":1001,"status":"in_progress"}]}`)
+	}))
+	t.Cleanup(server.Close)
+	client := HTTPControlClient{Client: server.Client()}
+	jobs, count, err := client.ListHistoryPageSince(t.Context(), domain.Printer{MoonrakerURL: server.URL, APIKey: "secret"}, 100, 100, time.Unix(1000, 500000000))
+	if err != nil || count != 1 || len(jobs) != 1 || jobs[0].StartedAt != time.Unix(1001, 0) || requests != 1 {
+		t.Fatalf("history page: jobs=%+v count=%d error=%v", jobs, count, err)
+	}
+}
+
+func TestHTTPControlClientListHistoryWithCountPerPage(t *testing.T) {
+	requests := 0
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requests++
+		start, _ := strconv.Atoi(r.URL.Query().Get("start"))
+		size := min(100, 205-start)
+		_, _ = fmt.Fprintf(w, `{"count":%d,"jobs":[`, size)
+		for i := 0; i < size; i++ {
+			if i > 0 {
+				_, _ = fmt.Fprint(w, ",")
+			}
+			_, _ = fmt.Fprintf(w, `{"job_id":"%d","status":"completed"}`, start+i)
+		}
+		_, _ = fmt.Fprint(w, "]}")
+	}))
+	t.Cleanup(server.Close)
+	jobs, err := (HTTPControlClient{Client: server.Client()}).ListHistory(t.Context(), domain.Printer{MoonrakerURL: server.URL}, 0)
+	if err != nil || len(jobs) != 205 || requests != 3 {
+		t.Fatalf("history: jobs=%d requests=%d error=%v", len(jobs), requests, err)
+	}
+}
 
 func TestHTTPControlClientListHistory(t *testing.T) {
 	var gotAPIKey string
@@ -196,11 +237,37 @@ func TestHTTPControlClientUpload(t *testing.T) {
 	}))
 	t.Cleanup(server.Close)
 
-	uploaded, err := HTTPControlClient{}.Upload(t.Context(), domain.Printer{MoonrakerURL: server.URL}, path, true)
+	uploaded, err := HTTPControlClient{}.Upload(t.Context(), domain.Printer{MoonrakerURL: server.URL}, path, "part.gcode", true)
 	if err != nil {
 		t.Fatalf("Upload: %v", err)
 	}
 	if uploaded.Path != "part.gcode" || !uploaded.PrintStarted || uploaded.PrintQueued {
 		t.Fatalf("uploaded = %+v", uploaded)
+	}
+}
+
+func TestHTTPControlClientUploadToNestedPath(t *testing.T) {
+	localPath := filepath.Join(t.TempDir(), "source.gcode")
+	if err := os.WriteFile(localPath, []byte("G28\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if err := r.ParseMultipartForm(1 << 20); err != nil {
+			t.Fatal(err)
+		}
+		_, header, err := r.FormFile("file")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if header.Filename != "part (2).gcode" || r.FormValue("path") != "models/folder" || r.FormValue("print") != "true" {
+			t.Errorf("upload filename=%q path=%q print=%q", header.Filename, r.FormValue("path"), r.FormValue("print"))
+		}
+		w.WriteHeader(http.StatusCreated)
+		_, _ = fmt.Fprint(w, `{"item":{"path":"models/folder/part (2).gcode"},"print_started":true}`)
+	}))
+	defer server.Close()
+	result, err := (HTTPControlClient{}).Upload(t.Context(), domain.Printer{MoonrakerURL: server.URL}, localPath, "models/folder/part (2).gcode", true)
+	if err != nil || result.Path != "models/folder/part (2).gcode" {
+		t.Fatalf("Upload = %+v, %v", result, err)
 	}
 }

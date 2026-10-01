@@ -78,7 +78,7 @@ func newVirtualModelsList(t i18n.T, ctx context.Context, parent *gtk.Window, pri
 				return
 			}
 			selected := state.models[position]
-			showPrintLaunchDialog(t, ctx, parent, printerSvc, settingsSvc, state.printers, state.spools, func(req domain.PrintLaunchRequest) (*domain.PrintLaunchResult, error) {
+			showPrintLaunchDialog(t, ctx, parent, printerSvc, settingsSvc, state.printers, state.spools, selected.PrinterID, func(req domain.PrintLaunchRequest) (*domain.PrintLaunchResult, error) {
 				req.SourcePrinterID = selected.PrinterID
 				req.GcodeFilename = selected.Path
 				return printerSvc.PrintModel(ctx, req)

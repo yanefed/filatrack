@@ -118,7 +118,7 @@ func NewModelsScreen(ctx context.Context, parent *gtk.Window, printerSvc *servic
 	return box, refreshScreen, addModelBtn, refreshModelsBtn
 }
 
-func showPrintLaunchDialog(t i18n.T, ctx context.Context, parent *gtk.Window, printerSvc *service.PrinterService, settingsSvc *service.SettingsService, printers []domain.Printer, spools []domain.Spool, launch func(domain.PrintLaunchRequest) (*domain.PrintLaunchResult, error), messageLabel *gtk.Label, onSuccess func()) {
+func showPrintLaunchDialog(t i18n.T, ctx context.Context, parent *gtk.Window, printerSvc *service.PrinterService, settingsSvc *service.SettingsService, printers []domain.Printer, spools []domain.Spool, defaultPrinterID string, launch func(domain.PrintLaunchRequest) (*domain.PrintLaunchResult, error), messageLabel *gtk.Label, onSuccess func()) {
 	dialog := shared.NewModalWindow(parent)
 	dialog.SetTitle(t.PrintModelDialog)
 	dialog.SetDefaultSize(360, 220)
@@ -141,6 +141,12 @@ func showPrintLaunchDialog(t i18n.T, ctx context.Context, parent *gtk.Window, pr
 		printerNames = []string{t.NoPrinters}
 	}
 	printerCombo := gtk.NewDropDown(gtk.NewStringList(printerNames), nil)
+	for i, printer := range printers {
+		if printer.ID == defaultPrinterID {
+			printerCombo.SetSelected(uint(i))
+			break
+		}
+	}
 	box.Append(printerCombo)
 
 	spoolLabel := gtk.NewLabel(t.SpoolColon)

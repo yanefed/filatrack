@@ -32,13 +32,22 @@ type PrintJobRepository interface {
 	GetStats(ctx context.Context, filter StatsFilter) (*PrintStats, error)
 }
 
+// PrintHistoryMatch identifies either a remote job or its live-monitor duplicate.
+type PrintHistoryMatch struct {
+	ExternalPrintID string
+	Filename        string
+	EndedAt         time.Time
+}
+
 type PrintJobFilter struct {
-	SpoolID   *string
-	PrinterID *string
-	Status    *domain.PrintStatus
-	From      *time.Time
-	To        *time.Time
-	Limit     int
+	// Non-nil restricts results to the supplied history page; empty matches nothing.
+	HistoryMatches []PrintHistoryMatch
+	SpoolID        *string
+	PrinterID      *string
+	Status         *domain.PrintStatus
+	From           *time.Time
+	To             *time.Time
+	Limit          int
 }
 
 type PrinterRepository interface {

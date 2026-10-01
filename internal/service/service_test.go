@@ -10,6 +10,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -216,25 +217,66 @@ type checkerStub struct {
 }
 
 type printerJobClientStub struct {
-	history       []domain.PrinterHistoryJob
-	historyErr    error
-	historyPages  map[int][]domain.PrinterHistoryJob
-	historyCount  int
-	historyStarts []int
-	models        []domain.PrinterModelFile
-	modelsErr     error
-	metadata      *domain.GcodeMetadata
-	metadataErr   error
-	fetchMetadata func(context.Context, domain.Printer, string) (*domain.GcodeMetadata, error)
-	startedFile   string
-	startErr      error
-	downloaded    string
-	downloadErr   error
-	downloadData  []byte
-	uploadedPath  string
-	uploadedLocal string
-	uploadStarted bool
-	uploadErr     error
+	history        []domain.PrinterHistoryJob
+	historyErr     error
+	historyPages   map[int][]domain.PrinterHistoryJob
+	historyCount   int
+	historyStarts  []int
+	models         []domain.PrinterModelFile
+	modelsErr      error
+	metadata       *domain.GcodeMetadata
+	metadataErr    error
+	fetchMetadata  func(context.Context, domain.Printer, string) (*domain.GcodeMetadata, error)
+	startedFile    string
+	startErr       error
+	downloaded     string
+	downloadErr    error
+	downloadData   []byte
+	uploadedPath   string
+	uploadedLocal  string
+	uploadedRemote string
+	uploadStarted  bool
+	uploadErr      error
+}
+
+type concurrentTransferClient struct {
+	*printerJobClientStub
+	mu           sync.Mutex
+	paths        []string
+	listCalls    int
+	firstUpload  chan struct{}
+	secondListed chan struct{}
+	release      chan struct{}
+	once         sync.Once
+}
+
+func (c *concurrentTransferClient) ListModels(context.Context, domain.Printer) ([]domain.PrinterModelFile, error) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.listCalls++
+	if c.listCalls == 2 {
+		close(c.secondListed)
+	}
+	models := make([]domain.PrinterModelFile, len(c.paths))
+	for i, name := range c.paths {
+		models[i].Path = name
+	}
+	return models, nil
+}
+
+func (c *concurrentTransferClient) DownloadFile(_ context.Context, _ domain.Printer, _, localPath string) error {
+	return os.WriteFile(localPath, []byte("G28\n"), 0o644)
+}
+
+func (c *concurrentTransferClient) Upload(_ context.Context, _ domain.Printer, _, remotePath string, _ bool) (domain.PrinterUploadResult, error) {
+	c.once.Do(func() {
+		close(c.firstUpload)
+		<-c.release
+	})
+	c.mu.Lock()
+	c.paths = append(c.paths, remotePath)
+	c.mu.Unlock()
+	return domain.PrinterUploadResult{Path: remotePath, PrintStarted: true}, nil
 }
 
 type printerModelRepoStub struct {
@@ -288,10 +330,15 @@ func (c *printerJobClientStub) DownloadFile(_ context.Context, _ domain.Printer,
 	return os.WriteFile(localPath, data, 0o644)
 }
 
-func (c *printerJobClientStub) Upload(_ context.Context, _ domain.Printer, localPath string, startPrint bool) (domain.PrinterUploadResult, error) {
+func (c *printerJobClientStub) Upload(_ context.Context, _ domain.Printer, localPath, remotePath string, startPrint bool) (domain.PrinterUploadResult, error) {
 	c.uploadedLocal = localPath
+	c.uploadedRemote = remotePath
 	c.uploadStarted = startPrint
-	return domain.PrinterUploadResult{Path: c.uploadedPath, PrintStarted: startPrint}, c.uploadErr
+	uploadedPath := c.uploadedPath
+	if uploadedPath == "" {
+		uploadedPath = remotePath
+	}
+	return domain.PrinterUploadResult{Path: uploadedPath, PrintStarted: startPrint}, c.uploadErr
 }
 
 func (r *printerModelRepoStub) SaveForPrinter(_ context.Context, printerID string, models []domain.PrinterModelFile) error {
@@ -1141,6 +1188,84 @@ func TestPrinterServicePrintModelTransfersBetweenPrinters(t *testing.T) {
 	}
 	if !result.Uploaded || !result.Started || client.downloaded == "" || client.uploadedLocal == "" || getCalls < 2 {
 		t.Fatalf("print model result=%+v client=%+v getCalls=%d", result, client, getCalls)
+	}
+}
+
+func TestPrinterServicePrintModelKeepsFolderAndAvoidsExistingName(t *testing.T) {
+	printers := &printerRepoStub{list: []domain.Printer{
+		{ID: "source", Name: "Source", Kind: domain.PrinterKindMoonraker, Enabled: true},
+		{ID: "target", Name: "Target", Kind: domain.PrinterKindMoonraker, Enabled: true, ActiveSpoolID: "spool-1"},
+	}}
+	printers.getByIDFunc = func(id string) (*domain.Printer, error) {
+		for i := range printers.list {
+			if printers.list[i].ID == id {
+				return &printers.list[i], nil
+			}
+		}
+		return nil, errors.New("missing")
+	}
+	client := &printerJobClientStub{
+		metadata: &domain.GcodeMetadata{Filename: "models/part.gcode", FilamentWeightG: 20},
+		models: []domain.PrinterModelFile{
+			{Path: "models/part.gcode"},
+			{Path: "models/part (2).gcode"},
+		},
+	}
+	service := newTestPrinterService(printers, &spoolRepoStub{spool: &domain.Spool{ID: "spool-1", TotalWeightG: 100}}, &printRepoStub{})
+	service.SetJobClient(client)
+	result, err := service.PrintModel(t.Context(), domain.PrintLaunchRequest{SourcePrinterID: "source", PrinterID: "target", GcodeFilename: "models/part.gcode"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if client.uploadedRemote != "models/part (3).gcode" || result.Filename != "models/part (3).gcode" || client.downloaded == "" {
+		t.Fatalf("remote=%q result=%+v download=%q", client.uploadedRemote, result, client.downloaded)
+	}
+}
+
+func TestPrinterServiceConcurrentTransfersDoNotReuseName(t *testing.T) {
+	printers := &printerRepoStub{list: []domain.Printer{
+		{ID: "source", Kind: domain.PrinterKindMoonraker, Enabled: true},
+		{ID: "target", Kind: domain.PrinterKindMoonraker, Enabled: true, ActiveSpoolID: "spool-1"},
+	}}
+	printers.getByIDFunc = func(id string) (*domain.Printer, error) {
+		for i := range printers.list {
+			if printers.list[i].ID == id {
+				return &printers.list[i], nil
+			}
+		}
+		return nil, errors.New("missing")
+	}
+	client := &concurrentTransferClient{
+		printerJobClientStub: &printerJobClientStub{metadata: &domain.GcodeMetadata{FilamentWeightG: 5}},
+		firstUpload:          make(chan struct{}),
+		secondListed:         make(chan struct{}),
+		release:              make(chan struct{}),
+	}
+	service := newTestPrinterService(printers, &spoolRepoStub{spool: &domain.Spool{ID: "spool-1", TotalWeightG: 100}}, &printRepoStub{})
+	service.SetJobClient(client)
+	request := domain.PrintLaunchRequest{SourcePrinterID: "source", PrinterID: "target", GcodeFilename: "part.gcode"}
+	results := make(chan error, 2)
+	go func() { _, err := service.PrintModel(t.Context(), request); results <- err }()
+	select {
+	case <-client.firstUpload:
+	case <-time.After(5 * time.Second):
+		t.Fatal("first upload never started")
+	}
+	go func() { _, err := service.PrintModel(t.Context(), request); results <- err }()
+	select {
+	case <-client.secondListed:
+	case <-time.After(100 * time.Millisecond):
+	}
+	close(client.release)
+	for range 2 {
+		if err := <-results; err != nil {
+			t.Fatal(err)
+		}
+	}
+	client.mu.Lock()
+	defer client.mu.Unlock()
+	if len(client.paths) != 2 || client.paths[0] == client.paths[1] {
+		t.Fatalf("uploaded paths = %v", client.paths)
 	}
 }
 

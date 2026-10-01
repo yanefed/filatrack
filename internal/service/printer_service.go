@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"path"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -18,14 +19,16 @@ import (
 const metadataSyncConcurrency = 4
 
 type PrinterService struct {
-	logger    *slog.Logger
-	printers  repository.PrinterRepository
-	spools    repository.SpoolRepository
-	prints    repository.PrintJobRepository
-	models    repository.PrinterModelRepository
-	settings  repository.SettingsRepository
-	checker   ConnectionChecker
-	jobClient PrinterJobClient
+	historySyncMu sync.Mutex
+	transferMu    sync.Mutex
+	logger        *slog.Logger
+	printers      repository.PrinterRepository
+	spools        repository.SpoolRepository
+	prints        repository.PrintJobRepository
+	models        repository.PrinterModelRepository
+	settings      repository.SettingsRepository
+	checker       ConnectionChecker
+	jobClient     PrinterJobClient
 }
 
 type ConnectionChecker interface {
@@ -38,7 +41,7 @@ type PrinterJobClient interface {
 	FetchMetadata(ctx context.Context, printer domain.Printer, filename string) (*domain.GcodeMetadata, error)
 	StartFile(ctx context.Context, printer domain.Printer, filename string) error
 	DownloadFile(ctx context.Context, printer domain.Printer, filename, localPath string) error
-	Upload(ctx context.Context, printer domain.Printer, localPath string, startPrint bool) (domain.PrinterUploadResult, error)
+	Upload(ctx context.Context, printer domain.Printer, localPath, remotePath string, startPrint bool) (domain.PrinterUploadResult, error)
 }
 
 type printerHistoryPageClient interface {
@@ -360,6 +363,12 @@ func (s *PrinterService) RefreshAllModels(ctx context.Context) ([]domain.Printer
 }
 
 func (s *PrinterService) SyncPrinterHistory(ctx context.Context, printerID string, limit int) (int, error) {
+	// Manual and background imports must not race their checkpoints or inserts.
+	s.historySyncMu.Lock()
+	defer s.historySyncMu.Unlock()
+	if err := ctx.Err(); err != nil {
+		return 0, err
+	}
 	if s.jobClient == nil {
 		return 0, fmt.Errorf("printer job client is not configured")
 	}
@@ -375,31 +384,43 @@ func (s *PrinterService) SyncPrinterHistory(ctx context.Context, printerID strin
 		}
 		activeSpool = spool
 	}
-	localJobs, err := s.prints.List(ctx, repository.PrintJobFilter{PrinterID: &printerID})
+	latest, err := s.prints.List(ctx, repository.PrintJobFilter{PrinterID: &printerID, Limit: 1})
 	if err != nil {
-		return 0, fmt.Errorf("listing local printer prints: %w", err)
+		return 0, fmt.Errorf("getting newest local printer print: %w", err)
 	}
-	existingJobs := make(map[string]domain.PrintJob, len(localJobs))
-	existingFingerprints := make(map[string]struct{}, len(localJobs))
-	newestLocal := newestPrintTime(localJobs)
-	for _, job := range localJobs {
-		if job.ExternalPrintID != "" {
-			existingJobs[job.ExternalPrintID] = job
-		}
-		if fingerprint := job.Fingerprint(); fingerprint != "" {
-			existingFingerprints[fingerprint] = struct{}{}
-		}
-	}
+	newestLocal := newestPrintTime(latest)
 
 	importJobs := func(remoteJobs []domain.PrinterHistoryJob) (int, error) {
+		matches := make([]repository.PrintHistoryMatch, 0, len(remoteJobs))
+		for _, job := range remoteJobs {
+			matches = append(matches, repository.PrintHistoryMatch{ExternalPrintID: job.ExternalPrintID, Filename: job.GcodeFilename, EndedAt: job.EndedAt})
+		}
+		localJobs, err := s.prints.List(ctx, repository.PrintJobFilter{PrinterID: &printerID, HistoryMatches: matches})
+		if err != nil {
+			return 0, fmt.Errorf("matching local printer prints: %w", err)
+		}
+		existingJobs := make(map[string]domain.PrintJob, len(localJobs))
+		existingFingerprints := make(map[string]struct{}, len(localJobs))
+		for _, job := range localJobs {
+			if job.ExternalPrintID != "" {
+				existingJobs[job.ExternalPrintID] = job
+			}
+			if fingerprint := job.Fingerprint(); fingerprint != "" {
+				existingFingerprints[fingerprint] = struct{}{}
+			}
+		}
 		enrichIndexes := make([]int, 0, len(remoteJobs))
 		for i := range remoteJobs {
 			job := remoteJobs[i]
 			if job.ExternalPrintID == "" {
 				continue
 			}
-			if _, ok := existingJobs[job.ExternalPrintID]; ok {
-				enrichIndexes = append(enrichIndexes, i)
+			if local, ok := existingJobs[job.ExternalPrintID]; ok {
+				// Existing rows only need metadata to fill a missing weight estimate.
+				// Actual consumed length comes directly from the history response.
+				if local.EstimatedWeightG <= 0 && job.EstimatedWeightG <= 0 {
+					enrichIndexes = append(enrichIndexes, i)
+				}
 				continue
 			}
 			if fingerprint := job.Fingerprint(); fingerprint != "" {
@@ -442,9 +463,11 @@ func (s *PrinterService) SyncPrinterHistory(ctx context.Context, printerID strin
 			if newestLocal.IsZero() || !job.EndedAt.After(newestLocal) {
 				spoolForJob = nil
 			}
-			if _, err := s.createPrintFromHistory(ctx, job, spoolForJob); err != nil {
+			local, err := s.createPrintFromHistory(ctx, job, spoolForJob)
+			if err != nil {
 				return created, err
 			}
+			existingJobs[job.ExternalPrintID] = *local
 			if fingerprint := job.Fingerprint(); fingerprint != "" {
 				existingFingerprints[fingerprint] = struct{}{}
 			}
@@ -455,29 +478,7 @@ func (s *PrinterService) SyncPrinterHistory(ctx context.Context, printerID strin
 
 	if limit <= 0 {
 		if pageClient, ok := s.jobClient.(printerHistoryPageClient); ok {
-			const pageLimit = 100
-			created := 0
-			for start := 0; ; {
-				remoteJobs, total, err := pageClient.ListHistoryPage(ctx, *printer, start, pageLimit)
-				if err != nil {
-					return created, err
-				}
-				pageCreated, err := importJobs(remoteJobs)
-				created += pageCreated
-				if err != nil {
-					return created, err
-				}
-				if len(remoteJobs) == 0 {
-					return created, nil
-				}
-				start += len(remoteJobs)
-				if total > 0 && start >= total {
-					return created, nil
-				}
-				if total <= 0 && len(remoteJobs) < pageLimit {
-					return created, nil
-				}
-			}
+			return s.syncHistoryPages(ctx, *printer, pageClient, importJobs)
 		}
 	}
 
@@ -610,6 +611,13 @@ func (s *PrinterService) PrintModel(ctx context.Context, req domain.PrintLaunchR
 		result.RequiresUserConfirmation = true
 		return result, nil
 	}
+	s.transferMu.Lock()
+	defer s.transferMu.Unlock()
+	targetModels, err := s.jobClient.ListModels(ctx, *target)
+	if err != nil {
+		return nil, fmt.Errorf("listing target printer models: %w", err)
+	}
+	remotePath := availableModelPath(req.GcodeFilename, targetModels)
 	tmpDir, err := os.MkdirTemp("", "filatrack-transfer-*")
 	if err != nil {
 		return nil, fmt.Errorf("creating transfer cache: %w", err)
@@ -624,7 +632,7 @@ func (s *PrinterService) PrintModel(ctx context.Context, req domain.PrintLaunchR
 	if err := s.jobClient.DownloadFile(ctx, *source, req.GcodeFilename, tmpPath); err != nil {
 		return nil, err
 	}
-	uploaded, err := s.jobClient.Upload(ctx, *target, tmpPath, true)
+	uploaded, err := s.jobClient.Upload(ctx, *target, tmpPath, remotePath, true)
 	if err != nil {
 		return nil, err
 	}
@@ -668,7 +676,7 @@ func (s *PrinterService) UploadLocalFile(ctx context.Context, req domain.PrintLa
 			return result, nil
 		}
 	}
-	uploaded, err := s.jobClient.Upload(ctx, *printer, req.LocalPath, startPrint)
+	uploaded, err := s.jobClient.Upload(ctx, *printer, req.LocalPath, filepath.Base(req.LocalPath), startPrint)
 	if err != nil {
 		return nil, err
 	}
@@ -680,6 +688,25 @@ func (s *PrinterService) UploadLocalFile(ctx context.Context, req domain.PrintLa
 		s.logger.Warn("caching uploaded model metadata failed", "printer_id", printer.ID, "path", uploaded.Path, "error", err)
 	}
 	return result, nil
+}
+
+func availableModelPath(requested string, models []domain.PrinterModelFile) string {
+	occupied := make(map[string]struct{}, len(models))
+	for _, model := range models {
+		occupied[model.Path] = struct{}{}
+	}
+	if _, exists := occupied[requested]; !exists {
+		return requested
+	}
+	folder, filename := path.Split(requested)
+	ext := path.Ext(filename)
+	stem := strings.TrimSuffix(filename, ext)
+	for copyNumber := 2; ; copyNumber++ {
+		candidate := folder + stem + " (" + strconv.Itoa(copyNumber) + ")" + ext
+		if _, exists := occupied[candidate]; !exists {
+			return candidate
+		}
+	}
 }
 
 func (s *PrinterService) cacheUploadedModel(ctx context.Context, printerID, uploadedPath, localPath string, metadata *domain.GcodeMetadata) error {

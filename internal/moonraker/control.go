@@ -25,7 +25,7 @@ type HistoryClient interface {
 	FetchMetadata(ctx context.Context, printer domain.Printer, filename string) (*domain.GcodeMetadata, error)
 	StartFile(ctx context.Context, printer domain.Printer, filename string) error
 	DownloadFile(ctx context.Context, printer domain.Printer, filename, localPath string) error
-	Upload(ctx context.Context, printer domain.Printer, localPath string, startPrint bool) (domain.PrinterUploadResult, error)
+	Upload(ctx context.Context, printer domain.Printer, localPath, remotePath string, startPrint bool) (domain.PrinterUploadResult, error)
 }
 
 type HTTPControlClient struct {
@@ -50,10 +50,10 @@ func (c HTTPControlClient) ListHistory(ctx context.Context, printer domain.Print
 			return jobs, nil
 		}
 		start += len(page)
-		if total > 0 && start >= total {
+		if total > len(page) && start >= total {
 			return jobs, nil
 		}
-		if total <= 0 && len(page) < pageLimit {
+		if total <= len(page) && len(page) < pageLimit {
 			return jobs, nil
 		}
 	}
@@ -69,10 +69,23 @@ func (c HTTPControlClient) ListHistoryPage(ctx context.Context, printer domain.P
 }
 
 func (c HTTPControlClient) listHistoryPageWithCount(ctx context.Context, printer domain.Printer, start, limit int) ([]domain.PrinterHistoryJob, int, error) {
+	return c.ListHistoryPageSince(ctx, printer, start, limit, time.Time{})
+}
+
+// ListHistoryPageSince filters by job start time, including unfinished jobs.
+func (c HTTPControlClient) ListHistoryPageSince(ctx context.Context, printer domain.Printer, start, limit int, since time.Time) ([]domain.PrinterHistoryJob, int, error) {
 	endpoint, err := historyListURL(printer.MoonrakerURL, start, limit)
 	if err != nil {
 		return nil, 0, err
 	}
+	if !since.IsZero() {
+		parsed, _ := url.Parse(endpoint)
+		query := parsed.Query()
+		query.Set("since", strconv.FormatFloat(float64(since.UnixNano())/1e9, 'f', 9, 64))
+		parsed.RawQuery = query.Encode()
+		endpoint = parsed.String()
+	}
+
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
 	if err != nil {
 		return nil, 0, fmt.Errorf("creating history request: %w", err)
@@ -224,7 +237,7 @@ func (c HTTPControlClient) DownloadFile(ctx context.Context, printer domain.Prin
 	return nil
 }
 
-func (c HTTPControlClient) Upload(ctx context.Context, printer domain.Printer, localPath string, startPrint bool) (uploadResult domain.PrinterUploadResult, err error) {
+func (c HTTPControlClient) Upload(ctx context.Context, printer domain.Printer, localPath, remotePath string, startPrint bool) (uploadResult domain.PrinterUploadResult, err error) {
 	file, err := os.Open(localPath)
 	if err != nil {
 		return domain.PrinterUploadResult{}, fmt.Errorf("opening local gcode: %w", err)
@@ -236,34 +249,23 @@ func (c HTTPControlClient) Upload(ctx context.Context, printer domain.Printer, l
 		}
 	}(file)
 
-	var body bytes.Buffer
-	writer := multipart.NewWriter(&body)
-	part, err := writer.CreateFormFile("file", filepath.Base(localPath))
+	if remotePath == "" || path.IsAbs(remotePath) || path.Clean(remotePath) != remotePath || remotePath == "." || strings.HasPrefix(remotePath, "../") {
+		return domain.PrinterUploadResult{}, fmt.Errorf("invalid remote gcode path: %q", remotePath)
+	}
+	body, contentType, err := uploadForm(file, remotePath, startPrint)
 	if err != nil {
-		return domain.PrinterUploadResult{}, fmt.Errorf("creating upload form file: %w", err)
-	}
-	if _, err := io.Copy(part, file); err != nil {
-		return domain.PrinterUploadResult{}, fmt.Errorf("writing upload form file: %w", err)
-	}
-	if err := writer.WriteField("root", "gcodes"); err != nil {
-		return domain.PrinterUploadResult{}, fmt.Errorf("writing upload root field: %w", err)
-	}
-	if err := writer.WriteField("print", strconv.FormatBool(startPrint)); err != nil {
-		return domain.PrinterUploadResult{}, fmt.Errorf("writing upload print field: %w", err)
-	}
-	if err := writer.Close(); err != nil {
-		return domain.PrinterUploadResult{}, fmt.Errorf("closing upload form: %w", err)
+		return domain.PrinterUploadResult{}, err
 	}
 
 	endpoint, err := uploadURL(printer.MoonrakerURL)
 	if err != nil {
 		return domain.PrinterUploadResult{}, err
 	}
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, &body)
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, body)
 	if err != nil {
 		return domain.PrinterUploadResult{}, fmt.Errorf("creating upload request: %w", err)
 	}
-	req.Header.Set("Content-Type", writer.FormDataContentType())
+	req.Header.Set("Content-Type", contentType)
 	setAPIKey(req, printer)
 
 	resp, err := c.httpClient().Do(req)
@@ -288,6 +290,36 @@ func (c HTTPControlClient) Upload(ctx context.Context, printer domain.Printer, l
 		return domain.PrinterUploadResult{}, fmt.Errorf("decoding moonraker upload response: %w", err)
 	}
 	return domain.PrinterUploadResult{Path: decoded.Item.Path, PrintStarted: decoded.PrintStarted, PrintQueued: decoded.PrintQueued}, nil
+}
+
+func uploadForm(file io.Reader, remotePath string, startPrint bool) (body *bytes.Buffer, contentType string, err error) {
+	body = new(bytes.Buffer)
+	writer := multipart.NewWriter(body)
+	defer func() {
+		if closeErr := writer.Close(); closeErr != nil && err == nil {
+			err = fmt.Errorf("closing upload form: %w", closeErr)
+		}
+	}()
+	contentType = writer.FormDataContentType()
+	part, err := writer.CreateFormFile("file", path.Base(remotePath))
+	if err != nil {
+		return nil, "", fmt.Errorf("creating upload form file: %w", err)
+	}
+	if _, err := io.Copy(part, file); err != nil {
+		return nil, "", fmt.Errorf("writing upload form file: %w", err)
+	}
+	if err := writer.WriteField("root", "gcodes"); err != nil {
+		return nil, "", fmt.Errorf("writing upload root field: %w", err)
+	}
+	if folder := path.Dir(remotePath); folder != "." {
+		if err := writer.WriteField("path", folder); err != nil {
+			return nil, "", fmt.Errorf("writing upload path field: %w", err)
+		}
+	}
+	if err := writer.WriteField("print", strconv.FormatBool(startPrint)); err != nil {
+		return nil, "", fmt.Errorf("writing upload print field: %w", err)
+	}
+	return body, contentType, nil
 }
 
 func (c HTTPControlClient) httpClient() *http.Client {
