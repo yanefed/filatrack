@@ -13,7 +13,7 @@ What it does:
 
 - Go
 - GTK4 + libadwaita
-- SQLite
+- SQLite or PostgreSQL
 - Moonraker API / WebSocket
 
 ## Run
