@@ -100,8 +100,6 @@ type T struct {
 	DatabaseName       string
 	DatabaseUser       string
 	DatabasePassword   string
-	ShowPassword       string
-	HidePassword       string
 	DatabaseSQLitePath string
 	DatabaseMigrate    string
 	DatabaseApply      string

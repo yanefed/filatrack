@@ -18,8 +18,6 @@ var langRu = T{
 	DatabaseName:          "База данных",
 	DatabaseUser:          "Пользователь",
 	DatabasePassword:      "Пароль",
-	ShowPassword:          "Показать пароль",
-	HidePassword:          "Скрыть пароль",
 	DatabaseSQLitePath:    "Путь к файлу SQLite (пусто — стандартный)",
 	DatabaseMigrate:       "Перенести данные из текущей базы",
 	DatabaseApply:         "Применить и закрыть",

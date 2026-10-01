@@ -18,8 +18,6 @@ var langEn = T{
 	DatabaseName:          "Database name",
 	DatabaseUser:          "User",
 	DatabasePassword:      "Password",
-	ShowPassword:          "Show password",
-	HidePassword:          "Hide password",
 	DatabaseSQLitePath:    "SQLite file path (blank for default)",
 	DatabaseMigrate:       "Copy data from current database",
 	DatabaseApply:         "Apply and close",

@@ -9,6 +9,8 @@ import (
 	"awesomeProject/internal/i18n"
 	"awesomeProject/internal/ui/screens/shared"
 	"awesomeProject/internal/ui/widgets"
+
+	"github.com/diamondburned/gotk4-adwaita/pkg/adw"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 )
 
@@ -24,8 +26,8 @@ func newDatabaseSection(ctx context.Context, parent *gtk.Window, options Databas
 	}
 	section.Append(choice)
 
-	path := gtk.NewEntry()
-	path.SetPlaceholderText(t.DatabaseSQLitePath)
+	path := adw.NewEntryRow()
+	path.SetTitle(t.DatabaseSQLitePath)
 	path.SetText(current.SQLitePath)
 	section.Append(path)
 
@@ -36,40 +38,26 @@ func newDatabaseSection(ctx context.Context, parent *gtk.Window, options Databas
 	if connection.Port == "" {
 		connection.Port = "5432"
 	}
+	postgresGroup := adw.NewPreferencesGroup()
 	host := databaseEntry(t.DatabaseHost, connection.Host)
 	port := databaseEntry(t.DatabasePort, connection.Port)
+	port.SetInputPurpose(gtk.InputPurposeNumber)
 	name := databaseEntry(t.DatabaseName, connection.Database)
 	user := databaseEntry(t.DatabaseUser, connection.Username)
-	password := databaseEntry(t.DatabasePassword, connection.Password)
-	password.SetVisibility(false)
-	passwordRow := gtk.NewBox(gtk.OrientationHorizontal, 6)
-	passwordRow.Append(password)
-	showPassword := gtk.NewButtonWithLabel(t.ShowPassword)
-	showPassword.ConnectClicked(func() {
-		visible := !password.Visibility()
-		password.SetVisibility(visible)
-		if visible {
-			showPassword.SetLabel(t.HidePassword)
-		} else {
-			showPassword.SetLabel(t.ShowPassword)
-		}
-	})
-	passwordRow.Append(showPassword)
-	section.Append(host)
-	section.Append(port)
-	section.Append(name)
-	section.Append(user)
-	section.Append(passwordRow)
+	password := adw.NewPasswordEntryRow()
+	password.SetTitle(t.DatabasePassword)
+	password.SetText(connection.Password)
+	postgresGroup.Add(host)
+	postgresGroup.Add(port)
+	postgresGroup.Add(name)
+	postgresGroup.Add(user)
+	postgresGroup.Add(password)
+	section.Append(postgresGroup)
 
 	updateSensitivity := func() {
 		postgres := choice.Selected() == 1
-		path.SetSensitive(!postgres)
-		host.SetSensitive(postgres)
-		port.SetSensitive(postgres)
-		name.SetSensitive(postgres)
-		user.SetSensitive(postgres)
-		password.SetSensitive(postgres)
-		showPassword.SetSensitive(postgres)
+		path.SetVisible(!postgres)
+		postgresGroup.SetVisible(postgres)
 	}
 	choice.NotifyProperty("selected", updateSensitivity)
 	updateSensitivity()
@@ -128,9 +116,9 @@ func newDatabaseSection(ctx context.Context, parent *gtk.Window, options Databas
 	return section
 }
 
-func databaseEntry(placeholder, text string) *gtk.Entry {
-	entry := gtk.NewEntry()
-	entry.SetPlaceholderText(placeholder)
+func databaseEntry(title, text string) *adw.EntryRow {
+	entry := adw.NewEntryRow()
+	entry.SetTitle(title)
 	entry.SetText(text)
 	return entry
 }

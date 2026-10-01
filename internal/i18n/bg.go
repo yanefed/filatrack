@@ -18,8 +18,6 @@ var langBg = T{
 	DatabaseName:          "База данни",
 	DatabaseUser:          "Потребител",
 	DatabasePassword:      "Парола",
-	ShowPassword:          "Покажи паролата",
-	HidePassword:          "Скрий паролата",
 	DatabaseSQLitePath:    "Път до SQLite файл (празно за стандартния)",
 	DatabaseMigrate:       "Прехвърляне на данните от текущата база",
 	DatabaseApply:         "Прилагане и затваряне",
