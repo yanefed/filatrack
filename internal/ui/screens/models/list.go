@@ -114,15 +114,7 @@ func newVirtualModelsList(t i18n.T, ctx context.Context, parent *gtk.Window, pri
 			details = fmt.Sprintf("%s — %s", details, entry.PrintDuration.String())
 		}
 		row.details.SetLabel(details)
-		texture := widgets.LoadPreviewTexture(entry.PreviewImagePath)
-		if texture != nil {
-			row.picture.SetPaintable(texture)
-			coreglib.Destroy(texture)
-			row.picture.SetVisible(true)
-		} else {
-			row.picture.SetPaintable(nil)
-			row.picture.SetVisible(false)
-		}
+		widgets.SetPreview(row.picture, entry.PreviewImagePath)
 	})
 	factory.ConnectUnbind(func(object *coreglib.Object) {
 		item := object.Cast().(*gtk.ListItem)

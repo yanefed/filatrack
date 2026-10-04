@@ -230,15 +230,7 @@ func newVirtualPrintsList(t i18n.T, ctx context.Context, printSvc *service.Print
 		row.header.SetLabel(title)
 		row.details.SetLabel(printJobUsageText(t, job))
 		row.cost.SetLabel(printCostText(t, job))
-		texture := widgets.LoadPreviewTexture(job.PreviewImagePath)
-		if texture != nil {
-			row.picture.SetPaintable(texture)
-			coreglib.Destroy(texture)
-			row.picture.SetVisible(true)
-		} else {
-			row.picture.SetPaintable(nil)
-			row.picture.SetVisible(false)
-		}
+		widgets.SetPreview(row.picture, job.PreviewImagePath)
 		row.assignRow.SetVisible(len(state.spools) > 0)
 		if activeButton == row.assignBtn {
 			finishChoosing()
