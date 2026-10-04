@@ -111,6 +111,7 @@ func newVirtualModelsList(t i18n.T, ctx context.Context, parent *gtk.Window, pri
 		texture := widgets.LoadPreviewTexture(entry.PreviewImagePath)
 		if texture != nil {
 			row.picture.SetPaintable(texture)
+			coreglib.Destroy(texture)
 			row.picture.SetVisible(true)
 		} else {
 			row.picture.SetPaintable(nil)

@@ -3,6 +3,7 @@ package widgets
 import (
 	"os"
 
+	coreglib "github.com/diamondburned/gotk4/pkg/core/glib"
 	"github.com/diamondburned/gotk4/pkg/gdk/v4"
 	"github.com/diamondburned/gotk4/pkg/gdkpixbuf/v2"
 )
@@ -24,5 +25,6 @@ func LoadPreviewTexture(path string) *gdk.Texture {
 		return nil
 	}
 	texture := gdk.NewTextureForPixbuf(pixbuf)
+	coreglib.Destroy(pixbuf)
 	return texture
 }

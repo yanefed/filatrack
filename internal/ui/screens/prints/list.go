@@ -231,6 +231,7 @@ func newVirtualPrintsList(t i18n.T, ctx context.Context, printSvc *service.Print
 		texture := widgets.LoadPreviewTexture(job.PreviewImagePath)
 		if texture != nil {
 			row.picture.SetPaintable(texture)
+			coreglib.Destroy(texture)
 			row.picture.SetVisible(true)
 		} else {
 			row.picture.SetPaintable(nil)
