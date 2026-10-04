@@ -87,6 +87,9 @@ func SetPreview(picture *gtk.Picture, path string) {
 	previewTextures.items[key] = entry
 	for previewTextures.lru.Len() > previewTextureCacheLimit {
 		oldest := previewTextures.lru.Back()
+		if oldest == nil {
+			break
+		}
 		old := oldest.Value.(previewTextureEntry)
 		delete(previewTextures.items, old.key)
 		previewTextures.lru.Remove(oldest)
