@@ -171,6 +171,8 @@ func (c HTTPControlClient) FetchMetadata(ctx context.Context, printer domain.Pri
 		BedTempC:         metadata.BedTempC,
 		LayerHeight:      metadata.LayerHeight,
 		PreviewImagePath: metadata.PreviewImagePath,
+		PreviewImageHash: metadata.PreviewImageHash,
+		PreviewImageData: metadata.PreviewImageData,
 	}, nil
 }
 

@@ -68,6 +68,7 @@ func appOptions() []fx.Option {
 		fx.Invoke(configurePrinterConnectionChecker),
 		fx.Invoke(configurePrinterJobClient),
 		fx.Invoke(configurePrinterModelCache),
+		fx.Invoke(configurePreviewImageStore),
 		fx.Invoke(startPrinterMonitors),
 	}
 }
@@ -159,6 +160,12 @@ func configurePrinterJobClient(cfg *config.Config, printerSvc *service.PrinterSe
 
 func configurePrinterModelCache(printerSvc *service.PrinterService, models repository.PrinterModelRepository) {
 	printerSvc.SetModelCache(models)
+}
+
+func configurePreviewImageStore(cfg *config.Config, db *database.Manager, printSvc *service.PrintService, printerSvc *service.PrinterService) {
+	store := service.NewPreviewImageStore(db.PreviewImages(), filepath.Join(cfg.DataDir, "cache", "gcode-previews"))
+	printSvc.SetPreviewImageStore(store)
+	printerSvc.SetPreviewImageStore(store)
 }
 
 func runApp(app applicationRunner, settingsSvc languageProvider) {

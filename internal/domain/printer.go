@@ -55,6 +55,8 @@ type PrinterPrintEvent struct {
 	BedTempC          int
 	Slicer            string
 	PreviewImagePath  string
+	PreviewImageHash  string
+	PreviewImageData  []byte
 	PrintedAt         time.Time
 }
 

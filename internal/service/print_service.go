@@ -5,15 +5,21 @@ import (
 	"awesomeProject/internal/repository"
 	"context"
 	"fmt"
+	"os"
 )
 
 type PrintService struct {
-	prints repository.PrintJobRepository
-	spools repository.SpoolRepository
+	prints   repository.PrintJobRepository
+	spools   repository.SpoolRepository
+	previews *PreviewImageStore
 }
 
 func NewPrintService(prints repository.PrintJobRepository, spools repository.SpoolRepository) *PrintService {
 	return &PrintService{prints: prints, spools: spools}
+}
+
+func (s *PrintService) SetPreviewImageStore(previews *PreviewImageStore) {
+	s.previews = previews
 }
 
 func (s *PrintService) ChangeSpool(ctx context.Context, printJobID, spoolID string) error {
@@ -50,7 +56,52 @@ func (s *PrintService) ChangeSpool(ctx context.Context, printJobID, spoolID stri
 }
 
 func (s *PrintService) List(ctx context.Context, filter repository.PrintJobFilter) ([]domain.PrintJob, error) {
-	return s.prints.List(ctx, filter)
+	jobs, err := s.prints.List(ctx, filter)
+	if err != nil {
+		return jobs, err
+	}
+	if err := s.migrateLegacyPreviews(ctx, jobs); err != nil {
+		return nil, err
+	}
+	if err := s.previews.HydratePrintJobs(ctx, jobs); err != nil {
+		return nil, fmt.Errorf("loading print preview images: %w", err)
+	}
+	return jobs, nil
+}
+
+func (s *PrintService) migrateLegacyPreviews(ctx context.Context, jobs []domain.PrintJob) error {
+	return migrateLegacyPrintPreviews(ctx, s.previews, s.prints, jobs)
+}
+
+func migrateLegacyPrintPreviews(ctx context.Context, previews *PreviewImageStore, prints repository.PrintJobRepository, jobs []domain.PrintJob) error {
+	if previews == nil {
+		return nil
+	}
+	updater, ok := prints.(repository.PrintJobPreviewUpdater)
+	if !ok {
+		return nil
+	}
+	for i := range jobs {
+		if jobs[i].PreviewImageHash != "" || jobs[i].PreviewImagePath == "" {
+			continue
+		}
+		hash, path, err := previews.ImportLegacy(ctx, jobs[i].PreviewImagePath)
+		if os.IsNotExist(err) {
+			continue
+		}
+		if err != nil {
+			return fmt.Errorf("importing legacy print preview image: %w", err)
+		}
+		if hash == "" {
+			continue
+		}
+		if err := updater.UpdatePreviewImageHash(ctx, jobs[i].ID, hash); err != nil {
+			return fmt.Errorf("saving shared print preview reference: %w", err)
+		}
+		jobs[i].PreviewImageHash = hash
+		jobs[i].PreviewImagePath = path
+	}
+	return nil
 }
 
 func (s *PrintService) GetStats(ctx context.Context, filter repository.StatsFilter) (*repository.PrintStats, error) {
@@ -58,5 +109,19 @@ func (s *PrintService) GetStats(ctx context.Context, filter repository.StatsFilt
 }
 
 func (s *PrintService) GetByID(ctx context.Context, id string) (*domain.PrintJob, error) {
-	return s.prints.GetByID(ctx, id)
+	job, err := s.prints.GetByID(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	jobs := []domain.PrintJob{*job}
+	if err := s.migrateLegacyPreviews(ctx, jobs); err != nil {
+		return nil, err
+	}
+	*job = jobs[0]
+	path, err := s.previews.Resolve(ctx, job.PreviewImageHash, job.PreviewImagePath)
+	if err != nil {
+		return nil, fmt.Errorf("loading print preview image: %w", err)
+	}
+	job.PreviewImagePath = path
+	return job, nil
 }

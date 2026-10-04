@@ -13,6 +13,8 @@ type GcodeMetadata struct {
 	BedTempC         int
 	LayerHeight      float64
 	PreviewImagePath string
+	PreviewImageHash string
+	PreviewImageData []byte
 }
 
 func (m *GcodeMetadata) MergeMissingGcodeMetadata(fallback *GcodeMetadata) {
@@ -33,5 +35,11 @@ func (m *GcodeMetadata) MergeMissingGcodeMetadata(fallback *GcodeMetadata) {
 	}
 	if m.PreviewImagePath == "" {
 		m.PreviewImagePath = fallback.PreviewImagePath
+	}
+	if m.PreviewImageHash == "" {
+		m.PreviewImageHash = fallback.PreviewImageHash
+	}
+	if len(m.PreviewImageData) == 0 {
+		m.PreviewImageData = fallback.PreviewImageData
 	}
 }

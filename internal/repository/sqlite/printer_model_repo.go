@@ -36,8 +36,8 @@ func (r *PrinterModelRepo) SaveForPrinter(ctx context.Context, printerID string,
 	stmt, err := tx.PrepareContext(ctx, `
 		INSERT INTO printer_models (
 			printer_id, path, filename, modified_at, size_bytes, estimated_weight_g,
-			print_duration_sec, slicer, preview_image_path, cached_at
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+			print_duration_sec, slicer, preview_image_path, cached_at, preview_image_hash
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
 	if err != nil {
 		return fmt.Errorf("preparing printer model insert: %w", err)
 	}
@@ -54,7 +54,7 @@ func (r *PrinterModelRepo) SaveForPrinter(ctx context.Context, printerID string,
 		if _, err := stmt.ExecContext(ctx,
 			persisted.PrinterID, persisted.Path, persisted.Filename, persisted.ModifiedAt, persisted.SizeBytes,
 			persisted.EstimatedWeightG, persisted.PrintDurationSec, persisted.Slicer,
-			persisted.PreviewImagePath, persisted.CachedAt,
+			persisted.PreviewImagePath, persisted.CachedAt, persisted.PreviewImageHash,
 		); err != nil {
 			return fmt.Errorf("inserting printer model %s: %w", model.Path, err)
 		}
@@ -67,7 +67,7 @@ func (r *PrinterModelRepo) SaveForPrinter(ctx context.Context, printerID string,
 }
 
 func (r *PrinterModelRepo) List(ctx context.Context, printerID *string) ([]domain.PrinterModelFile, error) {
-	query := `SELECT printer_id, path, filename, modified_at, size_bytes, estimated_weight_g, print_duration_sec, slicer, preview_image_path, cached_at FROM printer_models`
+	query := `SELECT printer_id, path, filename, modified_at, size_bytes, estimated_weight_g, print_duration_sec, slicer, preview_image_path, cached_at, preview_image_hash FROM printer_models`
 	var args []any
 	if printerID != nil {
 		query += ` WHERE printer_id = ?`

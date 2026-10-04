@@ -88,7 +88,7 @@ func TestHistoryCheckpointPaginationAndResume(t *testing.T) {
 		t.Fatalf("incremental: created=%d imported=%d error=%v since=%v", n, imported, err, client.sinces)
 	}
 	// An empty response must not move the boundary backwards on each poll.
-	key := "printer_history_sync_v1:p"
+	key := "printer_history_sync_v2:p"
 	before := settings.values[key]
 	client.history = nil
 	if _, err := svc.syncHistoryPages(t.Context(), printer, client, importJobs); err != nil || settings.values[key] != before {
@@ -115,7 +115,7 @@ func TestHistoryCheckpointKeepsUnfinishedAndReconciles(t *testing.T) {
 	if n, err := svc.syncHistoryPages(t.Context(), printer, client, importJobs); err != nil || n != 1 {
 		t.Fatalf("finished boundary did not advance: count=%d error=%v", n, err)
 	}
-	key := "printer_history_sync_v1:p"
+	key := "printer_history_sync_v2:p"
 	var saved historyCheckpoint
 	if err := json.Unmarshal([]byte(settings.values[key]), &saved); err != nil {
 		t.Fatal(err)
@@ -160,7 +160,7 @@ func TestHistorySyncQueriesOnlyPageAndRetriesMissingWeight(t *testing.T) {
 			if len(prints.filters) != 2 || prints.filters[0].Limit != 1 || len(prints.filters[1].HistoryMatches) != 1 {
 				t.Fatalf("unbounded local lookup: %+v", prints.filters)
 			}
-			if weight == 0 && (calls != 1 || prints.estimatedWeight != 20) || weight > 0 && calls != 0 {
+			if calls != 1 || weight == 0 && prints.estimatedWeight != 20 {
 				t.Fatalf("metadata calls=%d updated weight=%v", calls, prints.estimatedWeight)
 			}
 		})

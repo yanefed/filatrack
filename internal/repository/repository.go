@@ -32,6 +32,10 @@ type PrintJobRepository interface {
 	GetStats(ctx context.Context, filter StatsFilter) (*PrintStats, error)
 }
 
+type PrintJobPreviewUpdater interface {
+	UpdatePreviewImageHash(ctx context.Context, jobID, hash string) error
+}
+
 // PrintHistoryMatch identifies either a remote job or its live-monitor duplicate.
 type PrintHistoryMatch struct {
 	ExternalPrintID string
@@ -62,6 +66,11 @@ type PrinterRepository interface {
 type PrinterModelRepository interface {
 	SaveForPrinter(ctx context.Context, printerID string, models []domain.PrinterModelFile) error
 	List(ctx context.Context, printerID *string) ([]domain.PrinterModelFile, error)
+}
+
+type PreviewImageRepository interface {
+	Put(ctx context.Context, data []byte) (string, error)
+	Get(ctx context.Context, hash string) ([]byte, error)
 }
 
 type StatsFilter struct {

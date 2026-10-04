@@ -17,9 +17,10 @@ var tables = []table{
 	{"app_settings", "key,value"},
 	{"spools", "id,display_code,manufacturer,material,color,color_hex,diameter_mm,total_weight_g,price,density_g_cm3,purchased_at,archived,created_at,updated_at"},
 	{"printers", "id,name,kind,moonraker_url,api_key,enabled,active_spool_id,state,current_file,progress,last_seen_at,created_at,updated_at"},
-	{"print_jobs", "id,spool_id,printer_id,external_print_id,gcode_filename,model_name,status,completion_percent,estimated_weight_g,actual_weight_g,estimated_length_mm,print_duration_sec,nozzle_temp_c,bed_temp_c,slicer,preview_image_path,notes,printed_at,created_at,usage_measured"},
+	{"preview_images", "hash,image_data,created_at"},
+	{"print_jobs", "id,spool_id,printer_id,external_print_id,gcode_filename,model_name,status,completion_percent,estimated_weight_g,actual_weight_g,estimated_length_mm,print_duration_sec,nozzle_temp_c,bed_temp_c,slicer,preview_image_path,notes,printed_at,created_at,usage_measured,preview_image_hash"},
 	{"drying_sessions", "id,spool_id,temperature_c,duration_hours,dried_at,created_at"},
-	{"printer_models", "printer_id,path,filename,modified_at,size_bytes,estimated_weight_g,print_duration_sec,slicer,preview_image_path,cached_at"},
+	{"printer_models", "printer_id,path,filename,modified_at,size_bytes,estimated_weight_g,print_duration_sec,slicer,preview_image_path,cached_at,preview_image_hash"},
 }
 
 // Copy copies a complete application database into a freshly initialized
@@ -43,7 +44,7 @@ func Copy(ctx context.Context, source, target *sql.DB, targetDriver string) erro
 	}
 	defer dst.Rollback()
 	if targetDriver == "postgres" {
-		if _, err := dst.ExecContext(ctx, "LOCK TABLE materials, app_settings, spools, printers, print_jobs, drying_sessions, printer_models IN ACCESS EXCLUSIVE MODE"); err != nil {
+		if _, err := dst.ExecContext(ctx, "LOCK TABLE materials, app_settings, spools, printers, preview_images, print_jobs, drying_sessions, printer_models IN ACCESS EXCLUSIVE MODE"); err != nil {
 			return fmt.Errorf("locking target tables: %w", err)
 		}
 	}
@@ -67,7 +68,7 @@ func Copy(ctx context.Context, source, target *sql.DB, targetDriver string) erro
 }
 
 func checkEmpty(ctx context.Context, tx *sql.Tx) error {
-	for _, name := range []string{"spools", "printers", "print_jobs", "drying_sessions", "printer_models"} {
+	for _, name := range []string{"spools", "printers", "preview_images", "print_jobs", "drying_sessions", "printer_models"} {
 		var count int
 		if err := tx.QueryRowContext(ctx, "SELECT COUNT(*) FROM "+name).Scan(&count); err != nil {
 			return err

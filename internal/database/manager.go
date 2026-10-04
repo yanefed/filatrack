@@ -16,14 +16,15 @@ import (
 )
 
 type backend struct {
-	conn     *sql.DB
-	close    func() error
-	spools   repository.SpoolRepository
-	prints   repository.PrintJobRepository
-	dryings  repository.DryingSessionRepository
-	settings repository.SettingsRepository
-	printers repository.PrinterRepository
-	models   repository.PrinterModelRepository
+	conn          *sql.DB
+	close         func() error
+	spools        repository.SpoolRepository
+	prints        repository.PrintJobRepository
+	dryings       repository.DryingSessionRepository
+	settings      repository.SettingsRepository
+	printers      repository.PrinterRepository
+	models        repository.PrinterModelRepository
+	previewImages repository.PreviewImageRepository
 }
 
 type Manager struct {
@@ -76,7 +77,12 @@ func (m *Manager) open(ctx context.Context, selection config.DatabaseSelection) 
 			_ = db.Close()
 			return nil, err
 		}
-		return &backend{db.Conn(), db.Close, sqlite.NewSpoolRepo(db), sqlite.NewPrintJobRepo(db), sqlite.NewDryingRepoWithLogger(db, m.logger), sqlite.NewSettingsRepo(db), sqlite.NewPrinterRepo(db), sqlite.NewPrinterModelRepo(db)}, nil
+		return &backend{
+			conn: db.Conn(), close: db.Close, spools: sqlite.NewSpoolRepo(db), prints: sqlite.NewPrintJobRepo(db),
+			dryings: sqlite.NewDryingRepoWithLogger(db, m.logger), settings: sqlite.NewSettingsRepo(db),
+			printers: sqlite.NewPrinterRepo(db), models: sqlite.NewPrinterModelRepo(db),
+			previewImages: sqlite.NewPreviewImageRepo(db),
+		}, nil
 	case config.DriverPostgres:
 		db, err := postgres.New(ctx, selection.PostgresURL)
 		if err != nil {
@@ -86,7 +92,10 @@ func (m *Manager) open(ctx context.Context, selection config.DatabaseSelection) 
 			_ = db.Close()
 			return nil, err
 		}
-		return &backend{db.Conn(), db.Close, db.Spools(), db.Prints(), db.Dryings(m.logger), db.Settings(), db.Printers(), db.PrinterModels()}, nil
+		return &backend{
+			conn: db.Conn(), close: db.Close, spools: db.Spools(), prints: db.Prints(), dryings: db.Dryings(m.logger),
+			settings: db.Settings(), printers: db.Printers(), models: db.PrinterModels(), previewImages: db.PreviewImages(),
+		}, nil
 	default:
 		return nil, fmt.Errorf("unsupported database %q", selection.Driver)
 	}
@@ -100,6 +109,9 @@ func (m *Manager) Dryings() repository.DryingSessionRepository { return m.active
 func (m *Manager) Settings() repository.SettingsRepository     { return m.active.settings }
 func (m *Manager) Printers() repository.PrinterRepository      { return m.active.printers }
 func (m *Manager) Models() repository.PrinterModelRepository   { return m.active.models }
+func (m *Manager) PreviewImages() repository.PreviewImageRepository {
+	return m.active.previewImages
+}
 
 // Switch changes the database used on the next launch. The caller should end
 // the current application session after success so no later writes hit source.

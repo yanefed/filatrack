@@ -2,17 +2,14 @@ package moonraker
 
 import (
 	"awesomeProject/internal/domain"
+	"awesomeProject/internal/preview"
 	"context"
-	"crypto/sha1"
-	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
 	"net/url"
-	"os"
 	"path"
-	"path/filepath"
 	"strings"
 	"time"
 )
@@ -26,6 +23,8 @@ type FileMetadata struct {
 	BedTempC            int
 	Slicer              string
 	PreviewImagePath    string
+	PreviewImageHash    string
+	PreviewImageData    []byte
 	Thumbnails          []FileThumbnail
 }
 
@@ -152,56 +151,48 @@ func (f HTTPMetadataFetcher) Fetch(ctx context.Context, printer domain.Printer, 
 			RelativePath: thumbnail.RelativePath,
 		})
 	}
-	if f.CacheDir != "" {
-		metadata.PreviewImagePath = f.cacheBestThumbnail(ctx, client, printer, filename, metadata.Thumbnails)
+	metadata.PreviewImageData = f.fetchBestThumbnail(ctx, client, printer, filename, metadata.Thumbnails)
+	if len(metadata.PreviewImageData) > 0 {
+		metadata.PreviewImageHash = preview.Hash(metadata.PreviewImageData)
+		if f.CacheDir != "" {
+			metadata.PreviewImagePath, _ = preview.WriteCache(f.CacheDir, metadata.PreviewImageHash, metadata.PreviewImageData)
+		}
 	}
 	return metadata, nil
 }
 
-func (f HTTPMetadataFetcher) cacheBestThumbnail(ctx context.Context, client *http.Client, printer domain.Printer, filename string, thumbnails []FileThumbnail) string {
+func (f HTTPMetadataFetcher) fetchBestThumbnail(ctx context.Context, client *http.Client, printer domain.Printer, filename string, thumbnails []FileThumbnail) []byte {
 	thumbnail, ok := bestThumbnail(thumbnails)
 	if !ok {
-		return ""
+		return nil
 	}
 	endpoint, err := thumbnailURL(printer.MoonrakerURL, filename, thumbnail.RelativePath)
 	if err != nil {
-		return ""
+		return nil
 	}
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
 	if err != nil {
-		return ""
+		return nil
 	}
 	if printer.APIKey != "" {
 		req.Header.Set("X-Api-Key", printer.APIKey)
 	}
 	resp, err := client.Do(req)
 	if err != nil {
-		return ""
+		return nil
 	}
 	defer func(Body io.ReadCloser) {
 		_ = Body.Close()
 	}(resp.Body)
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return ""
+		return nil
 	}
-
-	if err := os.MkdirAll(f.CacheDir, 0o755); err != nil {
-		return ""
-	}
-	cachePath := filepath.Join(f.CacheDir, cachedThumbnailFilename(printer, filename, thumbnail.RelativePath))
-	file, err := os.Create(cachePath)
+	data, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return ""
+		return nil
 	}
-	defer func(file *os.File) {
-		_ = file.Close()
-	}(file)
-	if _, err := io.Copy(file, resp.Body); err != nil {
-		_ = os.Remove(cachePath)
-		return ""
-	}
-	return cachePath
+	return data
 }
 
 func bestThumbnail(thumbnails []FileThumbnail) (FileThumbnail, bool) {
@@ -251,15 +242,6 @@ func thumbnailURL(rawMoonrakerURL, gcodeFilename, relativePath string) (string, 
 	parsed.Path = path.Join("/server/files/gcodes", thumbnailPath)
 	parsed.RawQuery = ""
 	return parsed.String(), nil
-}
-
-func cachedThumbnailFilename(printer domain.Printer, gcodeFilename, relativePath string) string {
-	sum := sha1.Sum([]byte(printer.ID + "|" + printer.MoonrakerURL + "|" + gcodeFilename + "|" + relativePath))
-	ext := strings.ToLower(filepath.Ext(relativePath))
-	if ext == "" || len(ext) > 8 {
-		ext = ".png"
-	}
-	return hex.EncodeToString(sum[:]) + ext
 }
 
 func moonrakerHTTPURL(rawMoonrakerURL, path string) (*url.URL, error) {

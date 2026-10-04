@@ -112,4 +112,10 @@ func enrichEventWithMetadata(ctx context.Context, fetcher MetadataFetcher, print
 	if metadata.PreviewImagePath != "" {
 		event.PreviewImagePath = metadata.PreviewImagePath
 	}
+	if metadata.PreviewImageHash != "" {
+		event.PreviewImageHash = metadata.PreviewImageHash
+	}
+	if len(metadata.PreviewImageData) > 0 {
+		event.PreviewImageData = metadata.PreviewImageData
+	}
 }

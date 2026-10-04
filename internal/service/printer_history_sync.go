@@ -20,7 +20,7 @@ type historyCheckpoint struct {
 
 func (s *PrinterService) syncHistoryPages(ctx context.Context, printer domain.Printer, client printerHistoryPageClient, importJobs func([]domain.PrinterHistoryJob) (int, error)) (int, error) {
 	const pageLimit = 100
-	key := "printer_history_sync_v1:" + printer.ID
+	key := "printer_history_sync_v2:" + printer.ID
 	now := time.Now()
 	checkpoint := historyCheckpoint{URL: printer.MoonrakerURL}
 	incremental, supportsIncremental := client.(incrementalHistoryClient)

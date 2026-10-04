@@ -30,6 +30,8 @@ type PrinterHistoryJob struct {
 	BedTempC         int
 	Slicer           string
 	PreviewImagePath string
+	PreviewImageHash string
+	PreviewImageData []byte
 	StartedAt        time.Time
 	EndedAt          time.Time
 	LocalPrintJobID  string
@@ -46,6 +48,8 @@ type PrinterModelFile struct {
 	PrintDuration    time.Duration
 	Slicer           string
 	PreviewImagePath string
+	PreviewImageHash string
+	PreviewImageData []byte
 	CachedAt         time.Time
 }
 

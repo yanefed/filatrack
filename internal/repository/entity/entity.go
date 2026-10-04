@@ -99,6 +99,7 @@ type PrintJob struct {
 	BedTempC          int
 	Slicer            string
 	PreviewImagePath  string
+	PreviewImageHash  sql.NullString
 	Notes             string
 	PrintedAt         time.Time
 	CreatedAt         time.Time
@@ -112,7 +113,7 @@ func PrintJobFromDomain(job domain.PrintJob) PrintJob {
 		EstimatedWeightG: job.EstimatedWeightG, ActualWeightG: job.ActualWeightG,
 		EstimatedLengthMM: job.EstimatedLengthMM, PrintDurationSec: int64(job.PrintDuration.Seconds()),
 		NozzleTempC: job.NozzleTempC, BedTempC: job.BedTempC, Slicer: job.Slicer,
-		PreviewImagePath: job.PreviewImagePath, Notes: job.Notes,
+		PreviewImageHash: NullString(job.PreviewImageHash), Notes: job.Notes,
 		PrintedAt: job.PrintedAt, CreatedAt: job.CreatedAt,
 		UsageMeasured: job.UsageMeasured,
 	}
@@ -127,7 +128,7 @@ func (job PrintJob) Domain() domain.PrintJob {
 		ActualWeightG: job.ActualWeightG, EstimatedLengthMM: job.EstimatedLengthMM,
 		PrintDuration: time.Duration(job.PrintDurationSec) * time.Second,
 		NozzleTempC:   job.NozzleTempC, BedTempC: job.BedTempC, Slicer: job.Slicer,
-		PreviewImagePath: job.PreviewImagePath, Notes: job.Notes,
+		PreviewImagePath: job.PreviewImagePath, PreviewImageHash: job.PreviewImageHash.String, Notes: job.Notes,
 		PrintedAt: job.PrintedAt, CreatedAt: job.CreatedAt,
 		PricePerGram: job.PricePerGram, CostCurrency: job.CostCurrency,
 		UsageMeasured: job.UsageMeasured,
@@ -142,7 +143,7 @@ func ScanPrintJob(scanner Scanner) (PrintJob, error) {
 		&job.EstimatedWeightG, &job.ActualWeightG, &job.EstimatedLengthMM,
 		&job.PrintDurationSec, &job.NozzleTempC, &job.BedTempC, &job.Slicer,
 		&job.PreviewImagePath, &job.Notes, &job.PrintedAt, &job.CreatedAt,
-		&job.PricePerGram, &job.CostCurrency, &job.UsageMeasured,
+		&job.PricePerGram, &job.CostCurrency, &job.UsageMeasured, &job.PreviewImageHash,
 	)
 	return job, err
 }
@@ -241,6 +242,7 @@ type PrinterModel struct {
 	PrintDurationSec int64
 	Slicer           string
 	PreviewImagePath string
+	PreviewImageHash sql.NullString
 	CachedAt         time.Time
 }
 
@@ -250,7 +252,7 @@ func PrinterModelFromDomain(model domain.PrinterModelFile) PrinterModel {
 		ModifiedAt: NullTime(model.ModifiedAt), SizeBytes: model.SizeBytes,
 		EstimatedWeightG: model.EstimatedWeightG,
 		PrintDurationSec: int64(model.PrintDuration.Seconds()), Slicer: model.Slicer,
-		PreviewImagePath: model.PreviewImagePath, CachedAt: model.CachedAt,
+		PreviewImageHash: NullString(model.PreviewImageHash), CachedAt: model.CachedAt,
 	}
 }
 
@@ -259,7 +261,8 @@ func (model PrinterModel) Domain() domain.PrinterModelFile {
 		PrinterID: model.PrinterID, Path: model.Path, Filename: model.Filename,
 		SizeBytes: model.SizeBytes, EstimatedWeightG: model.EstimatedWeightG,
 		PrintDuration: time.Duration(model.PrintDurationSec) * time.Second,
-		Slicer:        model.Slicer, PreviewImagePath: model.PreviewImagePath, CachedAt: model.CachedAt,
+		Slicer:        model.Slicer, PreviewImagePath: model.PreviewImagePath,
+		PreviewImageHash: model.PreviewImageHash.String, CachedAt: model.CachedAt,
 	}
 	if model.ModifiedAt.Valid {
 		result.ModifiedAt = model.ModifiedAt.Time
@@ -272,7 +275,7 @@ func ScanPrinterModel(scanner Scanner) (PrinterModel, error) {
 	err := scanner.Scan(
 		&model.PrinterID, &model.Path, &model.Filename, &model.ModifiedAt,
 		&model.SizeBytes, &model.EstimatedWeightG, &model.PrintDurationSec,
-		&model.Slicer, &model.PreviewImagePath, &model.CachedAt,
+		&model.Slicer, &model.PreviewImagePath, &model.CachedAt, &model.PreviewImageHash,
 	)
 	return model, err
 }

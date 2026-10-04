@@ -63,6 +63,9 @@ func (db *DB) Printers() repository.PrinterRepository  { return NewPrinterRepo(d
 func (db *DB) PrinterModels() repository.PrinterModelRepository {
 	return NewPrinterModelRepo(db)
 }
+func (db *DB) PreviewImages() repository.PreviewImageRepository {
+	return NewPreviewImageRepo(db)
+}
 
 // SQL helpers keep PostgreSQL's placeholder and legacy INTEGER flag conventions
 // inside this backend rather than leaking them into the SQLite implementation.

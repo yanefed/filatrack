@@ -34,6 +34,8 @@ type PrintJob struct {
 	BedTempC          int
 	Slicer            string
 	PreviewImagePath  string
+	PreviewImageHash  string
+	PreviewImageData  []byte
 	Notes             string
 	PrintedAt         time.Time
 	CreatedAt         time.Time
@@ -85,6 +87,8 @@ func CreatePrinterJobFromPrinterEvent(printer Printer, printEvent PrinterPrintEv
 		BedTempC:          printEvent.BedTempC,
 		Slicer:            printEvent.Slicer,
 		PreviewImagePath:  printEvent.PreviewImagePath,
+		PreviewImageHash:  printEvent.PreviewImageHash,
+		PreviewImageData:  printEvent.PreviewImageData,
 		PrintedAt:         printEvent.getPrintedAt(),
 		CreatedAt:         time.Now(),
 	}
@@ -121,6 +125,8 @@ func CreatePrinterJobFromPrinterHistoryItem(item PrinterHistoryJob, spool *Spool
 		BedTempC:          item.BedTempC,
 		Slicer:            item.Slicer,
 		PreviewImagePath:  item.PreviewImagePath,
+		PreviewImageHash:  item.PreviewImageHash,
+		PreviewImageData:  item.PreviewImageData,
 		PrintedAt:         item.getEndedAt(),
 		CreatedAt:         time.Now(),
 	}

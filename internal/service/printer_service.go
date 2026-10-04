@@ -26,6 +26,7 @@ type PrinterService struct {
 	spools        repository.SpoolRepository
 	prints        repository.PrintJobRepository
 	models        repository.PrinterModelRepository
+	previews      *PreviewImageStore
 	settings      repository.SettingsRepository
 	checker       ConnectionChecker
 	jobClient     PrinterJobClient
@@ -81,6 +82,10 @@ func (s *PrinterService) SetJobClient(client PrinterJobClient) {
 
 func (s *PrinterService) SetModelCache(models repository.PrinterModelRepository) {
 	s.models = models
+}
+
+func (s *PrinterService) SetPreviewImageStore(previews *PreviewImageStore) {
+	s.previews = previews
 }
 
 func (s *PrinterService) CreateMoonrakerPrinter(ctx context.Context, printer *domain.Printer) error {
@@ -183,6 +188,14 @@ func (s *PrinterService) RecordPrinterPrint(ctx context.Context, event domain.Pr
 	}
 
 	job := domain.CreatePrinterJobFromPrinterEvent(*printer, event, *spool)
+	if s.previews != nil && len(job.PreviewImageData) > 0 {
+		hash, path, err := s.previews.Store(ctx, job.PreviewImageData)
+		if err != nil {
+			return nil, fmt.Errorf("storing print preview image: %w", err)
+		}
+		job.PreviewImageHash = hash
+		job.PreviewImagePath = path
+	}
 	if err := s.prints.Create(ctx, job); err != nil {
 		return nil, fmt.Errorf("creating printer print job: %w", err)
 	}
@@ -205,6 +218,12 @@ func (s *PrinterService) ListCombinedHistory(ctx context.Context, printerID stri
 	if err != nil {
 		return nil, fmt.Errorf("listing local printer prints: %w", err)
 	}
+	if err := migrateLegacyPrintPreviews(ctx, s.previews, s.prints, localJobs); err != nil {
+		return nil, fmt.Errorf("migrating legacy print preview images: %w", err)
+	}
+	if err := s.previews.HydratePrintJobs(ctx, localJobs); err != nil {
+		return nil, fmt.Errorf("loading local print preview images: %w", err)
+	}
 	localByExternalID := make(map[string]domain.PrintJob, len(localJobs))
 	for _, job := range localJobs {
 		if job.ExternalPrintID != "" {
@@ -216,7 +235,15 @@ func (s *PrinterService) ListCombinedHistory(ctx context.Context, printerID stri
 			remoteJobs[i].LocalPrintJobID = local.ID
 			remoteJobs[i].LocalSpoolID = local.SpoolID
 			remoteJobs[i].PreviewImagePath = local.PreviewImagePath
+			remoteJobs[i].PreviewImageHash = local.PreviewImageHash
 		}
+	}
+	for i := range remoteJobs {
+		path, err := s.previews.Resolve(ctx, remoteJobs[i].PreviewImageHash, remoteJobs[i].PreviewImagePath)
+		if err != nil {
+			return nil, fmt.Errorf("loading history preview image: %w", err)
+		}
+		remoteJobs[i].PreviewImagePath = path
 	}
 	return remoteJobs, nil
 }
@@ -226,6 +253,9 @@ func (s *PrinterService) ListModels(ctx context.Context, printerID string) ([]do
 		models, err := s.models.List(ctx, &printerID)
 		if err != nil {
 			return nil, err
+		}
+		if err := s.previews.HydrateModels(ctx, models); err != nil {
+			return nil, fmt.Errorf("loading printer model previews: %w", err)
 		}
 		return models, nil
 	}
@@ -257,12 +287,15 @@ func (s *PrinterService) RefreshModels(ctx context.Context, printerID string) ([
 		}
 	}
 	diameterMM, densityGCM3 := s.modelFilamentProperties(ctx, printer)
+	var imageErr error
+	var imageErrMu sync.Mutex
 	parallelFor(ctx, len(models), metadataSyncConcurrency, func(i int) {
 		if cached, ok := cachedByPath[models[i].Path]; ok {
 			models[i].EstimatedWeightG = cached.EstimatedWeightG
 			models[i].PrintDuration = cached.PrintDuration
 			models[i].Slicer = cached.Slicer
 			models[i].PreviewImagePath = cached.PreviewImagePath
+			models[i].PreviewImageHash = cached.PreviewImageHash
 		}
 		metadata, _ := s.jobClient.FetchMetadata(ctx, *printer, models[i].Path)
 		if metadata == nil {
@@ -287,15 +320,36 @@ func (s *PrinterService) RefreshModels(ctx context.Context, printerID string) ([
 		if metadata.Slicer != "" {
 			models[i].Slicer = metadata.Slicer
 		}
-		if metadata.PreviewImagePath != "" {
+		if len(metadata.PreviewImageData) > 0 && s.previews != nil {
+			hash, path, storeErr := s.previews.Store(ctx, metadata.PreviewImageData)
+			if storeErr != nil {
+				imageErrMu.Lock()
+				if imageErr == nil {
+					imageErr = storeErr
+				}
+				imageErrMu.Unlock()
+				return
+			}
+			models[i].PreviewImageHash = hash
+			models[i].PreviewImagePath = path
+		} else if metadata.PreviewImagePath != "" {
 			models[i].PreviewImagePath = metadata.PreviewImagePath
 		}
 	})
+	if imageErr != nil {
+		return nil, fmt.Errorf("storing printer model preview: %w", imageErr)
+	}
 	if s.models != nil {
 		if err := s.models.SaveForPrinter(ctx, printerID, models); err != nil {
 			return nil, err
 		}
-		return s.models.List(ctx, &printerID)
+		models, err = s.models.List(ctx, &printerID)
+		if err != nil {
+			return nil, err
+		}
+	}
+	if err := s.previews.HydrateModels(ctx, models); err != nil {
+		return nil, fmt.Errorf("loading printer model previews: %w", err)
 	}
 	return models, nil
 }
@@ -341,7 +395,14 @@ func (s *PrinterService) downloadModelMetadata(ctx context.Context, printer doma
 
 func (s *PrinterService) ListAllModels(ctx context.Context) ([]domain.PrinterModelFile, error) {
 	if s.models != nil {
-		return s.models.List(ctx, nil)
+		models, err := s.models.List(ctx, nil)
+		if err != nil {
+			return nil, err
+		}
+		if err := s.previews.HydrateModels(ctx, models); err != nil {
+			return nil, fmt.Errorf("loading printer model previews: %w", err)
+		}
+		return models, nil
 	}
 	return s.RefreshAllModels(ctx)
 }
@@ -369,9 +430,19 @@ func (s *PrinterService) RefreshAllModels(ctx context.Context) ([]domain.Printer
 		}
 		models, err := s.RefreshModels(ctx, printer.ID)
 		if err != nil {
+			if s.models != nil {
+				cached, cacheErr := s.models.List(ctx, &printer.ID)
+				if cacheErr != nil {
+					return nil, fmt.Errorf("listing cached models for printer %q after refresh failure: %w", printer.Name, cacheErr)
+				}
+				all = append(all, cached...)
+			}
 			continue
 		}
 		all = append(all, models...)
+	}
+	if err := s.previews.HydrateModels(ctx, all); err != nil {
+		return nil, fmt.Errorf("loading printer model previews: %w", err)
 	}
 	return all, nil
 }
@@ -430,9 +501,8 @@ func (s *PrinterService) SyncPrinterHistory(ctx context.Context, printerID strin
 				continue
 			}
 			if local, ok := existingJobs[job.ExternalPrintID]; ok {
-				// Existing rows only need metadata to fill a missing weight estimate.
 				// Actual consumed length comes directly from the history response.
-				if local.EstimatedWeightG <= 0 && job.EstimatedWeightG <= 0 {
+				if local.PreviewImageHash == "" || local.EstimatedWeightG <= 0 && job.EstimatedWeightG <= 0 {
 					enrichIndexes = append(enrichIndexes, i)
 				}
 				continue
@@ -459,6 +529,24 @@ func (s *PrinterService) SyncPrinterHistory(ctx context.Context, printerID strin
 			}
 			if local, ok := existingJobs[job.ExternalPrintID]; ok {
 				job.PrinterID = printerID
+				if local.PreviewImageHash == "" && len(job.PreviewImageData) > 0 && s.previews != nil {
+					hash, path, storeErr := s.previews.Store(ctx, job.PreviewImageData)
+					if storeErr != nil {
+						return created, fmt.Errorf("storing recovered print preview image: %w", storeErr)
+					}
+					if hash != "" {
+						updater, ok := s.prints.(repository.PrintJobPreviewUpdater)
+						if !ok {
+							return created, fmt.Errorf("print job repository cannot update preview images")
+						}
+						if err := updater.UpdatePreviewImageHash(ctx, local.ID, hash); err != nil {
+							return created, err
+						}
+						local.PreviewImageHash = hash
+						local.PreviewImagePath = path
+						existingJobs[job.ExternalPrintID] = local
+					}
+				}
 				if err := s.updateExistingHistoryUsage(ctx, local, job); err != nil {
 					return created, err
 				}
@@ -473,6 +561,14 @@ func (s *PrinterService) SyncPrinterHistory(ctx context.Context, printerID strin
 				continue
 			}
 			job.PrinterID = printerID
+			if len(job.PreviewImageData) > 0 && s.previews != nil {
+				hash, path, storeErr := s.previews.Store(ctx, job.PreviewImageData)
+				if storeErr != nil {
+					return created, fmt.Errorf("storing print history preview image: %w", storeErr)
+				}
+				job.PreviewImageHash = hash
+				job.PreviewImagePath = path
+			}
 			spoolForJob := activeSpool
 			if newestLocal.IsZero() || !job.EndedAt.After(newestLocal) {
 				spoolForJob = nil
@@ -553,7 +649,15 @@ func (s *PrinterService) AssignHistoryJobSpool(ctx context.Context, printerID, e
 			if err := s.prints.UpdateSpool(ctx, item.LocalPrintJobID, spoolID); err != nil {
 				return nil, fmt.Errorf("changing print job spool: %w", err)
 			}
-			return s.prints.GetByID(ctx, item.LocalPrintJobID)
+			job, err := s.prints.GetByID(ctx, item.LocalPrintJobID)
+			if err != nil {
+				return nil, err
+			}
+			job.PreviewImagePath, err = s.previews.Resolve(ctx, job.PreviewImageHash, job.PreviewImagePath)
+			if err != nil {
+				return nil, fmt.Errorf("loading print preview image: %w", err)
+			}
+			return job, nil
 		}
 		return s.createPrintFromHistory(ctx, item, spool)
 	}
@@ -724,7 +828,18 @@ func availableModelPath(requested string, models []domain.PrinterModelFile) stri
 }
 
 func (s *PrinterService) cacheUploadedModel(ctx context.Context, printerID, uploadedPath, localPath string, metadata *domain.GcodeMetadata) error {
-	if s.models == nil || metadata == nil {
+	if metadata == nil {
+		return nil
+	}
+	imageHash, imagePath := metadata.PreviewImageHash, metadata.PreviewImagePath
+	if len(metadata.PreviewImageData) > 0 && s.previews != nil {
+		var err error
+		imageHash, imagePath, err = s.previews.Store(ctx, metadata.PreviewImageData)
+		if err != nil {
+			return err
+		}
+	}
+	if s.models == nil {
 		return nil
 	}
 	if uploadedPath == "" {
@@ -741,7 +856,8 @@ func (s *PrinterService) cacheUploadedModel(ctx context.Context, printerID, uplo
 		EstimatedWeightG: metadata.FilamentWeightG,
 		PrintDuration:    metadata.PrintDuration,
 		Slicer:           metadata.Slicer,
-		PreviewImagePath: metadata.PreviewImagePath,
+		PreviewImagePath: imagePath,
+		PreviewImageHash: imageHash,
 		CachedAt:         time.Now(),
 	}
 	if info, statErr := os.Stat(localPath); statErr == nil {
@@ -848,6 +964,12 @@ func (s *PrinterService) enrichHistoryJob(ctx context.Context, printer domain.Pr
 	}
 	if metadata.PreviewImagePath != "" {
 		job.PreviewImagePath = metadata.PreviewImagePath
+	}
+	if metadata.PreviewImageHash != "" {
+		job.PreviewImageHash = metadata.PreviewImageHash
+	}
+	if len(metadata.PreviewImageData) > 0 {
+		job.PreviewImageData = metadata.PreviewImageData
 	}
 }
 
