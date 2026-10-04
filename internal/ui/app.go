@@ -257,10 +257,14 @@ func (a *App) activate(app *adw.Application) {
 		refreshLive()
 		return true
 	})
+	memoryTimer := startMemoryDiagnostics()
 	window.ConnectDestroy(func() {
 		cancel()
 		glib.SourceRemove(refreshTimer)
 		glib.SourceRemove(liveTimer)
+		if memoryTimer != 0 {
+			glib.SourceRemove(memoryTimer)
+		}
 		refreshActive = func(bool) {}
 		refreshLive = func() {}
 	})
