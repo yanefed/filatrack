@@ -240,6 +240,9 @@ func (s *PrinterService) RefreshModels(ctx context.Context, printerID string) ([
 	if err != nil {
 		return nil, fmt.Errorf("getting printer: %w", err)
 	}
+	if printer.State == domain.PrinterStateOffline {
+		return nil, fmt.Errorf("printer %q is offline; models were not refreshed", printer.Name)
+	}
 	models, err := s.jobClient.ListModels(ctx, *printer)
 	if err != nil {
 		return nil, err
@@ -351,6 +354,17 @@ func (s *PrinterService) RefreshAllModels(ctx context.Context) ([]domain.Printer
 	var all []domain.PrinterModelFile
 	for _, printer := range printers {
 		if !printer.Enabled || printer.Kind != domain.PrinterKindMoonraker {
+			continue
+		}
+		if printer.State == domain.PrinterStateOffline {
+			if s.models == nil {
+				continue
+			}
+			cached, err := s.models.List(ctx, &printer.ID)
+			if err != nil {
+				return nil, fmt.Errorf("listing cached models for offline printer %q: %w", printer.Name, err)
+			}
+			all = append(all, cached...)
 			continue
 		}
 		models, err := s.RefreshModels(ctx, printer.ID)
