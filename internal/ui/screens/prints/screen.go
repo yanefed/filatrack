@@ -30,6 +30,8 @@ func NewPrintsScreen(ctx context.Context, parent *gtk.Window, printSvc *service.
 
 	activeList := newPrintsListBox()
 	box.Append(activeList)
+	var activePrinterIDs []string
+	var activeStatuses []*widgets.PrinterStatusWidget
 
 	emptyLabel := gtk.NewLabel(t.NoPrintRecords)
 	emptyLabel.AddCSSClass("dim-label")
@@ -43,8 +45,7 @@ func NewPrintsScreen(ctx context.Context, parent *gtk.Window, printSvc *service.
 	activePrintCount := 0
 
 	renderActivePrints := func() int {
-		widgets.ClearListBox(activeList)
-		rendered := 0
+		visiblePrinters := make([]domain.Printer, 0, len(printers))
 		for _, printer := range printers {
 			if !widgets.PrinterHasActivePrint(printer) {
 				continue
@@ -55,10 +56,34 @@ func NewPrintsScreen(ctx context.Context, parent *gtk.Window, printSvc *service.
 					continue
 				}
 			}
-			activeList.Append(newActivePrintCard(t, printer))
-			rendered++
+			visiblePrinters = append(visiblePrinters, printer)
 		}
-		return rendered
+		unchanged := len(visiblePrinters) == len(activePrinterIDs)
+		if unchanged {
+			for i := range visiblePrinters {
+				if visiblePrinters[i].ID != activePrinterIDs[i] {
+					unchanged = false
+					break
+				}
+			}
+		}
+		if unchanged {
+			for i := range visiblePrinters {
+				activeStatuses[i].Update(t, visiblePrinters[i])
+			}
+			return len(visiblePrinters)
+		}
+
+		widgets.ClearListBox(activeList)
+		activePrinterIDs = make([]string, 0, len(visiblePrinters))
+		activeStatuses = make([]*widgets.PrinterStatusWidget, 0, len(visiblePrinters))
+		for _, printer := range visiblePrinters {
+			card, status := newActivePrintCard(t, printer)
+			activeList.Append(card)
+			activePrinterIDs = append(activePrinterIDs, printer.ID)
+			activeStatuses = append(activeStatuses, status)
+		}
+		return len(visiblePrinters)
 	}
 
 	var refreshPrints func()
@@ -190,7 +215,7 @@ func newPrintsListBox() *gtk.ListBox {
 	return list
 }
 
-func newActivePrintCard(t i18n.T, printer domain.Printer) *gtk.Box {
+func newActivePrintCard(t i18n.T, printer domain.Printer) (*gtk.Box, *widgets.PrinterStatusWidget) {
 	card := gtk.NewBox(gtk.OrientationVertical, 0)
 	card.AddCSSClass("card")
 	card.SetMarginTop(4)
@@ -203,7 +228,7 @@ func newActivePrintCard(t i18n.T, printer domain.Printer) *gtk.Box {
 	status.SetMarginStart(12)
 	status.SetMarginEnd(12)
 	card.Append(status)
-	return card
+	return card, status
 }
 
 func printJobUsageText(t i18n.T, job domain.PrintJob) string {

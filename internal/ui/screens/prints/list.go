@@ -20,6 +20,7 @@ type printListState struct {
 }
 
 type printRowWidgets struct {
+	item      *gtk.ListItem
 	picture   *gtk.Picture
 	status    *gtk.Image
 	header    *gtk.Label
@@ -166,14 +167,15 @@ func newVirtualPrintsList(t i18n.T, ctx context.Context, printSvc *service.Print
 		card.Append(row)
 		item.SetChild(card)
 
-		rowWidgets := &printRowWidgets{picture: picture, status: status, header: header, details: details, cost: cost, assignRow: assignRow, assignBtn: assignBtn}
-		rows[item.Native()] = rowWidgets
+		itemNative := item.Native()
+		rowWidgets := &printRowWidgets{item: item, picture: picture, status: status, header: header, details: details, cost: cost, assignRow: assignRow, assignBtn: assignBtn}
+		rows[itemNative] = rowWidgets
 		assignBtn.ConnectClicked(func() {
-			rowWidgets := rows[item.Native()]
+			rowWidgets := rows[itemNative]
 			if rowWidgets == nil {
 				return
 			}
-			position := item.Position()
+			position := rowWidgets.item.Position()
 			if position == gtk.InvalidListPosition || int(position) >= len(state.jobs) {
 				return
 			}
@@ -181,12 +183,12 @@ func newVirtualPrintsList(t i18n.T, ctx context.Context, printSvc *service.Print
 				finishChoosing()
 			}
 			activeJobID = state.jobs[position].ID
-			activeButton = assignBtn
+			activeButton = rowWidgets.assignBtn
 			activeRow = rowWidgets.assignRow
 			changingSelection = true
 			chooser.SetSelected(shared.SelectedSpoolIndex(state.jobs[position].SpoolID, state.spools))
 			changingSelection = false
-			rowWidgets.assignRow.Remove(assignBtn)
+			rowWidgets.assignRow.Remove(rowWidgets.assignBtn)
 			rowWidgets.assignRow.Append(chooser)
 			chooser.GrabFocus()
 			coreglib.IdleAdd(func() {

@@ -21,6 +21,7 @@ type modelListState struct {
 }
 
 type modelRowWidgets struct {
+	item    *gtk.ListItem
 	picture *gtk.Picture
 	name    *gtk.Label
 	details *gtk.Label
@@ -72,8 +73,13 @@ func newVirtualModelsList(t i18n.T, ctx context.Context, parent *gtk.Window, pri
 		printBtn := gtk.NewButtonFromIconName("media-playback-start-symbolic")
 		printBtn.SetTooltipText(t.PrintModel)
 		printBtn.SetVAlign(gtk.AlignCenter)
+		itemNative := item.Native()
 		printBtn.ConnectClicked(func() {
-			position := item.Position()
+			row := rows[itemNative]
+			if row == nil {
+				return
+			}
+			position := row.item.Position()
 			if int(position) >= len(state.models) {
 				return
 			}
@@ -87,7 +93,7 @@ func newVirtualModelsList(t i18n.T, ctx context.Context, parent *gtk.Window, pri
 		row.Append(printBtn)
 		card.Append(row)
 		item.SetChild(card)
-		rows[item.Native()] = &modelRowWidgets{picture: picture, name: name, details: details}
+		rows[itemNative] = &modelRowWidgets{item: item, picture: picture, name: name, details: details}
 	})
 
 	factory.ConnectBind(func(object *coreglib.Object) {

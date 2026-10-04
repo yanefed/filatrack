@@ -117,9 +117,12 @@ func (a *App) activate(app *adw.Application) {
 			"settings":  false,
 		}
 		refreshLive = func() {
-			refreshPrintsLive()
-			refreshPrintersLive()
-			if activePage == "dashboard" {
+			switch activePage {
+			case "prints":
+				refreshPrintsLive()
+			case "printers":
+				refreshPrintersLive()
+			case "dashboard":
 				refreshDashboardLive()
 			}
 		}
@@ -238,6 +241,7 @@ func (a *App) activate(app *adw.Application) {
 			activePage = stack.VisibleChildName()
 			updateHeaderActions()
 			refreshActive(false)
+			refreshLive()
 		})
 	}
 

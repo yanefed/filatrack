@@ -1,6 +1,7 @@
 package dashboard
 
 import (
+	"awesomeProject/internal/domain"
 	"awesomeProject/internal/i18n"
 	"awesomeProject/internal/service"
 	"awesomeProject/internal/ui/widgets"
@@ -22,6 +23,33 @@ func NewDashboard(ctx context.Context, spoolSvc *service.SpoolService, printSvc 
 	box.Append(widgets.NewScrolled(content))
 
 	activeSlot := gtk.NewBox(gtk.OrientationVertical, 0)
+	var activeIDs []string
+	var activeStatuses []*widgets.PrinterStatusWidget
+	updateActive := func(printers []domain.Printer) {
+		unchanged := len(printers) == len(activeIDs)
+		if unchanged {
+			for i := range printers {
+				if printers[i].ID != activeIDs[i] {
+					unchanged = false
+					break
+				}
+			}
+		}
+		if unchanged {
+			for i := range printers {
+				activeStatuses[i].Update(t, printers[i])
+			}
+			return
+		}
+
+		view, statuses := newActivePrintsView(t, printers)
+		widgets.ReplaceBoxChild(activeSlot, view)
+		activeIDs = make([]string, len(printers))
+		for i := range printers {
+			activeIDs[i] = printers[i].ID
+		}
+		activeStatuses = statuses
+	}
 	render := func(data dashboardData) {
 		for child := content.FirstChild(); child != nil; child = content.FirstChild() {
 			content.Remove(child)
@@ -29,7 +57,7 @@ func NewDashboard(ctx context.Context, spoolSvc *service.SpoolService, printSvc 
 		content.Append(newMetricsGrid(t, data))
 
 		content.Append(widgets.NewSectionTitle(t.ActivePrints))
-		widgets.ReplaceBoxChild(activeSlot, newActivePrintsView(t, data.activePrinters()))
+		updateActive(data.activePrinters())
 		content.Append(activeSlot)
 
 		columns := gtk.NewBox(gtk.OrientationHorizontal, 12)
@@ -59,7 +87,7 @@ func NewDashboard(ctx context.Context, spoolSvc *service.SpoolService, printSvc 
 			return
 		}
 		data := dashboardData{printers: printers}
-		widgets.ReplaceBoxChild(activeSlot, newActivePrintsView(t, data.activePrinters()))
+		updateActive(data.activePrinters())
 	}
 
 	refreshDashboard()
