@@ -60,7 +60,7 @@ if [[ "$INSTALL_DEPS" -eq 1 ]]; then
   # a runtime dependency.  The app uses Adwaita names such as
   # preferences-system-symbolic and help-about-symbolic, so bundle the theme
   # explicitly instead of leaving toolbar icons up to the build machine.
-  brew install go pkg-config gtk4 libadwaita librsvg adwaita-icon-theme hicolor-icon-theme fontconfig
+  brew install go pkg-config gobject-introspection gtk4 libadwaita librsvg adwaita-icon-theme hicolor-icon-theme fontconfig
 fi
 
 required_tools=(awk brew codesign file find iconutil install_name_tool otool perl pkg-config rsvg-convert)
@@ -74,8 +74,8 @@ for tool in "${required_tools[@]}"; do
   }
 done
 
-pkg-config --exists gtk4 libadwaita-1 || {
-  echo "GTK4 and libadwaita development files are required. Try: go run ./cmd/build macos --install-deps" >&2
+pkg-config --exists gtk4 libadwaita-1 gobject-introspection-1.0 || {
+  echo "GTK4, libadwaita, and GObject Introspection development files are required. Try: go run ./cmd/build macos --install-deps" >&2
   exit 1
 }
 brew --prefix adwaita-icon-theme >/dev/null 2>&1 || {
