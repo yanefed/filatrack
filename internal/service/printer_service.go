@@ -5,6 +5,7 @@ import (
 	"awesomeProject/internal/gcode"
 	"awesomeProject/internal/port"
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"os"
@@ -158,6 +159,9 @@ func (s *PrinterService) UpdateStatus(ctx context.Context, printer *domain.Print
 }
 
 func (s *PrinterService) RecordPrinterPrint(ctx context.Context, event domain.PrinterPrintEvent) (*domain.PrintJob, error) {
+	if event.ExternalPrintID == "" {
+		return nil, fmt.Errorf("printer print event has no external job ID")
+	}
 	printer, err := s.printers.GetByID(ctx, event.PrinterID)
 	if err != nil {
 		return nil, fmt.Errorf("getting printer: %w", err)
@@ -180,6 +184,26 @@ func (s *PrinterService) RecordPrinterPrint(ctx context.Context, event domain.Pr
 		job.PreviewImagePath = path
 	}
 	if err := s.prints.Create(ctx, job); err != nil {
+		if errors.Is(err, domain.ErrPrintJobAlreadyExists) {
+			stored, lookupErr := s.findRecordedPrinterJob(ctx, job.PrinterID, job.ExternalPrintID)
+			if lookupErr != nil {
+				return nil, lookupErr
+			}
+			// A background import may have won the insert before the live
+			// event could associate the spool that was actually in use.
+			if stored.SpoolID == "" {
+				if err := s.prints.UpdateSpool(ctx, stored.ID, job.SpoolID); err != nil {
+					return nil, fmt.Errorf("assigning recorded print spool: %w", err)
+				}
+				if err := s.prints.UpdateUsage(ctx, stored.ID, job.EstimatedWeightG, job.ActualWeightG, job.EstimatedLengthMM, job.CompletionPercent, job.UsageMeasured); err != nil {
+					return nil, fmt.Errorf("updating recorded print usage: %w", err)
+				}
+				stored.SpoolID = job.SpoolID
+				stored.EstimatedWeightG, stored.ActualWeightG = job.EstimatedWeightG, job.ActualWeightG
+				stored.EstimatedLengthMM, stored.CompletionPercent, stored.UsageMeasured = job.EstimatedLengthMM, job.CompletionPercent, job.UsageMeasured
+			}
+			return stored, nil
+		}
 		return nil, fmt.Errorf("creating printer print job: %w", err)
 	}
 	return job, nil
@@ -565,13 +589,13 @@ func (s *PrinterService) SyncPrinterHistory(ctx context.Context, printerID strin
 				spoolForJob = nil
 			}
 			local, err := s.createPrintFromHistory(ctx, job, spoolForJob)
+			if errors.Is(err, domain.ErrPrintJobAlreadyExists) {
+				continue
+			}
 			if err != nil {
 				return created, err
 			}
 			existingJobs[job.ExternalPrintID] = *local
-			if fingerprint := job.Fingerprint(); fingerprint != "" {
-				existingFingerprints[fingerprint] = struct{}{}
-			}
 			created++
 		}
 		return created, nil
@@ -637,38 +661,17 @@ func (s *PrinterService) AssignHistoryJobSpool(ctx context.Context, printerID, e
 			continue
 		}
 		if item.LocalPrintJobID != "" {
-			if err := s.prints.UpdateSpool(ctx, item.LocalPrintJobID, spoolID); err != nil {
-				return nil, fmt.Errorf("changing print job spool: %w", err)
-			}
-			job, err := s.prints.GetByID(ctx, item.LocalPrintJobID)
-			if err != nil {
-				return nil, err
-			}
-			if job.EstimatedLengthMM > 0 {
-				actualWeight := domain.WeightFromLength(job.EstimatedLengthMM, spool.DiameterMM, spool.DensityGCM3)
-				estimatedWeight := job.EstimatedWeightG
-				if estimatedWeight == 0 && job.Status == domain.PrintStatusSuccess {
-					estimatedWeight = actualWeight
-				}
-				completion := job.CompletionPercent
-				if completion <= 0 && estimatedWeight > 0 {
-					completion = min(max(int(actualWeight/estimatedWeight*100), 0), 100)
-				}
-				if err := s.prints.UpdateUsage(ctx, job.ID, estimatedWeight, actualWeight, job.EstimatedLengthMM, completion, true); err != nil {
-					return nil, fmt.Errorf("updating print job usage: %w", err)
-				}
-				job.EstimatedWeightG = estimatedWeight
-				job.ActualWeightG = actualWeight
-				job.CompletionPercent = completion
-				job.UsageMeasured = true
-			}
-			job.PreviewImagePath, err = s.previews.Resolve(ctx, job.PreviewImageHash, job.PreviewImagePath)
-			if err != nil {
-				return nil, fmt.Errorf("loading print preview image: %w", err)
-			}
-			return job, nil
+			return s.assignRecordedJobSpool(ctx, item.LocalPrintJobID, spool)
 		}
-		return s.createPrintFromHistory(ctx, item, spool)
+		job, err := s.createPrintFromHistory(ctx, item, spool)
+		if errors.Is(err, domain.ErrPrintJobAlreadyExists) {
+			stored, lookupErr := s.findRecordedPrinterJob(ctx, printerID, externalPrintID)
+			if lookupErr != nil {
+				return nil, lookupErr
+			}
+			return s.assignRecordedJobSpool(ctx, stored.ID, spool)
+		}
+		return job, err
 	}
 	return nil, fmt.Errorf("printer history job not found: %s", externalPrintID)
 }
@@ -1045,4 +1048,49 @@ func newestPrintTime(jobs []domain.PrintJob) time.Time {
 		}
 	}
 	return newest
+}
+
+func (s *PrinterService) findRecordedPrinterJob(ctx context.Context, printerID, externalID string) (*domain.PrintJob, error) {
+	jobs, err := s.prints.List(ctx, domain.PrintJobFilter{PrinterID: &printerID,
+		HistoryMatches: []domain.PrintHistoryMatch{{ExternalPrintID: externalID}}})
+	if err != nil {
+		return nil, fmt.Errorf("getting recorded printer job: %w", err)
+	}
+	if len(jobs) != 1 {
+		return nil, fmt.Errorf("recorded printer job not found: %s", externalID)
+	}
+	return &jobs[0], nil
+}
+
+func (s *PrinterService) assignRecordedJobSpool(ctx context.Context, jobID string, spool *domain.Spool) (*domain.PrintJob, error) {
+	if err := s.prints.UpdateSpool(ctx, jobID, spool.ID); err != nil {
+		return nil, fmt.Errorf("changing print job spool: %w", err)
+	}
+	job, err := s.prints.GetByID(ctx, jobID)
+	if err != nil {
+		return nil, err
+	}
+	if job.EstimatedLengthMM > 0 {
+		actualWeight := domain.WeightFromLength(job.EstimatedLengthMM, spool.DiameterMM, spool.DensityGCM3)
+		estimatedWeight := job.EstimatedWeightG
+		if estimatedWeight == 0 && job.Status == domain.PrintStatusSuccess {
+			estimatedWeight = actualWeight
+		}
+		completion := job.CompletionPercent
+		if completion <= 0 && estimatedWeight > 0 {
+			completion = min(max(int(actualWeight/estimatedWeight*100), 0), 100)
+		}
+		if err := s.prints.UpdateUsage(ctx, job.ID, estimatedWeight, actualWeight, job.EstimatedLengthMM, completion, true); err != nil {
+			return nil, fmt.Errorf("updating print job usage: %w", err)
+		}
+		job.EstimatedWeightG = estimatedWeight
+		job.ActualWeightG = actualWeight
+		job.CompletionPercent = completion
+		job.UsageMeasured = true
+	}
+	job.PreviewImagePath, err = s.previews.Resolve(ctx, job.PreviewImageHash, job.PreviewImagePath)
+	if err != nil {
+		return nil, fmt.Errorf("loading print preview image: %w", err)
+	}
+	return job, nil
 }

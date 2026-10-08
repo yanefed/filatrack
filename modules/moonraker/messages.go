@@ -198,3 +198,29 @@ func secondsDuration(seconds float64) time.Duration {
 	}
 	return time.Duration(seconds * float64(time.Second))
 }
+
+// DecodeFinishedHistoryJob reads the authoritative job identity and final data
+// from notify_history_changed. Status updates alone do not identify a job.
+func DecodeFinishedHistoryJob(raw json.RawMessage) (HistoryJob, bool, error) {
+	var envelope rpcEnvelope
+	if err := json.Unmarshal(raw, &envelope); err != nil {
+		return HistoryJob{}, false, fmt.Errorf("decoding moonraker message: %w", err)
+	}
+	if envelope.Method != "notify_history_changed" || len(envelope.Params) == 0 {
+		return HistoryJob{}, false, nil
+	}
+	var notification struct {
+		Action string     `json:"action"`
+		Job    historyJob `json:"job"`
+	}
+	if err := json.Unmarshal(envelope.Params[0], &notification); err != nil {
+		return HistoryJob{}, false, fmt.Errorf("decoding history notification: %w", err)
+	}
+	if notification.Action != "finished" {
+		return HistoryJob{}, false, nil
+	}
+	if notification.Job.JobID == "" {
+		return HistoryJob{}, false, fmt.Errorf("finished history job has no job_id")
+	}
+	return notification.Job.decode(), true, nil
+}

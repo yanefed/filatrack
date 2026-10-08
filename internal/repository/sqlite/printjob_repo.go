@@ -30,10 +30,12 @@ func (r *PrintJobRepo) Create(ctx context.Context, job *domain.PrintJob) error {
 		job.ID = uuid.New().String()
 	}
 	persisted := entity.PrintJobFromDomain(*job)
-	_, err := execWithBusyRetry(ctx, func() (sql.Result, error) {
+	result, err := execWithBusyRetry(ctx, func() (sql.Result, error) {
 		return r.db.conn.ExecContext(ctx,
 			`INSERT INTO print_jobs (id, spool_id, printer_id, external_print_id, gcode_filename, model_name, status, completion_percent, estimated_weight_g, actual_weight_g, estimated_length_mm, print_duration_sec, nozzle_temp_c, bed_temp_c, slicer, preview_image_path, notes, printed_at, created_at, usage_measured, preview_image_hash)
-			 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+			 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+         ON CONFLICT (printer_id, external_print_id)
+         WHERE printer_id IS NOT NULL AND external_print_id != '' DO NOTHING`,
 			persisted.ID, persisted.SpoolID, persisted.PrinterID, persisted.ExternalPrintID, persisted.GcodeFilename, persisted.ModelName,
 			persisted.Status, persisted.CompletionPercent,
 			persisted.EstimatedWeightG, persisted.ActualWeightG, persisted.EstimatedLengthMM,
@@ -44,6 +46,13 @@ func (r *PrintJobRepo) Create(ctx context.Context, job *domain.PrintJob) error {
 	})
 	if err != nil {
 		return fmt.Errorf("inserting print job: %w", err)
+	}
+	affected, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("checking inserted print job: %w", err)
+	}
+	if affected == 0 {
+		return domain.ErrPrintJobAlreadyExists
 	}
 	return nil
 }

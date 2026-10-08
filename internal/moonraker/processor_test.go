@@ -36,7 +36,7 @@ func TestProcessorRecordsCompletedPrint(t *testing.T) {
 	if event.PrinterID != "printer-1" || event.GcodeFilename != "benchy.gcode" || event.Status != domain.PrintStatusSuccess || event.CompletionPercent != 100 || event.ActualLengthMM != 7654 || event.PrintDuration != time.Hour || event.PrintedAt != finished {
 		t.Fatalf("completed event = %+v", event)
 	}
-	if event.ExternalPrintID != "printer-1:benchy.gcode:1000" {
+	if event.ExternalPrintID != "" {
 		t.Fatalf("external print id = %q", event.ExternalPrintID)
 	}
 }

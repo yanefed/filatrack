@@ -149,3 +149,27 @@ func TestPartialDisplayUpdatePreservesVirtualSDProgress(t *testing.T) {
 		t.Fatalf("update without progress = %+v, %v, %v", update, ok, err)
 	}
 }
+
+func TestDecodeFinishedHistoryJob(t *testing.T) {
+	for _, tc := range []struct {
+		raw      string
+		ok, fail bool
+	}{
+		{`{"method":"notify_history_changed","params":[{"action":"finished","job":{"job_id":"000042","filename":"part.gcode","status":"completed","end_time":1060,"filament_used":"1000"}}]}`, true, false},
+		{`{"method":"notify_history_changed","params":[{"action":"added","job":{"job_id":"000042"}}]}`, false, false},
+		{`{"method":"notify_status_update","params":[{}]}`, false, false},
+		{`{"method":"notify_history_changed","params":[{"action":"finished","job":{}}]}`, false, true},
+		{`{"method":"notify_history_changed","params":["bad"]}`, false, true},
+	} {
+		job, ok, err := DecodeFinishedHistoryJob(json.RawMessage(tc.raw))
+		if ok != tc.ok || (err != nil) != tc.fail {
+			t.Fatalf("%s: ok=%v error=%v", tc.raw, ok, err)
+		}
+		if err != nil {
+			continue
+		}
+		if ok && (job.JobID != "000042" || job.FilamentUsedMM != 1000 || job.EndedAt.Unix() != 1060) {
+			t.Fatalf("job=%+v", job)
+		}
+	}
+}

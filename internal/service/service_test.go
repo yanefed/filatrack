@@ -1167,7 +1167,7 @@ func TestPrinterServiceSyncPrinterHistorySkipsLiveMonitorDuplicate(t *testing.T)
 	prints := &printRepoStub{list: []domain.PrintJob{{
 		ID:              "live-1",
 		PrinterID:       "printer-1",
-		ExternalPrintID: "live-generated-id",
+		ExternalPrintID: "printer-1:cube.gcode:1000",
 		GcodeFilename:   "cube.gcode",
 		PrintedAt:       endedAt,
 	}}}
@@ -1572,5 +1572,37 @@ func TestSettingsServiceMaterials(t *testing.T) {
 	repo.deleteErr = wantErr
 	if err := service.DeleteMaterial(t.Context(), "Wood"); !errors.Is(err, wantErr) || repo.deletedMaterial != "Wood" {
 		t.Fatalf("DeleteMaterial() = %v, deleted=%q", err, repo.deletedMaterial)
+	}
+}
+
+func TestPrinterServiceRecordDuplicateReturnsStoredJob(t *testing.T) {
+	printers := &printerRepoStub{printer: &domain.Printer{ID: "p", ActiveSpoolID: "s"}}
+	spools := &spoolRepoStub{spool: &domain.Spool{ID: "s"}}
+	prints := &printRepoStub{createErr: domain.ErrPrintJobAlreadyExists, list: []domain.PrintJob{{ID: "stored", PrinterID: "p", ExternalPrintID: "remote"}}}
+	svc := newTestPrinterService(printers, spools, prints)
+	job, err := svc.RecordPrinterPrint(t.Context(), domain.PrinterPrintEvent{PrinterID: "p", ExternalPrintID: "remote"})
+	if err != nil || job.ID != "stored" {
+		t.Fatalf("job=%+v error=%v", job, err)
+	}
+}
+
+func TestPrinterServiceSyncIgnoresConcurrentInsert(t *testing.T) {
+	printers := &printerRepoStub{printer: &domain.Printer{ID: "p"}}
+	prints := &printRepoStub{createErr: domain.ErrPrintJobAlreadyExists}
+	svc := newTestPrinterService(printers, &spoolRepoStub{}, prints)
+	svc.SetJobClient(&printerJobClientStub{history: []domain.PrinterHistoryJob{{ExternalPrintID: "remote", Status: domain.PrinterHistoryStatusCompleted}}})
+	if n, err := svc.SyncPrinterHistory(t.Context(), "p", 10); n != 0 || err != nil {
+		t.Fatalf("created=%d error=%v", n, err)
+	}
+}
+
+func TestPrinterServiceSyncKeepsDistinctJobsInSameMinute(t *testing.T) {
+	ended := time.Unix(1020, 0)
+	printers := &printerRepoStub{printer: &domain.Printer{ID: "p"}}
+	prints := &printRepoStub{list: []domain.PrintJob{{ID: "first", PrinterID: "p", ExternalPrintID: "remote-1", GcodeFilename: "part.gcode", PrintedAt: ended}}}
+	svc := newTestPrinterService(printers, &spoolRepoStub{}, prints)
+	svc.SetJobClient(&printerJobClientStub{history: []domain.PrinterHistoryJob{{ExternalPrintID: "remote-2", GcodeFilename: "part.gcode", EndedAt: ended.Add(time.Second), Status: domain.PrinterHistoryStatusCompleted}}})
+	if n, err := svc.SyncPrinterHistory(t.Context(), "p", 10); n != 1 || err != nil {
+		t.Fatalf("created=%d error=%v", n, err)
 	}
 }

@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	api "github.com/yanefed/moonraker"
 	"time"
 )
 
@@ -51,6 +52,8 @@ func (m Monitor) Run(ctx context.Context) error {
 	}
 
 	processor := NewProcessor(m.Printer.ID)
+	var lastEvent *domain.PrinterPrintEvent
+	var progress float64
 	for {
 		select {
 		case <-ctx.Done():
@@ -61,6 +64,42 @@ func (m Monitor) Run(ctx context.Context) error {
 		var raw json.RawMessage
 		if err := conn.ReadJSON(&raw); err != nil {
 			return fmt.Errorf("reading moonraker websocket: %w", err)
+		}
+
+		historyJob, finished, err := api.DecodeFinishedHistoryJob(raw)
+		if err != nil {
+			return err
+		}
+		if finished {
+			history := domainHistory(m.Printer.ID, []api.HistoryJob{historyJob})[0]
+			status, valid := history.PrintStatus()
+			if !valid {
+				continue
+			}
+			completion := 100
+			if status != domain.PrintStatusSuccess {
+				completion = min(max(int(progress*100), 0), 100)
+				if lastEvent != nil && lastEvent.GcodeFilename == history.GcodeFilename {
+					completion = lastEvent.CompletionPercent
+				}
+			}
+			event := domain.PrinterPrintEvent{
+				PrinterID: m.Printer.ID, ExternalPrintID: history.ExternalPrintID,
+				GcodeFilename: history.GcodeFilename, Status: status,
+				CompletionPercent: completion, ActualLengthMM: history.FilamentUsedMM,
+				EstimatedWeightG: history.EstimatedWeightG, PrintDuration: history.PrintDuration,
+				PrintedAt: history.EndedAt, NozzleTempC: history.NozzleTempC,
+				BedTempC: history.BedTempC, Slicer: history.Slicer,
+			}
+			if m.Metadata != nil {
+				enrichEventWithMetadata(ctx, m.Metadata, m.Printer, &event)
+			}
+			if _, err := m.Sink.RecordPrinterPrint(ctx, event); err != nil {
+				return fmt.Errorf("recording printer print: %w", err)
+			}
+			lastEvent = nil
+			progress = 0
+			continue
 		}
 
 		update, ok, err := DecodeStatusUpdate(raw)
@@ -75,14 +114,18 @@ func (m Monitor) Run(ctx context.Context) error {
 		if err := m.Sink.UpdateStatus(ctx, &printer); err != nil {
 			continue
 		}
-		if event != nil {
-			if m.Metadata != nil {
-				enrichEventWithMetadata(ctx, m.Metadata, m.Printer, event)
-			}
-			if _, err := m.Sink.RecordPrinterPrint(ctx, *event); err != nil {
-				return fmt.Errorf("recording printer print: %w", err)
-			}
+		if update.RawPrintState == "printing" {
+			lastEvent = nil
 		}
+		if update.HasProgress {
+			progress = update.Progress
+		}
+		// Preserve completion progress, but persist only the server's history
+		// notification. Each client receives the same Moonraker job_id.
+		if event != nil {
+			lastEvent = event
+		}
+
 	}
 }
 

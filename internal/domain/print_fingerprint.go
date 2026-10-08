@@ -2,6 +2,7 @@ package domain
 
 import (
 	"fmt"
+	"strings"
 	"time"
 )
 
@@ -13,6 +14,11 @@ func makePrintFingerprint(filename string, printedAt time.Time) string {
 }
 
 func (p *PrintJob) Fingerprint() string {
+	// Only old live records used a client-generated ID. Canonical remote IDs
+	// must never match by filename/minute: distinct short prints may share both.
+	if !strings.HasPrefix(p.ExternalPrintID, p.PrinterID+":"+p.GcodeFilename+":") {
+		return ""
+	}
 	return makePrintFingerprint(p.GcodeFilename, p.PrintedAt)
 }
 

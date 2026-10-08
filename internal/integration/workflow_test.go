@@ -236,7 +236,7 @@ func TestPrintCostChangesWithAssignedSpool(t *testing.T) {
 		t.Fatal(err)
 	}
 	job, err := app.printers.RecordPrinterPrint(ctx, domain.PrinterPrintEvent{
-		PrinterID: printer.ID, GcodeFilename: "part.gcode", Status: domain.PrintStatusCancelled,
+		PrinterID: printer.ID, ExternalPrintID: "cost-test-job", GcodeFilename: "part.gcode", Status: domain.PrintStatusCancelled,
 		CompletionPercent: 25, ActualLengthMM: 1000,
 	})
 	if err != nil {

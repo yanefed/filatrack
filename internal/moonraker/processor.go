@@ -1,7 +1,6 @@
 package moonraker
 
 import (
-	"fmt"
 	"time"
 
 	"awesomeProject/internal/domain"
@@ -20,7 +19,6 @@ type Processor struct {
 
 type activePrint struct {
 	filename        string
-	startedAt       time.Time
 	highestProgress float64
 }
 
@@ -67,7 +65,7 @@ func (p *Processor) Apply(update StatusUpdate, now time.Time) (domain.Printer, *
 
 	if p.filename != "" && (p.rawPrintState == "printing" || p.rawPrintState == "paused") {
 		if p.active.filename != p.filename {
-			p.active = activePrint{filename: p.filename, startedAt: now}
+			p.active = activePrint{filename: p.filename}
 		}
 		if p.progress > p.active.highestProgress {
 			p.active.highestProgress = p.progress
@@ -95,7 +93,6 @@ func (p *Processor) Apply(update StatusUpdate, now time.Time) (domain.Printer, *
 
 	event := &domain.PrinterPrintEvent{
 		PrinterID:         p.printerID,
-		ExternalPrintID:   externalPrintID(p.printerID, filename, p.active.startedAt),
 		GcodeFilename:     filename,
 		Status:            status,
 		CompletionPercent: completion,
@@ -108,8 +105,4 @@ func (p *Processor) Apply(update StatusUpdate, now time.Time) (domain.Printer, *
 	p.printDuration = 0
 	p.progress = 0
 	return printer, event
-}
-
-func externalPrintID(printerID, filename string, startedAt time.Time) string {
-	return fmt.Sprintf("%s:%s:%d", printerID, filename, startedAt.Unix())
 }
