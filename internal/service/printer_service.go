@@ -653,6 +653,24 @@ func (s *PrinterService) AssignHistoryJobSpool(ctx context.Context, printerID, e
 			if err != nil {
 				return nil, err
 			}
+			if job.EstimatedLengthMM > 0 {
+				actualWeight := domain.WeightFromLength(job.EstimatedLengthMM, spool.DiameterMM, spool.DensityGCM3)
+				estimatedWeight := job.EstimatedWeightG
+				if estimatedWeight == 0 && job.Status == domain.PrintStatusSuccess {
+					estimatedWeight = actualWeight
+				}
+				completion := job.CompletionPercent
+				if completion <= 0 && estimatedWeight > 0 {
+					completion = min(max(int(actualWeight/estimatedWeight*100), 0), 100)
+				}
+				if err := s.prints.UpdateUsage(ctx, job.ID, estimatedWeight, actualWeight, job.EstimatedLengthMM, completion, true); err != nil {
+					return nil, fmt.Errorf("updating print job usage: %w", err)
+				}
+				job.EstimatedWeightG = estimatedWeight
+				job.ActualWeightG = actualWeight
+				job.CompletionPercent = completion
+				job.UsageMeasured = true
+			}
 			job.PreviewImagePath, err = s.previews.Resolve(ctx, job.PreviewImageHash, job.PreviewImagePath)
 			if err != nil {
 				return nil, fmt.Errorf("loading print preview image: %w", err)

@@ -793,6 +793,34 @@ func TestPrinterServiceAssignHistoryJobSpoolCreatesPrintJob(t *testing.T) {
 	}
 }
 
+func TestPrinterServiceAssignHistoryJobSpoolRecalculatesExistingUsage(t *testing.T) {
+	spool := &domain.Spool{ID: "spool-1", DiameterMM: 1.75, DensityGCM3: 1.24}
+	printers := &printerRepoStub{printer: &domain.Printer{ID: "printer-1"}}
+	prints := &printRepoStub{created: &domain.PrintJob{
+		ID: "local-1", PrinterID: "printer-1", ExternalPrintID: "remote-1",
+		Status: domain.PrintStatusSuccess, EstimatedLengthMM: 1000,
+	}}
+	client := &printerJobClientStub{history: []domain.PrinterHistoryJob{{
+		PrinterID: "printer-1", ExternalPrintID: "remote-1", GcodeFilename: "benchy.gcode",
+	}}}
+	service := newTestPrinterService(printers, &spoolRepoStub{spool: spool}, prints)
+	service.SetJobClient(client)
+
+	job, err := service.AssignHistoryJobSpool(t.Context(), "printer-1", "remote-1", spool.ID)
+	if err != nil {
+		t.Fatalf("AssignHistoryJobSpool: %v", err)
+	}
+	wantWeight := domain.WeightFromLength(1000, spool.DiameterMM, spool.DensityGCM3)
+	if prints.jobID != "local-1" || prints.spoolID != spool.ID || prints.usageJobID != "local-1" ||
+		math.Abs(prints.actualWeight-wantWeight) > 1e-9 || prints.estimatedWeight != wantWeight ||
+		prints.estimatedLength != 1000 || prints.completion != 100 || !prints.usageMeasured ||
+		math.Abs(job.ActualWeightG-wantWeight) > 1e-9 || !job.UsageMeasured {
+		t.Fatalf("spool update=(%q,%q), usage=(%q, %.6f, %.6f, %.1f, %d, %t), job=%+v",
+			prints.jobID, prints.spoolID, prints.usageJobID, prints.estimatedWeight, prints.actualWeight,
+			prints.estimatedLength, prints.completion, prints.usageMeasured, job)
+	}
+}
+
 func TestPrinterServiceListModelsEnrichesMetadata(t *testing.T) {
 	printers := &printerRepoStub{printer: &domain.Printer{ID: "printer-1"}}
 	client := &printerJobClientStub{
