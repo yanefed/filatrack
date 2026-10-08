@@ -120,7 +120,10 @@ func TestHistoryCheckpointKeepsUnfinishedAndReconciles(t *testing.T) {
 		t.Fatal(err)
 	}
 	saved.FullSync = time.Now().Add(-25 * time.Hour)
-	raw, _ := json.Marshal(saved)
+	raw, err := json.Marshal(saved)
+	if err != nil {
+		t.Fatal(err)
+	}
 	settings.values[key] = string(raw)
 	if n, err := svc.syncHistoryPages(t.Context(), printer, client, importJobs); err != nil || n != 2 || !client.sinces[len(client.sinces)-1].IsZero() {
 		t.Fatalf("daily reconciliation: count=%d error=%v", n, err)

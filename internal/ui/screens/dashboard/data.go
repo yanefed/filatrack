@@ -4,6 +4,8 @@ import (
 	"awesomeProject/internal/domain"
 	"awesomeProject/internal/service"
 	"context"
+	"errors"
+	"fmt"
 )
 
 const recentPrintLimit = 4
@@ -39,7 +41,10 @@ func loadDashboardData(ctx context.Context, spoolSvc *service.SpoolService, prin
 			if remainingErr != nil {
 				remaining = spools[i].TotalWeightG
 			}
-			needsDrying, _ := spoolSvc.NeedsDrying(ctx, &spools[i])
+			needsDrying, dryingErr := spoolSvc.NeedsDrying(ctx, &spools[i])
+			if dryingErr != nil {
+				data.spoolsErr = errors.Join(data.spoolsErr, fmt.Errorf("checking drying for spool %s: %w", spools[i].ID, dryingErr))
+			}
 			data.spools = append(data.spools, dashboardSpool{Spool: spools[i], RemainingG: remaining, NeedsDrying: needsDrying})
 		}
 	}

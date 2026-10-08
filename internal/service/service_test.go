@@ -511,11 +511,12 @@ func TestSpoolServiceNeedsDrying(t *testing.T) {
 	}
 	settings.profilesErr = errors.New("settings unavailable")
 	need, err = service.NeedsDrying(t.Context(), spool)
-	if err != nil || need {
-		t.Fatalf("unavailable material settings = (%v, %v), want false", need, err)
+	if !errors.Is(err, settings.profilesErr) || need {
+		t.Fatalf("unavailable material settings = (%v, %v), want repository error", need, err)
 	}
 
-	unknown := &domain.Spool{ID: "custom", Material: "Custom"}
+	settings.profilesErr = nil
+	unknown := &domain.Spool{ID: "custom", Material: "Unknown"}
 	need, err = service.NeedsDrying(t.Context(), unknown)
 	if err != nil || need {
 		t.Fatalf("unknown material NeedsDrying() = (%v, %v), want false", need, err)

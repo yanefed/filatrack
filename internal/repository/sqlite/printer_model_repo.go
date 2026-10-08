@@ -3,8 +3,8 @@ package sqlite
 import (
 	"awesomeProject/internal/domain"
 	"awesomeProject/internal/port"
+	"awesomeProject/internal/repository/dbutil"
 	"context"
-	"database/sql"
 	"fmt"
 	"time"
 
@@ -24,9 +24,7 @@ func (r *PrinterModelRepo) SaveForPrinter(ctx context.Context, printerID string,
 	if err != nil {
 		return fmt.Errorf("starting printer models transaction: %w", err)
 	}
-	defer func(tx *sql.Tx) {
-		_ = tx.Rollback()
-	}(tx)
+	defer dbutil.Rollback(tx, &err)
 
 	if _, err := tx.ExecContext(ctx, `DELETE FROM printer_models WHERE printer_id = ?`, printerID); err != nil {
 		return fmt.Errorf("clearing printer models: %w", err)
@@ -41,9 +39,7 @@ func (r *PrinterModelRepo) SaveForPrinter(ctx context.Context, printerID string,
 	if err != nil {
 		return fmt.Errorf("preparing printer model insert: %w", err)
 	}
-	defer func(stmt *sql.Stmt) {
-		_ = stmt.Close()
-	}(stmt)
+	defer dbutil.Close(stmt, &err)
 
 	for _, model := range models {
 		model.PrinterID = printerID
@@ -66,7 +62,7 @@ func (r *PrinterModelRepo) SaveForPrinter(ctx context.Context, printerID string,
 	return nil
 }
 
-func (r *PrinterModelRepo) List(ctx context.Context, printerID *string) ([]domain.PrinterModelFile, error) {
+func (r *PrinterModelRepo) List(ctx context.Context, printerID *string) (result []domain.PrinterModelFile, err error) {
 	query := `SELECT printer_id, path, filename, modified_at, size_bytes, estimated_weight_g, print_duration_sec, slicer, preview_image_path, cached_at, preview_image_hash FROM printer_models`
 	var args []any
 	if printerID != nil {
@@ -79,9 +75,7 @@ func (r *PrinterModelRepo) List(ctx context.Context, printerID *string) ([]domai
 	if err != nil {
 		return nil, fmt.Errorf("listing printer models: %w", err)
 	}
-	defer func(rows *sql.Rows) {
-		_ = rows.Close()
-	}(rows)
+	defer dbutil.Close(rows, &err)
 
 	var models []domain.PrinterModelFile
 	for rows.Next() {

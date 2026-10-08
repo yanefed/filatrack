@@ -27,7 +27,7 @@ func loadDryingHistory(ctx context.Context, dryingSvc *service.DryingService, sp
 	for _, spool := range spools {
 		sessions, err := dryingSvc.ListForSpool(ctx, spool.ID)
 		if err != nil {
-			continue
+			return nil, fmt.Errorf("loading drying history for spool %s: %w", spool.ID, err)
 		}
 		for _, session := range sessions {
 			items = append(items, dryingHistoryItem{spool: spool, session: session})

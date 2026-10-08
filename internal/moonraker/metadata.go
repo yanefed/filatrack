@@ -2,6 +2,7 @@ package moonraker
 
 import (
 	"context"
+	"log/slog"
 	"net/http"
 	"time"
 
@@ -59,7 +60,13 @@ func (f HTTPMetadataFetcher) Fetch(ctx context.Context, printer domain.Printer, 
 	if len(metadata.PreviewImageData) > 0 {
 		metadata.PreviewImageHash = preview.Hash(metadata.PreviewImageData)
 		if f.CacheDir != "" {
-			metadata.PreviewImagePath, _ = preview.WriteCache(f.CacheDir, metadata.PreviewImageHash, metadata.PreviewImageData)
+			path, err := preview.WriteCache(f.CacheDir, metadata.PreviewImageHash, metadata.PreviewImageData)
+			if err != nil {
+				// The downloaded bytes remain usable even if the local cache is unavailable.
+				slog.Warn("writing metadata preview cache failed", "filename", filename, "error", err)
+			} else {
+				metadata.PreviewImagePath = path
+			}
 		}
 	}
 	return metadata, nil

@@ -32,7 +32,9 @@ func openApplication(t *testing.T, path string) applicationServices {
 		t.Fatalf("opening SQLite database: %v", err)
 	}
 	if err := db.Migrate(); err != nil {
-		_ = db.Close()
+		if err := db.Close(); err != nil {
+			t.Errorf("closing database: %v", err)
+		}
 		t.Fatalf("migrating SQLite database: %v", err)
 	}
 
@@ -57,7 +59,9 @@ func TestCompleteFilamentTrackingWorkflow(t *testing.T) {
 	originalLanguage := i18n.GetLanguage()
 	t.Cleanup(func() {
 		i18n.SetLanguage(originalLanguage)
-		_ = app.db.Close()
+		if err := app.db.Close(); err != nil {
+			t.Errorf("closing database: %v", err)
+		}
 	})
 	ctx := t.Context()
 
@@ -161,7 +165,11 @@ func TestCompleteFilamentTrackingWorkflow(t *testing.T) {
 		t.Fatalf("closing application database: %v", err)
 	}
 	reopened := openApplication(t, dbPath)
-	t.Cleanup(func() { _ = reopened.db.Close() })
+	t.Cleanup(func() {
+		if err := reopened.db.Close(); err != nil {
+			t.Errorf("closing database: %v", err)
+		}
+	})
 	if got := reopened.settings.GetLanguage(ctx); got != i18n.LangBG {
 		t.Fatalf("persisted language = %q, want %q", got, i18n.LangBG)
 	}
@@ -173,7 +181,11 @@ func TestCompleteFilamentTrackingWorkflow(t *testing.T) {
 
 func TestCancelledPrintDeductsMeasuredFilament(t *testing.T) {
 	app := openApplication(t, filepath.Join(t.TempDir(), "cancelled.db"))
-	t.Cleanup(func() { _ = app.db.Close() })
+	t.Cleanup(func() {
+		if err := app.db.Close(); err != nil {
+			t.Errorf("closing database: %v", err)
+		}
+	})
 	ctx := t.Context()
 	spool := &domain.Spool{Manufacturer: "Test", Material: domain.MaterialPLA, Color: "White", TotalWeightG: 1000}
 	if err := app.spools.Create(ctx, spool); err != nil {
@@ -203,7 +215,11 @@ func TestCancelledPrintDeductsMeasuredFilament(t *testing.T) {
 
 func TestPrintCostChangesWithAssignedSpool(t *testing.T) {
 	app := openApplication(t, filepath.Join(t.TempDir(), "cost.db"))
-	t.Cleanup(func() { _ = app.db.Close() })
+	t.Cleanup(func() {
+		if err := app.db.Close(); err != nil {
+			t.Errorf("closing database: %v", err)
+		}
+	})
 	ctx := t.Context()
 	first := &domain.Spool{Manufacturer: "Test", Material: domain.MaterialPLA, TotalWeightG: 1000, Price: 2000, DensityGCM3: 1.24}
 	second := &domain.Spool{Manufacturer: "Test", Material: domain.MaterialPETG, TotalWeightG: 1000, Price: 3000, DensityGCM3: 1.27}

@@ -4,6 +4,7 @@ import (
 	"awesomeProject/internal/port"
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"log/slog"
 	"os"
@@ -41,6 +42,9 @@ func (m *Manager) SetActivityControl(stop func() error, resume func(context.Cont
 }
 
 func New(ctx context.Context, cfg *config.Config, logger *slog.Logger) (*Manager, error) {
+	if logger == nil {
+		logger = slog.Default()
+	}
 	if cfg.DataDir == "" {
 		cfg.DataDir = filepath.Dir(cfg.DBPath)
 	}
@@ -74,7 +78,9 @@ func (m *Manager) open(ctx context.Context, selection config.DatabaseSelection) 
 			return nil, err
 		}
 		if err := db.Migrate(); err != nil {
-			_ = db.Close()
+			if closeErr := db.Close(); closeErr != nil {
+				err = errors.Join(err, fmt.Errorf("closing SQLite database after migration failure: %w", closeErr))
+			}
 			return nil, err
 		}
 		return &backend{
@@ -89,7 +95,9 @@ func (m *Manager) open(ctx context.Context, selection config.DatabaseSelection) 
 			return nil, err
 		}
 		if err := db.Migrate(); err != nil {
-			_ = db.Close()
+			if closeErr := db.Close(); closeErr != nil {
+				err = errors.Join(err, fmt.Errorf("closing PostgreSQL database after migration failure: %w", closeErr))
+			}
 			return nil, err
 		}
 		return &backend{
@@ -137,8 +145,15 @@ func (m *Manager) Switch(ctx context.Context, next config.DatabaseSelection, mig
 		if nextPath == "" {
 			nextPath = m.config.DBPath
 		}
-		currentPath, _ = filepath.Abs(currentPath)
-		nextPath, _ = filepath.Abs(nextPath)
+		var err error
+		currentPath, err = filepath.Abs(currentPath)
+		if err != nil {
+			return fmt.Errorf("resolving current SQLite path: %w", err)
+		}
+		nextPath, err = filepath.Abs(nextPath)
+		if err != nil {
+			return fmt.Errorf("resolving target SQLite path: %w", err)
+		}
 		if currentPath == nextPath {
 			return fmt.Errorf("SQLite database is already selected")
 		}
@@ -153,7 +168,7 @@ func (m *Manager) Switch(ctx context.Context, next config.DatabaseSelection, mig
 		defer func() {
 			if result != nil && m.resumeActivity != nil {
 				if err := m.resumeActivity(context.Background()); err != nil {
-					result = fmt.Errorf("%w; resuming printer activity: %v", result, err)
+					result = errors.Join(result, fmt.Errorf("resuming printer activity: %w", err))
 				}
 			}
 		}()
@@ -162,7 +177,17 @@ func (m *Manager) Switch(ctx context.Context, next config.DatabaseSelection, mig
 	if err != nil {
 		return fmt.Errorf("opening target database: %w", err)
 	}
-	defer target.close()
+	defer func() {
+		if err := target.close(); err != nil {
+			if result != nil {
+				result = errors.Join(result, fmt.Errorf("closing target database: %w", err))
+				return
+			}
+			// A successful switch has already saved the next-launch selection.
+			// A cleanup failure must not resume writes to the old database.
+			m.logger.Error("closing target database failed", "driver", next.Driver, "error", err)
+		}
+	}()
 	if migrate {
 		if err := transfer.Copy(ctx, m.active.conn, target.conn, next.Driver); err != nil {
 			return err

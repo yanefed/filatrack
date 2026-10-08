@@ -21,7 +21,11 @@ func newSQLite(t *testing.T) *sqlite.DB {
 	if err != nil {
 		t.Fatal(err)
 	}
-	t.Cleanup(func() { _ = db.Close() })
+	t.Cleanup(func() {
+		if err := db.Close(); err != nil {
+			t.Errorf("closing database: %v", err)
+		}
+	})
 	if err := db.Migrate(); err != nil {
 		t.Fatal(err)
 	}
@@ -52,7 +56,11 @@ func TestSQLitePostgresRoundTrip(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer pg.Close()
+	defer func() {
+		if err := pg.Close(); err != nil {
+			t.Errorf("closing PostgreSQL database: %v", err)
+		}
+	}()
 	if err := pg.Migrate(); err != nil {
 		t.Fatal(err)
 	}

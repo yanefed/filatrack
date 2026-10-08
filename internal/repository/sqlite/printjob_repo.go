@@ -3,6 +3,7 @@ package sqlite
 import (
 	"awesomeProject/internal/domain"
 	"awesomeProject/internal/port"
+	"awesomeProject/internal/repository/dbutil"
 	"context"
 	"database/sql"
 	"errors"
@@ -62,49 +63,50 @@ func (r *PrintJobRepo) GetByID(ctx context.Context, id string) (*domain.PrintJob
 	return &job, nil
 }
 
-func (r *PrintJobRepo) List(ctx context.Context, filter domain.PrintJobFilter) ([]domain.PrintJob, error) {
+func (r *PrintJobRepo) List(ctx context.Context, filter domain.PrintJobFilter) (result []domain.PrintJob, err error) {
+	// strings.Builder writes cannot fail.
 	var query strings.Builder
-	query.WriteString(`SELECT id, spool_id, printer_id, external_print_id, gcode_filename, model_name, status, completion_percent, estimated_weight_g, actual_weight_g, estimated_length_mm, print_duration_sec, nozzle_temp_c, bed_temp_c, slicer, preview_image_path, notes, printed_at, created_at, COALESCE((SELECT s.price / s.total_weight_g FROM spools s WHERE s.id = print_jobs.spool_id AND s.price > 0 AND s.total_weight_g > 0), 0), COALESCE((SELECT value FROM app_settings WHERE key = 'currency'), 'RUB'), usage_measured, preview_image_hash FROM print_jobs WHERE 1=1`)
+	_, _ = query.WriteString(`SELECT id, spool_id, printer_id, external_print_id, gcode_filename, model_name, status, completion_percent, estimated_weight_g, actual_weight_g, estimated_length_mm, print_duration_sec, nozzle_temp_c, bed_temp_c, slicer, preview_image_path, notes, printed_at, created_at, COALESCE((SELECT s.price / s.total_weight_g FROM spools s WHERE s.id = print_jobs.spool_id AND s.price > 0 AND s.total_weight_g > 0), 0), COALESCE((SELECT value FROM app_settings WHERE key = 'currency'), 'RUB'), usage_measured, preview_image_hash FROM print_jobs WHERE 1=1`)
 	var args []any
 
 	if filter.SpoolID != nil {
-		query.WriteString(" AND spool_id = ?")
+		_, _ = query.WriteString(" AND spool_id = ?")
 		args = append(args, *filter.SpoolID)
 	}
 	if filter.PrinterID != nil {
-		query.WriteString(" AND printer_id = ?")
+		_, _ = query.WriteString(" AND printer_id = ?")
 		args = append(args, *filter.PrinterID)
 	}
 	if filter.Status != nil {
-		query.WriteString(" AND status = ?")
+		_, _ = query.WriteString(" AND status = ?")
 		args = append(args, string(*filter.Status))
 	}
 	if filter.From != nil {
-		query.WriteString(" AND printed_at >= ?")
+		_, _ = query.WriteString(" AND printed_at >= ?")
 		args = append(args, *filter.From)
 	}
 	if filter.To != nil {
-		query.WriteString(" AND printed_at <= ?")
+		_, _ = query.WriteString(" AND printed_at <= ?")
 		args = append(args, *filter.To)
 	}
 	if filter.HistoryMatches != nil {
-		query.WriteString(" AND (0")
+		_, _ = query.WriteString(" AND (0")
 		for _, match := range filter.HistoryMatches {
 			if match.ExternalPrintID != "" {
-				query.WriteString(" OR external_print_id = ?")
+				_, _ = query.WriteString(" OR external_print_id = ?")
 				args = append(args, match.ExternalPrintID)
 			}
 			if match.Filename != "" && !match.EndedAt.IsZero() {
 				minute := match.EndedAt.UTC().Truncate(time.Minute)
-				query.WriteString(" OR (gcode_filename = ? AND printed_at >= ? AND printed_at < ?)")
+				_, _ = query.WriteString(" OR (gcode_filename = ? AND printed_at >= ? AND printed_at < ?)")
 				args = append(args, match.Filename, minute, minute.Add(time.Minute))
 			}
 		}
-		query.WriteString(")")
+		_, _ = query.WriteString(")")
 	}
-	query.WriteString(" ORDER BY printed_at DESC")
+	_, _ = query.WriteString(" ORDER BY printed_at DESC")
 	if filter.Limit > 0 {
-		query.WriteString(" LIMIT ?")
+		_, _ = query.WriteString(" LIMIT ?")
 		args = append(args, filter.Limit)
 	}
 
@@ -112,9 +114,7 @@ func (r *PrintJobRepo) List(ctx context.Context, filter domain.PrintJobFilter) (
 	if err != nil {
 		return nil, fmt.Errorf("listing print jobs: %w", err)
 	}
-	defer func(rows *sql.Rows) {
-		_ = rows.Close()
-	}(rows)
+	defer dbutil.Close(rows, &err)
 
 	var jobs []domain.PrintJob
 	for rows.Next() {

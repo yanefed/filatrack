@@ -91,7 +91,11 @@ func TestPrintCostMigrationUsesDynamicPrices(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	t.Cleanup(func() { _ = db.Close() })
+	t.Cleanup(func() {
+		if err := db.Close(); err != nil {
+			t.Errorf("closing database: %v", err)
+		}
+	})
 	goose.SetBaseFS(migrations)
 	if err := goose.SetDialect("sqlite3"); err != nil {
 		t.Fatal(err)

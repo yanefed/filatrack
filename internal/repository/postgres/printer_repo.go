@@ -3,6 +3,7 @@ package postgres
 import (
 	"awesomeProject/internal/domain"
 	"awesomeProject/internal/port"
+	"awesomeProject/internal/repository/dbutil"
 	"context"
 	"database/sql"
 	"errors"
@@ -62,16 +63,14 @@ func (r *PrinterRepo) GetByID(ctx context.Context, id string) (*domain.Printer, 
 	return &printer, nil
 }
 
-func (r *PrinterRepo) List(ctx context.Context) ([]domain.Printer, error) {
+func (r *PrinterRepo) List(ctx context.Context) (result []domain.Printer, err error) {
 	rows, err := r.db.QueryContext(ctx,
 		`SELECT id, name, kind, moonraker_url, api_key, enabled, active_spool_id, state, current_file, progress, last_seen_at, created_at, updated_at
 		 FROM printers ORDER BY name`)
 	if err != nil {
 		return nil, fmt.Errorf("listing printers: %w", err)
 	}
-	defer func(rows *sql.Rows) {
-		_ = rows.Close()
-	}(rows)
+	defer dbutil.Close(rows, &err)
 
 	var printers []domain.Printer
 	for rows.Next() {

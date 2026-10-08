@@ -566,7 +566,11 @@ func TestMigrateReturnsSchemaError(t *testing.T) {
 	if err != nil {
 		t.Fatalf("opening database: %v", err)
 	}
-	t.Cleanup(func() { _ = db.Close() })
+	t.Cleanup(func() {
+		if err := db.Close(); err != nil {
+			t.Errorf("closing database: %v", err)
+		}
+	})
 	if _, err := db.Conn().Exec("CREATE TABLE spools (id TEXT PRIMARY KEY)"); err != nil {
 		t.Fatalf("creating conflicting table: %v", err)
 	}
@@ -577,7 +581,9 @@ func TestMigrateReturnsSchemaError(t *testing.T) {
 
 func TestNewReturnsOpenError(t *testing.T) {
 	if db, err := New(t.TempDir()); err == nil {
-		_ = db.Close()
+		if err := db.Close(); err != nil {
+			t.Errorf("closing database: %v", err)
+		}
 		t.Fatal("expected opening a directory as SQLite database to fail")
 	}
 }

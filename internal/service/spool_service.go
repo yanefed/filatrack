@@ -113,7 +113,10 @@ func (s *SpoolService) NeedsDrying(ctx context.Context, spool *domain.Spool) (bo
 	// Try DB profiles first
 	if s.settings != nil {
 		profile, err := s.settings.GetDryingProfileForMaterial(ctx, spool.Material)
-		if err == nil && profile != nil {
+		if err != nil {
+			return false, fmt.Errorf("getting drying profile: %w", err)
+		}
+		if profile != nil {
 			last, err := s.dryings.GetLastDrying(ctx, spool.ID)
 			if err != nil {
 				return false, err

@@ -19,13 +19,38 @@ func TestIncrementalHistorySurvivesDatabaseReopen(t *testing.T) {
 		switch r.URL.Path {
 		case "/server/files/metadata":
 			metadataRequests.Add(1)
-			_, _ = w.Write([]byte(`{"result":{"filament_weight_total":20}}`))
+			if _, err := w.Write([]byte(`{"result":{"filament_weight_total":20}}`)); err != nil {
+				t.Errorf("writing metadata response: %v", err)
+			}
 		case "/server/history/list":
 			historyRequests.Add(1)
 			query := r.URL.Query()
-			since, _ := strconv.ParseFloat(query.Get("since"), 64)
-			start, _ := strconv.Atoi(query.Get("start"))
-			limit, _ := strconv.Atoi(query.Get("limit"))
+			var since float64
+			if raw := query.Get("since"); raw != "" {
+				parsed, err := strconv.ParseFloat(raw, 64)
+				if err != nil {
+					t.Errorf("invalid history boundary %q: %v", raw, err)
+					http.Error(w, "invalid since", http.StatusBadRequest)
+					return
+				}
+				since = parsed
+			}
+			var start int
+			if raw := query.Get("start"); raw != "" {
+				parsed, err := strconv.Atoi(raw)
+				if err != nil || parsed < 0 {
+					t.Errorf("invalid history start %q: %v", raw, err)
+					http.Error(w, "invalid start", http.StatusBadRequest)
+					return
+				}
+				start = parsed
+			}
+			limit, err := strconv.Atoi(query.Get("limit"))
+			if err != nil || limit <= 0 {
+				t.Errorf("invalid history limit %q: %v", query.Get("limit"), err)
+				http.Error(w, "invalid limit", http.StatusBadRequest)
+				return
+			}
 			var jobs []map[string]any
 			for i := 205; i > 0; i-- {
 				if float64(i*100) <= since {
@@ -37,7 +62,9 @@ func TestIncrementalHistorySurvivesDatabaseReopen(t *testing.T) {
 				})
 			}
 			jobs = jobs[min(start, len(jobs)):min(start+limit, len(jobs))]
-			_ = json.NewEncoder(w).Encode(map[string]any{"count": len(jobs), "jobs": jobs})
+			if err := json.NewEncoder(w).Encode(map[string]any{"count": len(jobs), "jobs": jobs}); err != nil {
+				t.Errorf("encoding history response: %v", err)
+			}
 		default:
 			http.NotFound(w, r)
 		}
@@ -45,7 +72,11 @@ func TestIncrementalHistorySurvivesDatabaseReopen(t *testing.T) {
 	t.Cleanup(server.Close)
 	path := filepath.Join(t.TempDir(), "history.db")
 	app := openApplication(t, path)
-	t.Cleanup(func() { _ = app.db.Close() })
+	t.Cleanup(func() {
+		if err := app.db.Close(); err != nil {
+			t.Errorf("closing database: %v", err)
+		}
+	})
 	printer := domain.Printer{Name: "Test", MoonrakerURL: server.URL}
 	if err := app.printers.CreateMoonrakerPrinter(t.Context(), &printer); err != nil {
 		t.Fatal(err)

@@ -21,7 +21,7 @@ type DryingRepo struct {
 }
 
 func NewDryingRepo(db *DB) port.DryingSessionRepository {
-	return &DryingRepo{db: db}
+	return NewDryingRepoWithLogger(db, nil)
 }
 
 func NewDryingRepoWithLogger(db *DB, logger *slog.Logger,

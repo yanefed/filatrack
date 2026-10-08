@@ -5,6 +5,7 @@ import (
 	"context"
 	"database/sql"
 	"embed"
+	"errors"
 	"fmt"
 	"log/slog"
 	"strings"
@@ -30,7 +31,9 @@ func New(ctx context.Context, url string) (*DB, error) {
 	check, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 	if err := conn.PingContext(check); err != nil {
-		_ = conn.Close()
+		if closeErr := conn.Close(); closeErr != nil {
+			err = errors.Join(err, fmt.Errorf("closing PostgreSQL connection: %w", closeErr))
+		}
 		return nil, fmt.Errorf("connecting to PostgreSQL: %w", err)
 	}
 	return &DB{conn: conn}, nil
@@ -115,9 +118,10 @@ func bindPostgres(query string) string {
 	for _, c := range query {
 		if c == '?' {
 			n++
-			fmt.Fprintf(&b, "$%d", n)
+			// strings.Builder writes cannot fail.
+			_, _ = fmt.Fprintf(&b, "$%d", n)
 		} else {
-			b.WriteRune(c)
+			_, _ = b.WriteRune(c)
 		}
 	}
 	return b.String()

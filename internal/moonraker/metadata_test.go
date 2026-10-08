@@ -65,6 +65,17 @@ func TestHTTPMetadataFetcher(t *testing.T) {
 	if err != nil || string(contents) != "png-data" {
 		t.Fatalf("cached preview = (%q, %v)", string(contents), err)
 	}
+
+	blockedCache := filepath.Join(t.TempDir(), "cache-file")
+	if err := os.WriteFile(blockedCache, []byte("not a directory"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	metadata, err = (HTTPMetadataFetcher{CacheDir: blockedCache}).Fetch(t.Context(), domain.Printer{
+		MoonrakerURL: server.URL, APIKey: "secret",
+	}, "folder/benchy.gcode")
+	if err != nil || metadata.PreviewImagePath != "" || metadata.PreviewImageHash == "" || string(metadata.PreviewImageData) != "png-data" {
+		t.Fatalf("cache failure discarded usable preview: %+v, %v", metadata, err)
+	}
 }
 
 func TestHTTPMetadataFetcherCheck(t *testing.T) {

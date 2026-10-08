@@ -2,6 +2,7 @@ package postgres
 
 import (
 	"awesomeProject/internal/port"
+	"awesomeProject/internal/repository/dbutil"
 	"context"
 	"database/sql"
 	"errors"
@@ -71,7 +72,7 @@ func (r *SpoolRepo) GetByID(ctx context.Context, id string) (*domain.Spool, erro
 	return &spool, nil
 }
 
-func (r *SpoolRepo) List(ctx context.Context, filter domain.SpoolFilter) ([]domain.Spool, error) {
+func (r *SpoolRepo) List(ctx context.Context, filter domain.SpoolFilter) (result []domain.Spool, err error) {
 	query := `SELECT id, display_code, manufacturer, material, color, color_hex, diameter_mm, total_weight_g, price, density_g_cm3, purchased_at, archived, created_at, updated_at FROM spools WHERE 1=1`
 	var args []any
 
@@ -97,7 +98,7 @@ func (r *SpoolRepo) List(ctx context.Context, filter domain.SpoolFilter) ([]doma
 	if err != nil {
 		return nil, fmt.Errorf("listing spools: %w", err)
 	}
-	defer rows.Close()
+	defer dbutil.Close(rows, &err)
 
 	var spools []domain.Spool
 	for rows.Next() {

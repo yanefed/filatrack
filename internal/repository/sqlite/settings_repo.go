@@ -3,6 +3,7 @@ package sqlite
 import (
 	"awesomeProject/internal/domain"
 	"awesomeProject/internal/port"
+	"awesomeProject/internal/repository/dbutil"
 	"awesomeProject/internal/repository/entity"
 	"context"
 	"database/sql"
@@ -38,7 +39,7 @@ func (r *SettingsRepo) SetSetting(ctx context.Context, key, value string) error 
 	return nil
 }
 
-func (r *SettingsRepo) ListMaterials(ctx context.Context) ([]domain.MaterialDefinition, error) {
+func (r *SettingsRepo) ListMaterials(ctx context.Context) (result []domain.MaterialDefinition, err error) {
 	rows, err := r.db.conn.QueryContext(ctx, `
 		SELECT name, density_g_cm3, drying_temperature_c,
 		       drying_duration_hours, max_days_no_dry
@@ -47,7 +48,7 @@ func (r *SettingsRepo) ListMaterials(ctx context.Context) ([]domain.MaterialDefi
 	if err != nil {
 		return nil, fmt.Errorf("listing materials: %w", err)
 	}
-	defer rows.Close()
+	defer dbutil.Close(rows, &err)
 
 	var materials []domain.MaterialDefinition
 	for rows.Next() {

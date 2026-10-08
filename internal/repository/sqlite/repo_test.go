@@ -17,7 +17,11 @@ func setupTestDB(t *testing.T) *DB {
 	if err := db.Migrate(); err != nil {
 		t.Fatalf("running migrations: %v", err)
 	}
-	t.Cleanup(func() { db.Close() })
+	t.Cleanup(func() {
+		if err := db.Close(); err != nil {
+			t.Errorf("closing database: %v", err)
+		}
+	})
 	return db
 }
 

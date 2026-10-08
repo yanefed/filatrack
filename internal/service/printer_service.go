@@ -267,6 +267,8 @@ func (s *PrinterService) RefreshModels(ctx context.Context, printerID string) ([
 			for _, model := range cached {
 				cachedByPath[model.Path] = model
 			}
+		} else {
+			s.logger.Warn("loading cached printer models failed", "printer_id", printerID, "error", cacheErr)
 		}
 	}
 	diameterMM, densityGCM3 := s.modelFilamentProperties(ctx, printer)
@@ -280,7 +282,11 @@ func (s *PrinterService) RefreshModels(ctx context.Context, printerID string) ([
 			models[i].PreviewImagePath = cached.PreviewImagePath
 			models[i].PreviewImageHash = cached.PreviewImageHash
 		}
-		metadata, _ := s.jobClient.FetchMetadata(ctx, *printer, models[i].Path)
+		metadata, metadataErr := s.jobClient.FetchMetadata(ctx, *printer, models[i].Path)
+		if metadataErr != nil {
+			s.logger.Debug("fetching printer model metadata failed", "printer_id", printerID, "filename", models[i].Path, "error", metadataErr)
+			metadata = nil
+		}
 		if metadata == nil {
 			metadata = &domain.GcodeMetadata{Filename: models[i].Path}
 		}
@@ -288,6 +294,8 @@ func (s *PrinterService) RefreshModels(ctx context.Context, printerID string) ([
 			localMetadata, downloadErr := s.downloadModelMetadata(ctx, *printer, models[i].Path)
 			if downloadErr == nil {
 				metadata.MergeMissingGcodeMetadata(localMetadata)
+			} else {
+				s.logger.Debug("downloading printer model metadata failed", "printer_id", printerID, "filename", models[i].Path, "error", downloadErr)
 			}
 		}
 		weightG := metadata.FilamentWeightG
