@@ -10,7 +10,6 @@ import (
 	"awesomeProject/internal/domain"
 	"awesomeProject/internal/gcode"
 	"awesomeProject/internal/i18n"
-	"awesomeProject/internal/repository"
 	"awesomeProject/internal/repository/sqlite"
 	"awesomeProject/internal/service"
 
@@ -141,7 +140,7 @@ func TestCompleteFilamentTrackingWorkflow(t *testing.T) {
 		t.Fatalf("unexpected print job: %+v", job)
 	}
 
-	storedJobs, err := app.prints.List(ctx, repository.PrintJobFilter{})
+	storedJobs, err := app.prints.List(ctx, domain.PrintJobFilter{})
 	if err != nil || len(storedJobs) != 1 || storedJobs[0].ModelName != "calibration_cube" {
 		t.Fatalf("stored print jobs = (%+v, %v)", storedJobs, err)
 	}
@@ -149,7 +148,7 @@ func TestCompleteFilamentTrackingWorkflow(t *testing.T) {
 	if err != nil || storedSpool.ID != spool.ID || math.Abs(remaining-(1000-job.ActualWeightG)) > 1e-9 {
 		t.Fatalf("remaining filament = (%+v, %v, %v)", storedSpool, remaining, err)
 	}
-	stats, err := app.prints.GetStats(ctx, repository.StatsFilter{})
+	stats, err := app.prints.GetStats(ctx, domain.StatsFilter{})
 	if err != nil || stats.TotalPrints != 1 || stats.SuccessCount != 1 || math.Abs(stats.TotalWeightG-job.ActualWeightG) > 1e-9 {
 		t.Fatalf("print statistics = (%+v, %v)", stats, err)
 	}
@@ -230,7 +229,7 @@ func TestPrintCostChangesWithAssignedSpool(t *testing.T) {
 	if err := app.prints.ChangeSpool(ctx, job.ID, second.ID); err != nil {
 		t.Fatal(err)
 	}
-	jobs, err := app.prints.List(ctx, repository.PrintJobFilter{})
+	jobs, err := app.prints.List(ctx, domain.PrintJobFilter{})
 	if err != nil || len(jobs) != 1 {
 		t.Fatalf("jobs: %+v, %v", jobs, err)
 	}

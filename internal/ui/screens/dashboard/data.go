@@ -2,7 +2,6 @@ package dashboard
 
 import (
 	"awesomeProject/internal/domain"
-	"awesomeProject/internal/repository"
 	"awesomeProject/internal/service"
 	"context"
 )
@@ -16,7 +15,7 @@ type dashboardSpool struct {
 }
 
 type dashboardData struct {
-	stats       *repository.PrintStats
+	stats       *domain.PrintStats
 	spools      []dashboardSpool
 	printers    []domain.Printer
 	recent      []domain.PrintJob
@@ -28,10 +27,10 @@ type dashboardData struct {
 
 func loadDashboardData(ctx context.Context, spoolSvc *service.SpoolService, printSvc *service.PrintService, printerSvc *service.PrinterService) dashboardData {
 	data := dashboardData{}
-	data.stats, data.statsErr = printSvc.GetStats(ctx, repository.StatsFilter{})
+	data.stats, data.statsErr = printSvc.GetStats(ctx, domain.StatsFilter{})
 
 	notArchived := false
-	spools, err := spoolSvc.List(ctx, repository.SpoolFilter{Archived: &notArchived})
+	spools, err := spoolSvc.List(ctx, domain.SpoolFilter{Archived: &notArchived})
 	data.spoolsErr = err
 	if err == nil {
 		data.spools = make([]dashboardSpool, 0, len(spools))
@@ -46,7 +45,7 @@ func loadDashboardData(ctx context.Context, spoolSvc *service.SpoolService, prin
 	}
 
 	data.printers, data.printersErr = printerSvc.List(ctx)
-	data.recent, data.recentErr = printSvc.List(ctx, repository.PrintJobFilter{Limit: recentPrintLimit})
+	data.recent, data.recentErr = printSvc.List(ctx, domain.PrintJobFilter{Limit: recentPrintLimit})
 	return data
 }
 

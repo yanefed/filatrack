@@ -2,7 +2,6 @@ package service
 
 import (
 	"awesomeProject/internal/domain"
-	"awesomeProject/internal/repository"
 	"context"
 	"encoding/json"
 	"errors"
@@ -134,10 +133,10 @@ func TestHistoryCheckpointKeepsUnfinishedAndReconciles(t *testing.T) {
 
 type historyPrintRepo struct {
 	printRepoStub
-	filters []repository.PrintJobFilter
+	filters []domain.PrintJobFilter
 }
 
-func (r *historyPrintRepo) List(_ context.Context, filter repository.PrintJobFilter) ([]domain.PrintJob, error) {
+func (r *historyPrintRepo) List(_ context.Context, filter domain.PrintJobFilter) ([]domain.PrintJob, error) {
 	r.filters = append(r.filters, filter)
 	return r.list, nil
 }

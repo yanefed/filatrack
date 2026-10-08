@@ -2,8 +2,8 @@ package service
 
 import (
 	"awesomeProject/internal/domain"
+	"awesomeProject/internal/port"
 	"awesomeProject/internal/preview"
-	"awesomeProject/internal/repository"
 	"context"
 	"errors"
 	"fmt"
@@ -13,11 +13,11 @@ import (
 )
 
 type PreviewImageStore struct {
-	images   repository.PreviewImageRepository
+	images   port.PreviewImageRepository
 	cacheDir string
 }
 
-func NewPreviewImageStore(images repository.PreviewImageRepository, cacheDir string) *PreviewImageStore {
+func NewPreviewImageStore(images port.PreviewImageRepository, cacheDir string) *PreviewImageStore {
 	return &PreviewImageStore{images: images, cacheDir: cacheDir}
 }
 

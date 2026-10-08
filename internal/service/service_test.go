@@ -3,7 +3,7 @@ package service
 import (
 	"awesomeProject/internal/domain"
 	"awesomeProject/internal/i18n"
-	"awesomeProject/internal/repository"
+	"awesomeProject/internal/port"
 	"context"
 	"errors"
 	"math"
@@ -38,7 +38,7 @@ func (r *spoolRepoStub) Create(_ context.Context, spool *domain.Spool) error {
 func (r *spoolRepoStub) GetByID(context.Context, string) (*domain.Spool, error) {
 	return r.spool, r.getErr
 }
-func (r *spoolRepoStub) List(context.Context, repository.SpoolFilter) ([]domain.Spool, error) {
+func (r *spoolRepoStub) List(context.Context, domain.SpoolFilter) ([]domain.Spool, error) {
 	return r.list, r.listErr
 }
 func (r *spoolRepoStub) Update(_ context.Context, spool *domain.Spool) error {
@@ -59,7 +59,7 @@ type printRepoStub struct {
 	createErr       error
 	list            []domain.PrintJob
 	listErr         error
-	stats           *repository.PrintStats
+	stats           *domain.PrintStats
 	statsErr        error
 	spoolID         string
 	jobID           string
@@ -80,10 +80,10 @@ func (r *printRepoStub) Create(_ context.Context, job *domain.PrintJob) error {
 func (r *printRepoStub) GetByID(context.Context, string) (*domain.PrintJob, error) {
 	return r.created, nil
 }
-func (r *printRepoStub) List(context.Context, repository.PrintJobFilter) ([]domain.PrintJob, error) {
+func (r *printRepoStub) List(context.Context, domain.PrintJobFilter) ([]domain.PrintJob, error) {
 	return r.list, r.listErr
 }
-func (r *printRepoStub) GetStats(context.Context, repository.StatsFilter) (*repository.PrintStats, error) {
+func (r *printRepoStub) GetStats(context.Context, domain.StatsFilter) (*domain.PrintStats, error) {
 	return r.stats, r.statsErr
 }
 func (r *printRepoStub) UpdateSpool(_ context.Context, jobID, spoolID string) error {
@@ -174,9 +174,9 @@ func (r *settingsRepoStub) DeleteMaterial(_ context.Context, name domain.Materia
 }
 
 func newTestPrinterService(
-	printers repository.PrinterRepository,
-	spools repository.SpoolRepository,
-	prints repository.PrintJobRepository,
+	printers port.PrinterRepository,
+	spools port.SpoolRepository,
+	prints port.PrintJobRepository,
 ) *PrinterService {
 	return NewPrinterService(printers, spools, prints, &settingsRepoStub{setting: "50"})
 }
@@ -462,7 +462,7 @@ func TestSpoolServiceGetWithRemainingAndList(t *testing.T) {
 	if err != nil || got != wantSpool || remaining != 70 {
 		t.Fatalf("GetWithRemaining() = (%+v, %v, %v)", got, remaining, err)
 	}
-	listed, err := service.List(t.Context(), repository.SpoolFilter{})
+	listed, err := service.List(t.Context(), domain.SpoolFilter{})
 	if err != nil || len(listed) != 1 || listed[0].ID != "spool" {
 		t.Fatalf("List() = (%+v, %v)", listed, err)
 	}
@@ -532,16 +532,16 @@ func TestPrintServiceListAndStats(t *testing.T) {
 	wantErr := errors.New("repository error")
 	prints := &printRepoStub{
 		list:     []domain.PrintJob{{ID: "job"}},
-		stats:    &repository.PrintStats{TotalPrints: 1},
+		stats:    &domain.PrintStats{TotalPrints: 1},
 		listErr:  wantErr,
 		statsErr: wantErr,
 	}
 	service := NewPrintService(prints, &spoolRepoStub{})
 
-	if jobs, err := service.List(t.Context(), repository.PrintJobFilter{}); len(jobs) != 1 || !errors.Is(err, wantErr) {
+	if jobs, err := service.List(t.Context(), domain.PrintJobFilter{}); len(jobs) != 1 || !errors.Is(err, wantErr) {
 		t.Fatalf("List() = (%+v, %v)", jobs, err)
 	}
-	stats, err := service.GetStats(t.Context(), repository.StatsFilter{})
+	stats, err := service.GetStats(t.Context(), domain.StatsFilter{})
 	if !errors.Is(err, wantErr) {
 		t.Fatalf("GetStats() = (%+v, %v)", stats, err)
 	}

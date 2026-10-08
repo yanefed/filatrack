@@ -2,7 +2,6 @@ package sqlite
 
 import (
 	"awesomeProject/internal/domain"
-	"awesomeProject/internal/repository"
 	"testing"
 	"time"
 
@@ -83,7 +82,7 @@ func TestSpoolRepo_ListWithFilter(t *testing.T) {
 	}
 
 	mat := domain.MaterialPLA
-	spools, err := repo.List(ctx, repository.SpoolFilter{Material: &mat})
+	spools, err := repo.List(ctx, domain.SpoolFilter{Material: &mat})
 	if err != nil {
 		t.Fatalf("listing spools: %v", err)
 	}
@@ -184,7 +183,7 @@ func TestPrintJobRepo_Stats(t *testing.T) {
 		}
 	}
 
-	stats, err := printRepo.GetStats(ctx, repository.StatsFilter{})
+	stats, err := printRepo.GetStats(ctx, domain.StatsFilter{})
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -1,6 +1,7 @@
 package postgres
 
 import (
+	"awesomeProject/internal/port"
 	"context"
 	"database/sql"
 	"embed"
@@ -9,7 +10,6 @@ import (
 	"strings"
 	"time"
 
-	"awesomeProject/internal/repository"
 	_ "github.com/jackc/pgx/v5/stdlib"
 	"github.com/pressly/goose/v3"
 )
@@ -53,17 +53,17 @@ func (db *DB) Migrate() error {
 	return nil
 }
 
-func (db *DB) Spools() repository.SpoolRepository    { return NewSpoolRepo(db) }
-func (db *DB) Prints() repository.PrintJobRepository { return NewPrintJobRepo(db) }
-func (db *DB) Dryings(logger *slog.Logger) repository.DryingSessionRepository {
+func (db *DB) Spools() port.SpoolRepository    { return NewSpoolRepo(db) }
+func (db *DB) Prints() port.PrintJobRepository { return NewPrintJobRepo(db) }
+func (db *DB) Dryings(logger *slog.Logger) port.DryingSessionRepository {
 	return NewDryingRepoWithLogger(db, logger)
 }
-func (db *DB) Settings() repository.SettingsRepository { return NewSettingsRepo(db) }
-func (db *DB) Printers() repository.PrinterRepository  { return NewPrinterRepo(db) }
-func (db *DB) PrinterModels() repository.PrinterModelRepository {
+func (db *DB) Settings() port.SettingsRepository { return NewSettingsRepo(db) }
+func (db *DB) Printers() port.PrinterRepository  { return NewPrinterRepo(db) }
+func (db *DB) PrinterModels() port.PrinterModelRepository {
 	return NewPrinterModelRepo(db)
 }
-func (db *DB) PreviewImages() repository.PreviewImageRepository {
+func (db *DB) PreviewImages() port.PreviewImageRepository {
 	return NewPreviewImageRepo(db)
 }
 

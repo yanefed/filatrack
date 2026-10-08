@@ -2,7 +2,7 @@ package sqlite
 
 import (
 	"awesomeProject/internal/domain"
-	"awesomeProject/internal/repository"
+	"awesomeProject/internal/port"
 	"context"
 	"database/sql"
 	"errors"
@@ -15,12 +15,12 @@ import (
 	"github.com/google/uuid"
 )
 
-// PrintJobRepo реализует repository.PrintJobRepository поверх SQLite.
+// PrintJobRepo реализует port.PrintJobRepository поверх SQLite.
 type PrintJobRepo struct {
 	db *DB
 }
 
-func NewPrintJobRepo(db *DB) repository.PrintJobRepository {
+func NewPrintJobRepo(db *DB) port.PrintJobRepository {
 	return &PrintJobRepo{db: db}
 }
 
@@ -62,7 +62,7 @@ func (r *PrintJobRepo) GetByID(ctx context.Context, id string) (*domain.PrintJob
 	return &job, nil
 }
 
-func (r *PrintJobRepo) List(ctx context.Context, filter repository.PrintJobFilter) ([]domain.PrintJob, error) {
+func (r *PrintJobRepo) List(ctx context.Context, filter domain.PrintJobFilter) ([]domain.PrintJob, error) {
 	var query strings.Builder
 	query.WriteString(`SELECT id, spool_id, printer_id, external_print_id, gcode_filename, model_name, status, completion_percent, estimated_weight_g, actual_weight_g, estimated_length_mm, print_duration_sec, nozzle_temp_c, bed_temp_c, slicer, preview_image_path, notes, printed_at, created_at, COALESCE((SELECT s.price / s.total_weight_g FROM spools s WHERE s.id = print_jobs.spool_id AND s.price > 0 AND s.total_weight_g > 0), 0), COALESCE((SELECT value FROM app_settings WHERE key = 'currency'), 'RUB'), usage_measured, preview_image_hash FROM print_jobs WHERE 1=1`)
 	var args []any
@@ -164,7 +164,7 @@ func (r *PrintJobRepo) UpdatePreviewImageHash(ctx context.Context, jobID, hash s
 	return nil
 }
 
-func (r *PrintJobRepo) GetStats(ctx context.Context, filter repository.StatsFilter) (*repository.PrintStats, error) {
+func (r *PrintJobRepo) GetStats(ctx context.Context, filter domain.StatsFilter) (*domain.PrintStats, error) {
 	query := `SELECT
 		COUNT(*),
 		COALESCE(SUM(CASE WHEN status='success' THEN 1 ELSE 0 END), 0),
@@ -184,7 +184,7 @@ func (r *PrintJobRepo) GetStats(ctx context.Context, filter repository.StatsFilt
 		args = append(args, *filter.To)
 	}
 
-	var stats repository.PrintStats
+	var stats domain.PrintStats
 	err := r.db.conn.QueryRowContext(ctx, query, args...).Scan(
 		&stats.TotalPrints, &stats.SuccessCount, &stats.FailedCount,
 		&stats.CancelledCount, &stats.TotalWeightG, &stats.AvgWeightG,

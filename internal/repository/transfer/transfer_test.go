@@ -10,7 +10,6 @@ import (
 	"time"
 
 	"awesomeProject/internal/domain"
-	"awesomeProject/internal/repository"
 	"awesomeProject/internal/repository/postgres"
 	"awesomeProject/internal/repository/sqlite"
 	_ "modernc.org/sqlite"
@@ -63,11 +62,11 @@ func TestSQLitePostgresRoundTrip(t *testing.T) {
 	if err := Copy(ctx, src.Conn(), pg.Conn(), "postgres"); !errors.Is(err, ErrTargetNotEmpty) {
 		t.Fatalf("copy into populated PostgreSQL = %v", err)
 	}
-	spools, err := pg.Spools().List(ctx, repository.SpoolFilter{})
+	spools, err := pg.Spools().List(ctx, domain.SpoolFilter{})
 	if err != nil || len(spools) != 1 || spools[0].Manufacturer != "Acme" {
 		t.Fatalf("PostgreSQL spools = %+v, %v", spools, err)
 	}
-	jobs, err := pg.Prints().List(ctx, repository.PrintJobFilter{})
+	jobs, err := pg.Prints().List(ctx, domain.PrintJobFilter{})
 	if err != nil || len(jobs) != 1 || jobs[0].GcodeFilename != "part.gcode" {
 		t.Fatalf("PostgreSQL jobs = %+v, %v", jobs, err)
 	}

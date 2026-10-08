@@ -3,7 +3,6 @@ package drying
 import (
 	"awesomeProject/internal/domain"
 	"awesomeProject/internal/i18n"
-	"awesomeProject/internal/repository"
 	"awesomeProject/internal/service"
 	"awesomeProject/internal/ui/screens/shared"
 	"awesomeProject/internal/ui/widgets"
@@ -31,7 +30,7 @@ func showAddDryingDialog(ctx context.Context, parent *gtk.Window, dryingSvc *ser
 	box.Append(errorLabel)
 
 	notArchived := false
-	spools, err := spoolSvc.List(ctx, repository.SpoolFilter{Archived: &notArchived})
+	spools, err := spoolSvc.List(ctx, domain.SpoolFilter{Archived: &notArchived})
 	if err != nil {
 		errorLabel.SetLabel(fmt.Sprintf("%s: %v", t.ErrorPrefix, err))
 		errorLabel.SetVisible(true)

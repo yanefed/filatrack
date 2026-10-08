@@ -2,7 +2,7 @@ package postgres
 
 import (
 	"awesomeProject/internal/domain"
-	"awesomeProject/internal/repository"
+	"awesomeProject/internal/port"
 	"context"
 	"database/sql"
 	"fmt"
@@ -15,7 +15,7 @@ type PrinterModelRepo struct {
 	db *DB
 }
 
-func NewPrinterModelRepo(db *DB) repository.PrinterModelRepository {
+func NewPrinterModelRepo(db *DB) port.PrinterModelRepository {
 	return &PrinterModelRepo{db: db}
 }
 

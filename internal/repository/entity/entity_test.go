@@ -33,13 +33,17 @@ func TestPrintJobRoundTrip(t *testing.T) {
 		EstimatedWeightG: 10, ActualWeightG: 10, EstimatedLengthMM: 3000,
 		UsageMeasured: true,
 		PrintDuration: 90 * time.Second, NozzleTempC: 210, BedTempC: 60,
-		Slicer: "OrcaSlicer", PreviewImagePath: "/tmp/cube.png",
+		Slicer: "OrcaSlicer", PreviewImageHash: "preview-hash",
+		PreviewImagePath: "/tmp/cube.png", PreviewImageData: []byte("preview"),
 		PrintedAt: now, CreatedAt: now,
 	}
 	persisted := PrintJobFromDomain(want)
-	if persisted.SpoolID.Valid || persisted.PrinterID.Valid || persisted.PrintDurationSec != 90 {
+	if persisted.SpoolID.Valid || persisted.PrinterID.Valid || persisted.PrintDurationSec != 90 || !persisted.PreviewImageHash.Valid || persisted.PreviewImagePath != "" {
 		t.Fatalf("persistence print job = %+v", persisted)
 	}
+	// Cache paths and bytes are reconstructed by the service from the stored hash.
+	want.PreviewImagePath = ""
+	want.PreviewImageData = nil
 	if got := persisted.Domain(); !reflect.DeepEqual(got, want) {
 		t.Fatalf("round trip = %+v, want %+v", got, want)
 	}
@@ -79,11 +83,14 @@ func TestPrinterModelRoundTrip(t *testing.T) {
 		PrinterID: "printer-1", Path: "models/cube.gcode", Filename: "cube.gcode",
 		ModifiedAt: now, SizeBytes: 1024, EstimatedWeightG: 12,
 		PrintDuration: time.Hour, Slicer: "PrusaSlicer", CachedAt: now,
+		PreviewImageHash: "preview-hash", PreviewImagePath: "/tmp/cube.png", PreviewImageData: []byte("preview"),
 	}
 	persisted := PrinterModelFromDomain(want)
-	if !persisted.ModifiedAt.Valid || persisted.PrintDurationSec != 3600 {
+	if !persisted.ModifiedAt.Valid || persisted.PrintDurationSec != 3600 || !persisted.PreviewImageHash.Valid || persisted.PreviewImagePath != "" {
 		t.Fatalf("persistence printer model = %+v", persisted)
 	}
+	want.PreviewImagePath = ""
+	want.PreviewImageData = nil
 	if got := persisted.Domain(); !reflect.DeepEqual(got, want) {
 		t.Fatalf("round trip = %+v, want %+v", got, want)
 	}

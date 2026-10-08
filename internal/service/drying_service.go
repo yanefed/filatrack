@@ -6,24 +6,15 @@ import (
 	"time"
 
 	"awesomeProject/internal/domain"
-	"awesomeProject/internal/repository"
+	"awesomeProject/internal/port"
 )
 
 type DryingService struct {
-	dryings  repository.DryingSessionRepository
-	settings repository.SettingsRepository
+	dryings  port.DryingSessionRepository
+	settings port.SettingsRepository
 }
 
-// DryingStatus описывает актуальность сушки конкретной катушки.
-type DryingStatus struct {
-	Profile       *domain.DryingProfile
-	LastSession   *domain.DryingSession
-	NextDryingAt  time.Time
-	DaysUntilNext int
-	NeedsDrying   bool
-}
-
-func NewDryingService(dryings repository.DryingSessionRepository, settings repository.SettingsRepository) *DryingService {
+func NewDryingService(dryings port.DryingSessionRepository, settings port.SettingsRepository) *DryingService {
 	return &DryingService{dryings: dryings, settings: settings}
 }
 

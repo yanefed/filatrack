@@ -3,7 +3,7 @@ package service
 import (
 	"awesomeProject/internal/domain"
 	"awesomeProject/internal/i18n"
-	"awesomeProject/internal/repository"
+	"awesomeProject/internal/port"
 	"context"
 	"fmt"
 	"strconv"
@@ -11,13 +11,13 @@ import (
 )
 
 type SettingsService struct {
-	settings repository.SettingsRepository
+	settings port.SettingsRepository
 }
 
 const allowLowFilamentSettingKey = "allow_low_filament_warning"
 const lowFilamentLevelSettingKey = "low_filament_level"
 
-func NewSettingsService(settings repository.SettingsRepository) *SettingsService {
+func NewSettingsService(settings port.SettingsRepository) *SettingsService {
 	return &SettingsService{settings: settings}
 }
 

@@ -2,7 +2,7 @@ package service
 
 import (
 	"awesomeProject/internal/domain"
-	"awesomeProject/internal/repository"
+	"awesomeProject/internal/port"
 	"context"
 	"fmt"
 	"slices"
@@ -10,12 +10,12 @@ import (
 )
 
 type SpoolService struct {
-	spools   repository.SpoolRepository
-	dryings  repository.DryingSessionRepository
-	settings repository.SettingsRepository
+	spools   port.SpoolRepository
+	dryings  port.DryingSessionRepository
+	settings port.SettingsRepository
 }
 
-func NewSpoolService(spools repository.SpoolRepository, dryings repository.DryingSessionRepository, settings repository.SettingsRepository) *SpoolService {
+func NewSpoolService(spools port.SpoolRepository, dryings port.DryingSessionRepository, settings port.SettingsRepository) *SpoolService {
 	return &SpoolService{spools: spools, dryings: dryings, settings: settings}
 }
 
@@ -82,11 +82,6 @@ func (s *SpoolService) GetWithRemaining(ctx context.Context, id string) (*domain
 
 func (s *SpoolService) List(ctx context.Context, filter domain.SpoolFilter) ([]domain.Spool, error) {
 	return s.spools.List(ctx, filter)
-}
-
-type SpoolFilterOptions struct {
-	Manufacturers []string
-	Materials     []domain.Material
 }
 
 // FilterOptions includes all active spools, independent of the current selection.

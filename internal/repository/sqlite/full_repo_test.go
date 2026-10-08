@@ -1,13 +1,13 @@
 package sqlite
 
 import (
+	"bytes"
 	"context"
 	"strings"
 	"testing"
 	"time"
 
 	"awesomeProject/internal/domain"
-	"awesomeProject/internal/repository"
 )
 
 func testSpool(id string, createdAt time.Time) *domain.Spool {
@@ -49,14 +49,14 @@ func TestSpoolRepoFullCRUDAndFilters(t *testing.T) {
 	}
 
 	manufacturer, color, archived, material := "Other", "Blue", true, domain.MaterialPETG
-	filtered, err := repo.List(ctx, repository.SpoolFilter{
+	filtered, err := repo.List(ctx, domain.SpoolFilter{
 		Manufacturer: &manufacturer, Color: &color, Archived: &archived, Material: &material,
 	})
 	if err != nil || len(filtered) != 1 || filtered[0].ID != second.ID {
 		t.Fatalf("filtered spools = (%+v, %v)", filtered, err)
 	}
 	active := false
-	filtered, err = repo.List(ctx, repository.SpoolFilter{Archived: &active})
+	filtered, err = repo.List(ctx, domain.SpoolFilter{Archived: &active})
 	if err != nil || len(filtered) != 1 || filtered[0].ID != first.ID {
 		t.Fatalf("active spools = (%+v, %v)", filtered, err)
 	}
@@ -98,7 +98,7 @@ func TestSpoolRepoDatabaseErrors(t *testing.T) {
 	}{
 		{name: "create", run: func() error { return repo.Create(ctx, spool) }},
 		{name: "get", run: func() error { _, err := repo.GetByID(ctx, spool.ID); return err }},
-		{name: "list", run: func() error { _, err := repo.List(ctx, repository.SpoolFilter{}); return err }},
+		{name: "list", run: func() error { _, err := repo.List(ctx, domain.SpoolFilter{}); return err }},
 		{name: "update", run: func() error { return repo.Update(ctx, spool) }},
 		{name: "archive", run: func() error { return repo.Archive(ctx, spool.ID) }},
 		{name: "used weight", run: func() error { _, err := repo.GetUsedWeight(ctx, spool.ID); return err }},
@@ -136,8 +136,13 @@ func TestPrintJobRepoFullCRUDFiltersAndStats(t *testing.T) {
 		t.Fatalf("creating printer: %v", err)
 	}
 
+	imageHash, err := NewPreviewImageRepo(db).Put(ctx, []byte("print preview"))
+	if err != nil {
+		t.Fatalf("storing print preview: %v", err)
+	}
+
 	jobs := []*domain.PrintJob{
-		{ID: "job-1", SpoolID: "spool-1", PrinterID: "printer-1", ExternalPrintID: "moonraker-job-1", GcodeFilename: "one.gcode", ModelName: "one", Status: domain.PrintStatusSuccess, CompletionPercent: 100, EstimatedWeightG: 20, ActualWeightG: 20, EstimatedLengthMM: 1000, PrintDuration: 90 * time.Minute, NozzleTempC: 210, BedTempC: 60, Slicer: "PrusaSlicer", PreviewImagePath: "/tmp/one.png", Notes: "ok", PrintedAt: base.Add(-2 * time.Hour), CreatedAt: base},
+		{ID: "job-1", SpoolID: "spool-1", PrinterID: "printer-1", ExternalPrintID: "moonraker-job-1", GcodeFilename: "one.gcode", ModelName: "one", Status: domain.PrintStatusSuccess, CompletionPercent: 100, EstimatedWeightG: 20, ActualWeightG: 20, EstimatedLengthMM: 1000, PrintDuration: 90 * time.Minute, NozzleTempC: 210, BedTempC: 60, Slicer: "PrusaSlicer", PreviewImagePath: "/tmp/one.png", PreviewImageHash: imageHash, Notes: "ok", PrintedAt: base.Add(-2 * time.Hour), CreatedAt: base},
 		{ID: "job-2", SpoolID: "spool-1", GcodeFilename: "two.gcode", Status: domain.PrintStatusFailed, CompletionPercent: 50, EstimatedWeightG: 20, ActualWeightG: 10, PrintedAt: base.Add(-time.Hour), CreatedAt: base},
 		{ID: "job-3", SpoolID: "spool-2", GcodeFilename: "three.gcode", Status: domain.PrintStatusCancelled, CompletionPercent: 25, EstimatedWeightG: 20, ActualWeightG: 5, PrintedAt: base, CreatedAt: base},
 		{ID: "job-4", PrinterID: "printer-1", ExternalPrintID: "moonraker-job-4", GcodeFilename: "backfill.gcode", ModelName: "backfill", Status: domain.PrintStatusSuccess, CompletionPercent: 100, EstimatedWeightG: 20, ActualWeightG: 0, PrintedAt: base.Add(-3 * time.Hour), CreatedAt: base},
@@ -149,7 +154,7 @@ func TestPrintJobRepoFullCRUDFiltersAndStats(t *testing.T) {
 	}
 
 	got, err := prints.GetByID(ctx, "job-1")
-	if err != nil || got.ModelName != "one" || got.PrinterID != "printer-1" || got.ExternalPrintID != "moonraker-job-1" || got.PrintDuration != 90*time.Minute || got.Status != domain.PrintStatusSuccess || got.PreviewImagePath != "/tmp/one.png" {
+	if err != nil || got.ModelName != "one" || got.PrinterID != "printer-1" || got.ExternalPrintID != "moonraker-job-1" || got.PrintDuration != 90*time.Minute || got.Status != domain.PrintStatusSuccess || got.PreviewImageHash != imageHash || got.PreviewImagePath != "" {
 		t.Fatalf("GetByID() = (%+v, %v)", got, err)
 	}
 	if _, err := prints.GetByID(ctx, "missing"); err == nil || !strings.Contains(err.Error(), "not found") {
@@ -158,20 +163,20 @@ func TestPrintJobRepoFullCRUDFiltersAndStats(t *testing.T) {
 
 	spoolID, status := "spool-1", domain.PrintStatusFailed
 	from, to := base.Add(-90*time.Minute), base.Add(-30*time.Minute)
-	filtered, err := prints.List(ctx, repository.PrintJobFilter{SpoolID: &spoolID, Status: &status, From: &from, To: &to})
+	filtered, err := prints.List(ctx, domain.PrintJobFilter{SpoolID: &spoolID, Status: &status, From: &from, To: &to})
 	if err != nil || len(filtered) != 1 || filtered[0].ID != "job-2" {
 		t.Fatalf("filtered jobs = (%+v, %v)", filtered, err)
 	}
 	printerID := "printer-1"
-	filtered, err = prints.List(ctx, repository.PrintJobFilter{PrinterID: &printerID})
+	filtered, err = prints.List(ctx, domain.PrintJobFilter{PrinterID: &printerID})
 	if err != nil || len(filtered) != 2 || filtered[0].ID != "job-1" || filtered[1].ID != "job-4" {
 		t.Fatalf("printer-filtered jobs = (%+v, %v)", filtered, err)
 	}
-	all, err := prints.List(ctx, repository.PrintJobFilter{})
+	all, err := prints.List(ctx, domain.PrintJobFilter{})
 	if err != nil || len(all) != 4 || all[0].ID != "job-3" {
 		t.Fatalf("ordered jobs = (%+v, %v)", all, err)
 	}
-	limited, err := prints.List(ctx, repository.PrintJobFilter{Limit: 2})
+	limited, err := prints.List(ctx, domain.PrintJobFilter{Limit: 2})
 	if err != nil || len(limited) != 2 || limited[0].ID != "job-3" || limited[1].ID != "job-2" {
 		t.Fatalf("limited jobs = (%+v, %v)", limited, err)
 	}
@@ -180,11 +185,11 @@ func TestPrintJobRepoFullCRUDFiltersAndStats(t *testing.T) {
 		t.Fatalf("nullable spool job = (%+v, %v)", got, err)
 	}
 
-	stats, err := prints.GetStats(ctx, repository.StatsFilter{})
+	stats, err := prints.GetStats(ctx, domain.StatsFilter{})
 	if err != nil || stats.TotalPrints != 4 || stats.SuccessCount != 2 || stats.FailedCount != 1 || stats.CancelledCount != 1 || stats.TotalWeightG != 35 {
 		t.Fatalf("all stats = (%+v, %v)", stats, err)
 	}
-	stats, err = prints.GetStats(ctx, repository.StatsFilter{From: &from, To: &to})
+	stats, err = prints.GetStats(ctx, domain.StatsFilter{From: &from, To: &to})
 	if err != nil || stats.TotalPrints != 1 || stats.FailedCount != 1 || stats.AvgWeightG != 10 {
 		t.Fatalf("filtered stats = (%+v, %v)", stats, err)
 	}
@@ -223,8 +228,8 @@ func TestPrintJobRepoDatabaseErrors(t *testing.T) {
 	}{
 		{name: "create", run: func() error { return repo.Create(ctx, job) }},
 		{name: "get", run: func() error { _, err := repo.GetByID(ctx, job.ID); return err }},
-		{name: "list", run: func() error { _, err := repo.List(ctx, repository.PrintJobFilter{}); return err }},
-		{name: "stats", run: func() error { _, err := repo.GetStats(ctx, repository.StatsFilter{}); return err }},
+		{name: "list", run: func() error { _, err := repo.List(ctx, domain.PrintJobFilter{}); return err }},
+		{name: "stats", run: func() error { _, err := repo.GetStats(ctx, domain.StatsFilter{}); return err }},
 	}
 	for _, check := range checks {
 		t.Run(check.name, func(t *testing.T) {
@@ -364,8 +369,15 @@ func TestPrinterModelRepoCache(t *testing.T) {
 		t.Fatalf("creating second printer: %v", err)
 	}
 
+	images := NewPreviewImageRepo(db)
+	imageData := []byte("model preview")
+	imageHash, err := images.Put(ctx, imageData)
+	if err != nil {
+		t.Fatalf("storing model preview: %v", err)
+	}
+
 	first := []domain.PrinterModelFile{
-		{PrinterID: "ignored", Path: "folder/cube.gcode", Filename: "cube.gcode", ModifiedAt: now.Add(-time.Hour), SizeBytes: 1234, EstimatedWeightG: 12.5, PrintDuration: 30 * time.Minute, Slicer: "OrcaSlicer", PreviewImagePath: "/tmp/cube.png"},
+		{PrinterID: "ignored", Path: "folder/cube.gcode", Filename: "cube.gcode", ModifiedAt: now.Add(-time.Hour), SizeBytes: 1234, EstimatedWeightG: 12.5, PrintDuration: 30 * time.Minute, Slicer: "OrcaSlicer", PreviewImagePath: "/tmp/cube.png", PreviewImageHash: imageHash, PreviewImageData: imageData},
 		{Path: "benchy.gcode", Filename: "benchy.gcode", SizeBytes: 456},
 	}
 	if err := models.SaveForPrinter(ctx, "printer-1", first); err != nil {
@@ -380,8 +392,13 @@ func TestPrinterModelRepoCache(t *testing.T) {
 	if err != nil || len(listed) != 2 {
 		t.Fatalf("listed printer models = (%+v, %v)", listed, err)
 	}
-	if listed[0].PrinterID != "printer-1" || listed[0].Path != "folder/cube.gcode" || listed[0].EstimatedWeightG != 12.5 || listed[0].PrintDuration != 30*time.Minute || listed[0].PreviewImagePath != "/tmp/cube.png" || listed[0].CachedAt.IsZero() {
+	if listed[0].PrinterID != "printer-1" || listed[0].Path != "folder/cube.gcode" || listed[0].EstimatedWeightG != 12.5 || listed[0].PrintDuration != 30*time.Minute || listed[0].PreviewImageHash != imageHash || listed[0].PreviewImagePath != "" || len(listed[0].PreviewImageData) != 0 || listed[0].CachedAt.IsZero() {
 		t.Fatalf("cached model = %+v", listed[0])
+	}
+
+	storedImage, err := images.Get(ctx, listed[0].PreviewImageHash)
+	if err != nil || !bytes.Equal(storedImage, imageData) {
+		t.Fatalf("cached model preview = %q, %v; want %q", storedImage, err, imageData)
 	}
 
 	if err := models.SaveForPrinter(ctx, "printer-1", []domain.PrinterModelFile{{Path: "new.gcode", Filename: "new.gcode"}}); err != nil {

@@ -3,7 +3,6 @@ package integration_test
 import (
 	"awesomeProject/internal/domain"
 	"awesomeProject/internal/moonraker"
-	"awesomeProject/internal/repository"
 	"awesomeProject/internal/repository/sqlite"
 	"encoding/json"
 	"net/http"
@@ -72,7 +71,7 @@ func TestIncrementalHistorySurvivesDatabaseReopen(t *testing.T) {
 	if historyRequests.Load() != 1 || metadataRequests.Load() != 1 {
 		t.Fatalf("repeat requests: history=%d metadata=%d", historyRequests.Load(), metadataRequests.Load())
 	}
-	jobs, err := sqlite.NewPrintJobRepo(app.db).List(t.Context(), repository.PrintJobFilter{PrinterID: &printer.ID})
+	jobs, err := sqlite.NewPrintJobRepo(app.db).List(t.Context(), domain.PrintJobFilter{PrinterID: &printer.ID})
 	if err != nil || len(jobs) != 205 {
 		t.Fatalf("persisted jobs=%d error=%v", len(jobs), err)
 	}

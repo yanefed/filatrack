@@ -3,7 +3,6 @@ package shared
 import (
 	"awesomeProject/internal/domain"
 	"awesomeProject/internal/i18n"
-	"awesomeProject/internal/repository"
 	"awesomeProject/internal/service"
 	"context"
 	"fmt"
@@ -11,7 +10,7 @@ import (
 
 func ActiveSpools(ctx context.Context, spoolSvc *service.SpoolService) []domain.Spool {
 	notArchived := false
-	spools, err := spoolSvc.List(ctx, repository.SpoolFilter{Archived: &notArchived})
+	spools, err := spoolSvc.List(ctx, domain.SpoolFilter{Archived: &notArchived})
 	if err != nil {
 		return nil
 	}

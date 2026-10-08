@@ -3,7 +3,7 @@ package service
 import (
 	"awesomeProject/internal/domain"
 	"awesomeProject/internal/gcode"
-	"awesomeProject/internal/repository"
+	"awesomeProject/internal/port"
 	"context"
 	"fmt"
 	"log/slog"
@@ -22,42 +22,25 @@ type PrinterService struct {
 	historySyncMu sync.Mutex
 	transferMu    sync.Mutex
 	logger        *slog.Logger
-	printers      repository.PrinterRepository
-	spools        repository.SpoolRepository
-	prints        repository.PrintJobRepository
-	models        repository.PrinterModelRepository
+	printers      port.PrinterRepository
+	spools        port.SpoolRepository
+	prints        port.PrintJobRepository
+	models        port.PrinterModelRepository
 	previews      *PreviewImageStore
-	settings      repository.SettingsRepository
-	checker       ConnectionChecker
-	jobClient     PrinterJobClient
+	settings      port.SettingsRepository
+	checker       port.ConnectionChecker
+	jobClient     port.PrinterJobClient
 }
 
-type ConnectionChecker interface {
-	Check(ctx context.Context, printer domain.Printer) error
-}
-
-type PrinterJobClient interface {
-	ListHistory(ctx context.Context, printer domain.Printer, limit int) ([]domain.PrinterHistoryJob, error)
-	ListModels(ctx context.Context, printer domain.Printer) ([]domain.PrinterModelFile, error)
-	FetchMetadata(ctx context.Context, printer domain.Printer, filename string) (*domain.GcodeMetadata, error)
-	StartFile(ctx context.Context, printer domain.Printer, filename string) error
-	DownloadFile(ctx context.Context, printer domain.Printer, filename, localPath string) error
-	Upload(ctx context.Context, printer domain.Printer, localPath, remotePath string, startPrint bool) (domain.PrinterUploadResult, error)
-}
-
-type printerHistoryPageClient interface {
-	ListHistoryPage(ctx context.Context, printer domain.Printer, start, limit int) ([]domain.PrinterHistoryJob, int, error)
-}
-
-func NewPrinterService(printers repository.PrinterRepository, spools repository.SpoolRepository, prints repository.PrintJobRepository, settings repository.SettingsRepository) *PrinterService {
+func NewPrinterService(printers port.PrinterRepository, spools port.SpoolRepository, prints port.PrintJobRepository, settings port.SettingsRepository) *PrinterService {
 	return NewPrinterServiceWithLogger(printers, spools, prints, settings, slog.Default())
 }
 
 func NewPrinterServiceWithLogger(
-	printers repository.PrinterRepository,
-	spools repository.SpoolRepository,
-	prints repository.PrintJobRepository,
-	settings repository.SettingsRepository,
+	printers port.PrinterRepository,
+	spools port.SpoolRepository,
+	prints port.PrintJobRepository,
+	settings port.SettingsRepository,
 	logger *slog.Logger,
 ) *PrinterService {
 	if logger == nil {
@@ -72,15 +55,15 @@ func NewPrinterServiceWithLogger(
 	}
 }
 
-func (s *PrinterService) SetConnectionChecker(checker ConnectionChecker) {
+func (s *PrinterService) SetConnectionChecker(checker port.ConnectionChecker) {
 	s.checker = checker
 }
 
-func (s *PrinterService) SetJobClient(client PrinterJobClient) {
+func (s *PrinterService) SetJobClient(client port.PrinterJobClient) {
 	s.jobClient = client
 }
 
-func (s *PrinterService) SetModelCache(models repository.PrinterModelRepository) {
+func (s *PrinterService) SetModelCache(models port.PrinterModelRepository) {
 	s.models = models
 }
 
@@ -214,7 +197,7 @@ func (s *PrinterService) ListCombinedHistory(ctx context.Context, printerID stri
 	if err != nil {
 		return nil, err
 	}
-	localJobs, err := s.prints.List(ctx, repository.PrintJobFilter{PrinterID: &printerID})
+	localJobs, err := s.prints.List(ctx, domain.PrintJobFilter{PrinterID: &printerID})
 	if err != nil {
 		return nil, fmt.Errorf("listing local printer prints: %w", err)
 	}
@@ -469,18 +452,18 @@ func (s *PrinterService) SyncPrinterHistory(ctx context.Context, printerID strin
 		}
 		activeSpool = spool
 	}
-	latest, err := s.prints.List(ctx, repository.PrintJobFilter{PrinterID: &printerID, Limit: 1})
+	latest, err := s.prints.List(ctx, domain.PrintJobFilter{PrinterID: &printerID, Limit: 1})
 	if err != nil {
 		return 0, fmt.Errorf("getting newest local printer print: %w", err)
 	}
 	newestLocal := newestPrintTime(latest)
 
 	importJobs := func(remoteJobs []domain.PrinterHistoryJob) (int, error) {
-		matches := make([]repository.PrintHistoryMatch, 0, len(remoteJobs))
+		matches := make([]domain.PrintHistoryMatch, 0, len(remoteJobs))
 		for _, job := range remoteJobs {
-			matches = append(matches, repository.PrintHistoryMatch{ExternalPrintID: job.ExternalPrintID, Filename: job.GcodeFilename, EndedAt: job.EndedAt})
+			matches = append(matches, domain.PrintHistoryMatch{ExternalPrintID: job.ExternalPrintID, Filename: job.GcodeFilename, EndedAt: job.EndedAt})
 		}
-		localJobs, err := s.prints.List(ctx, repository.PrintJobFilter{PrinterID: &printerID, HistoryMatches: matches})
+		localJobs, err := s.prints.List(ctx, domain.PrintJobFilter{PrinterID: &printerID, HistoryMatches: matches})
 		if err != nil {
 			return 0, fmt.Errorf("matching local printer prints: %w", err)
 		}
@@ -535,7 +518,7 @@ func (s *PrinterService) SyncPrinterHistory(ctx context.Context, printerID strin
 						return created, fmt.Errorf("storing recovered print preview image: %w", storeErr)
 					}
 					if hash != "" {
-						updater, ok := s.prints.(repository.PrintJobPreviewUpdater)
+						updater, ok := s.prints.(port.PrintJobPreviewUpdater)
 						if !ok {
 							return created, fmt.Errorf("print job repository cannot update preview images")
 						}
@@ -587,7 +570,7 @@ func (s *PrinterService) SyncPrinterHistory(ctx context.Context, printerID strin
 	}
 
 	if limit <= 0 {
-		if pageClient, ok := s.jobClient.(printerHistoryPageClient); ok {
+		if pageClient, ok := s.jobClient.(port.PrinterHistoryPageClient); ok {
 			return s.syncHistoryPages(ctx, *printer, pageClient, importJobs)
 		}
 	}

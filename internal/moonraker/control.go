@@ -7,24 +7,26 @@ import (
 	"time"
 
 	"awesomeProject/internal/domain"
+	"awesomeProject/internal/port"
 
 	api "github.com/yanefed/moonraker"
 )
 
 type HistoryClient interface {
-	ListHistory(ctx context.Context, printer domain.Printer, limit int) ([]domain.PrinterHistoryJob, error)
-	ListHistoryPage(ctx context.Context, printer domain.Printer, start, limit int) ([]domain.PrinterHistoryJob, int, error)
-	ListModels(ctx context.Context, printer domain.Printer) ([]domain.PrinterModelFile, error)
-	FetchMetadata(ctx context.Context, printer domain.Printer, filename string) (*domain.GcodeMetadata, error)
-	StartFile(ctx context.Context, printer domain.Printer, filename string) error
-	DownloadFile(ctx context.Context, printer domain.Printer, filename, localPath string) error
-	Upload(ctx context.Context, printer domain.Printer, localPath, remotePath string, startPrint bool) (domain.PrinterUploadResult, error)
+	port.PrinterJobClient
+	port.PrinterHistoryPageClient
 }
 
 type HTTPControlClient struct {
 	Client   *http.Client
 	CacheDir string
 }
+
+var (
+	_ port.PrinterJobClient         = HTTPControlClient{}
+	_ port.PrinterHistoryPageClient = HTTPControlClient{}
+	_ port.IncrementalHistoryClient = HTTPControlClient{}
+)
 
 func (c HTTPControlClient) client() api.Client { return api.Client{HTTPClient: c.Client} }
 

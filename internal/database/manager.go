@@ -1,6 +1,7 @@
 package database
 
 import (
+	"awesomeProject/internal/port"
 	"context"
 	"database/sql"
 	"fmt"
@@ -9,7 +10,6 @@ import (
 	"path/filepath"
 
 	"awesomeProject/internal/config"
-	"awesomeProject/internal/repository"
 	"awesomeProject/internal/repository/postgres"
 	"awesomeProject/internal/repository/sqlite"
 	"awesomeProject/internal/repository/transfer"
@@ -18,13 +18,13 @@ import (
 type backend struct {
 	conn          *sql.DB
 	close         func() error
-	spools        repository.SpoolRepository
-	prints        repository.PrintJobRepository
-	dryings       repository.DryingSessionRepository
-	settings      repository.SettingsRepository
-	printers      repository.PrinterRepository
-	models        repository.PrinterModelRepository
-	previewImages repository.PreviewImageRepository
+	spools        port.SpoolRepository
+	prints        port.PrintJobRepository
+	dryings       port.DryingSessionRepository
+	settings      port.SettingsRepository
+	printers      port.PrinterRepository
+	models        port.PrinterModelRepository
+	previewImages port.PreviewImageRepository
 }
 
 type Manager struct {
@@ -101,15 +101,15 @@ func (m *Manager) open(ctx context.Context, selection config.DatabaseSelection) 
 	}
 }
 
-func (m *Manager) Close() error                                { return m.active.close() }
-func (m *Manager) Selection() config.DatabaseSelection         { return m.selection }
-func (m *Manager) Spools() repository.SpoolRepository          { return m.active.spools }
-func (m *Manager) Prints() repository.PrintJobRepository       { return m.active.prints }
-func (m *Manager) Dryings() repository.DryingSessionRepository { return m.active.dryings }
-func (m *Manager) Settings() repository.SettingsRepository     { return m.active.settings }
-func (m *Manager) Printers() repository.PrinterRepository      { return m.active.printers }
-func (m *Manager) Models() repository.PrinterModelRepository   { return m.active.models }
-func (m *Manager) PreviewImages() repository.PreviewImageRepository {
+func (m *Manager) Close() error                          { return m.active.close() }
+func (m *Manager) Selection() config.DatabaseSelection   { return m.selection }
+func (m *Manager) Spools() port.SpoolRepository          { return m.active.spools }
+func (m *Manager) Prints() port.PrintJobRepository       { return m.active.prints }
+func (m *Manager) Dryings() port.DryingSessionRepository { return m.active.dryings }
+func (m *Manager) Settings() port.SettingsRepository     { return m.active.settings }
+func (m *Manager) Printers() port.PrinterRepository      { return m.active.printers }
+func (m *Manager) Models() port.PrinterModelRepository   { return m.active.models }
+func (m *Manager) PreviewImages() port.PreviewImageRepository {
 	return m.active.previewImages
 }
 

@@ -1,6 +1,7 @@
 package sqlite
 
 import (
+	"awesomeProject/internal/port"
 	"context"
 	"database/sql"
 	"errors"
@@ -9,18 +10,17 @@ import (
 	"time"
 
 	"awesomeProject/internal/domain"
-	"awesomeProject/internal/repository"
 	"awesomeProject/internal/repository/entity"
 
 	"github.com/google/uuid"
 )
 
-// SpoolRepo реализует repository.SpoolRepository поверх SQLite.
+// SpoolRepo реализует port.SpoolRepository поверх SQLite.
 type SpoolRepo struct {
 	db *DB
 }
 
-func NewSpoolRepo(db *DB) repository.SpoolRepository {
+func NewSpoolRepo(db *DB) port.SpoolRepository {
 	return &SpoolRepo{db: db}
 }
 
@@ -71,7 +71,7 @@ func (r *SpoolRepo) GetByID(ctx context.Context, id string) (*domain.Spool, erro
 	return &spool, nil
 }
 
-func (r *SpoolRepo) List(ctx context.Context, filter repository.SpoolFilter) ([]domain.Spool, error) {
+func (r *SpoolRepo) List(ctx context.Context, filter domain.SpoolFilter) ([]domain.Spool, error) {
 	query := `SELECT id, display_code, manufacturer, material, color, color_hex, diameter_mm, total_weight_g, price, density_g_cm3, purchased_at, archived, created_at, updated_at FROM spools WHERE 1=1`
 	var args []any
 

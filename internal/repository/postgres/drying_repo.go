@@ -2,7 +2,7 @@ package postgres
 
 import (
 	"awesomeProject/internal/domain"
-	"awesomeProject/internal/repository"
+	"awesomeProject/internal/port"
 	"context"
 	"database/sql"
 	"errors"
@@ -14,18 +14,18 @@ import (
 	"github.com/google/uuid"
 )
 
-// DryingRepo реализует repository.DryingSessionRepository поверх SQLite.
+// DryingRepo реализует port.DryingSessionRepository поверх SQLite.
 type DryingRepo struct {
 	logger *slog.Logger
 	db     *DB
 }
 
-func NewDryingRepo(db *DB) repository.DryingSessionRepository {
+func NewDryingRepo(db *DB) port.DryingSessionRepository {
 	return &DryingRepo{db: db}
 }
 
 func NewDryingRepoWithLogger(db *DB, logger *slog.Logger,
-) repository.DryingSessionRepository {
+) port.DryingSessionRepository {
 	if logger == nil {
 		logger = slog.Default()
 	}

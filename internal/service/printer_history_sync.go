@@ -2,28 +2,19 @@ package service
 
 import (
 	"awesomeProject/internal/domain"
+	"awesomeProject/internal/port"
 	"context"
 	"encoding/json"
 	"fmt"
 	"time"
 )
 
-type incrementalHistoryClient interface {
-	ListHistoryPageSince(context.Context, domain.Printer, int, int, time.Time) ([]domain.PrinterHistoryJob, int, error)
-}
-
-type historyCheckpoint struct {
-	URL      string    `json:"url"`
-	Since    time.Time `json:"since"`
-	FullSync time.Time `json:"full_sync"`
-}
-
-func (s *PrinterService) syncHistoryPages(ctx context.Context, printer domain.Printer, client printerHistoryPageClient, importJobs func([]domain.PrinterHistoryJob) (int, error)) (int, error) {
+func (s *PrinterService) syncHistoryPages(ctx context.Context, printer domain.Printer, client port.PrinterHistoryPageClient, importJobs func([]domain.PrinterHistoryJob) (int, error)) (int, error) {
 	const pageLimit = 100
 	key := "printer_history_sync_v2:" + printer.ID
 	now := time.Now()
 	checkpoint := historyCheckpoint{URL: printer.MoonrakerURL}
-	incremental, supportsIncremental := client.(incrementalHistoryClient)
+	incremental, supportsIncremental := client.(port.IncrementalHistoryClient)
 	if supportsIncremental && s.settings != nil {
 		if raw, err := s.settings.GetSetting(ctx, key); err == nil {
 			var saved historyCheckpoint

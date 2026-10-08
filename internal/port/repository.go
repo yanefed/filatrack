@@ -1,8 +1,7 @@
-package repository
+package port
 
 import (
 	"context"
-	"time"
 
 	"awesomeProject/internal/domain"
 )
@@ -10,44 +9,23 @@ import (
 type SpoolRepository interface {
 	Create(ctx context.Context, spool *domain.Spool) error
 	GetByID(ctx context.Context, id string) (*domain.Spool, error)
-	List(ctx context.Context, filter SpoolFilter) ([]domain.Spool, error)
+	List(ctx context.Context, filter domain.SpoolFilter) ([]domain.Spool, error)
 	Update(ctx context.Context, spool *domain.Spool) error
 	Archive(ctx context.Context, id string) error
 	GetUsedWeight(ctx context.Context, spoolID string) (float64, error)
 }
 
-// SpoolFilter remains an alias for existing repository clients.
-type SpoolFilter = domain.SpoolFilter
-
 type PrintJobRepository interface {
 	Create(ctx context.Context, job *domain.PrintJob) error
 	GetByID(ctx context.Context, id string) (*domain.PrintJob, error)
-	List(ctx context.Context, filter PrintJobFilter) ([]domain.PrintJob, error)
+	List(ctx context.Context, filter domain.PrintJobFilter) ([]domain.PrintJob, error)
 	UpdateSpool(ctx context.Context, jobID, spoolID string) error
 	UpdateUsage(ctx context.Context, jobID string, estimatedWeightG, actualWeightG, estimatedLengthMM float64, completionPercent int, usageMeasured bool) error
-	GetStats(ctx context.Context, filter StatsFilter) (*PrintStats, error)
+	GetStats(ctx context.Context, filter domain.StatsFilter) (*domain.PrintStats, error)
 }
 
 type PrintJobPreviewUpdater interface {
 	UpdatePreviewImageHash(ctx context.Context, jobID, hash string) error
-}
-
-// PrintHistoryMatch identifies either a remote job or its live-monitor duplicate.
-type PrintHistoryMatch struct {
-	ExternalPrintID string
-	Filename        string
-	EndedAt         time.Time
-}
-
-type PrintJobFilter struct {
-	// Non-nil restricts results to the supplied history page; empty matches nothing.
-	HistoryMatches []PrintHistoryMatch
-	SpoolID        *string
-	PrinterID      *string
-	Status         *domain.PrintStatus
-	From           *time.Time
-	To             *time.Time
-	Limit          int
 }
 
 type PrinterRepository interface {
@@ -67,20 +45,6 @@ type PrinterModelRepository interface {
 type PreviewImageRepository interface {
 	Put(ctx context.Context, data []byte) (string, error)
 	Get(ctx context.Context, hash string) ([]byte, error)
-}
-
-type StatsFilter struct {
-	From *time.Time
-	To   *time.Time
-}
-
-type PrintStats struct {
-	TotalPrints    int
-	SuccessCount   int
-	FailedCount    int
-	CancelledCount int
-	TotalWeightG   float64
-	AvgWeightG     float64
 }
 
 type DryingSessionRepository interface {

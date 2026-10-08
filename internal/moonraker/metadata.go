@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"awesomeProject/internal/domain"
+	"awesomeProject/internal/port"
 	"awesomeProject/internal/preview"
 
 	api "github.com/yanefed/moonraker"
@@ -31,14 +32,14 @@ type MetadataFetcher interface {
 	Fetch(ctx context.Context, printer domain.Printer, filename string) (FileMetadata, error)
 }
 
-type ConnectionChecker interface {
-	Check(ctx context.Context, printer domain.Printer) error
-}
+type ConnectionChecker = port.ConnectionChecker
 
 type HTTPMetadataFetcher struct {
 	Client   *http.Client
 	CacheDir string
 }
+
+var _ port.ConnectionChecker = HTTPMetadataFetcher{}
 
 func (f HTTPMetadataFetcher) Check(ctx context.Context, printer domain.Printer) error {
 	return (api.Client{HTTPClient: f.Client}).Check(ctx, printerConfig(printer))

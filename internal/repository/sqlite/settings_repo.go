@@ -2,7 +2,7 @@ package sqlite
 
 import (
 	"awesomeProject/internal/domain"
-	"awesomeProject/internal/repository"
+	"awesomeProject/internal/port"
 	"awesomeProject/internal/repository/entity"
 	"context"
 	"database/sql"
@@ -14,7 +14,7 @@ type SettingsRepo struct {
 	db *DB
 }
 
-func NewSettingsRepo(db *DB) repository.SettingsRepository {
+func NewSettingsRepo(db *DB) port.SettingsRepository {
 	return &SettingsRepo{db: db}
 }
 

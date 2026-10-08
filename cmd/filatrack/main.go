@@ -5,7 +5,7 @@ import (
 	"awesomeProject/internal/database"
 	"awesomeProject/internal/i18n"
 	"awesomeProject/internal/moonraker"
-	"awesomeProject/internal/repository"
+	"awesomeProject/internal/port"
 	"awesomeProject/internal/repository/sqlite"
 	"awesomeProject/internal/service"
 	"awesomeProject/internal/ui"
@@ -48,12 +48,12 @@ func appOptions() []fx.Option {
 			provideLogger,
 			config.Default,
 			newDatabaseManager,
-			func(m *database.Manager) repository.SpoolRepository { return m.Spools() },
-			func(m *database.Manager) repository.PrintJobRepository { return m.Prints() },
-			func(m *database.Manager) repository.DryingSessionRepository { return m.Dryings() },
-			func(m *database.Manager) repository.SettingsRepository { return m.Settings() },
-			func(m *database.Manager) repository.PrinterRepository { return m.Printers() },
-			func(m *database.Manager) repository.PrinterModelRepository { return m.Models() },
+			func(m *database.Manager) port.SpoolRepository { return m.Spools() },
+			func(m *database.Manager) port.PrintJobRepository { return m.Prints() },
+			func(m *database.Manager) port.DryingSessionRepository { return m.Dryings() },
+			func(m *database.Manager) port.SettingsRepository { return m.Settings() },
+			func(m *database.Manager) port.PrinterRepository { return m.Printers() },
+			func(m *database.Manager) port.PrinterModelRepository { return m.Models() },
 			service.NewSpoolService,
 			service.NewPrintService,
 			service.NewDryingService,
@@ -158,7 +158,7 @@ func configurePrinterJobClient(cfg *config.Config, printerSvc *service.PrinterSe
 	printerSvc.SetJobClient(moonraker.HTTPControlClient{CacheDir: filepath.Join(cfg.DataDir, "cache", "gcode-previews")})
 }
 
-func configurePrinterModelCache(printerSvc *service.PrinterService, models repository.PrinterModelRepository) {
+func configurePrinterModelCache(printerSvc *service.PrinterService, models port.PrinterModelRepository) {
 	printerSvc.SetModelCache(models)
 }
 

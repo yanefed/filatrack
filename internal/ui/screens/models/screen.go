@@ -3,7 +3,6 @@ package models
 import (
 	"awesomeProject/internal/domain"
 	"awesomeProject/internal/i18n"
-	"awesomeProject/internal/repository"
 	"awesomeProject/internal/service"
 	"awesomeProject/internal/ui/screens/shared"
 	"awesomeProject/internal/ui/widgets"
@@ -49,7 +48,7 @@ func NewModelsScreen(ctx context.Context, parent *gtk.Window, printerSvc *servic
 
 	refreshSpoolChoices := func() {
 		notArchived := false
-		loaded, err := spoolSvc.List(ctx, repository.SpoolFilter{Archived: &notArchived})
+		loaded, err := spoolSvc.List(ctx, domain.SpoolFilter{Archived: &notArchived})
 		if err != nil {
 			spools = nil
 			messageLabel.SetLabel(fmt.Sprintf("%s: %v", t.ErrorPrefix, err))

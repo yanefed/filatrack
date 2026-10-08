@@ -1,8 +1,8 @@
 package sqlite
 
 import (
+	"awesomeProject/internal/port"
 	"awesomeProject/internal/preview"
-	"awesomeProject/internal/repository"
 	"context"
 	"database/sql"
 	"errors"
@@ -11,7 +11,7 @@ import (
 
 type PreviewImageRepo struct{ db *DB }
 
-func NewPreviewImageRepo(db *DB) repository.PreviewImageRepository {
+func NewPreviewImageRepo(db *DB) port.PreviewImageRepository {
 	return &PreviewImageRepo{db: db}
 }
 

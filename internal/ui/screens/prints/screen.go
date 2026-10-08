@@ -3,7 +3,6 @@ package prints
 import (
 	"awesomeProject/internal/domain"
 	"awesomeProject/internal/i18n"
-	"awesomeProject/internal/repository"
 	"awesomeProject/internal/service"
 	"awesomeProject/internal/ui/screens/shared"
 	"awesomeProject/internal/ui/widgets"
@@ -100,7 +99,7 @@ func NewPrintsScreen(ctx context.Context, parent *gtk.Window, printSvc *service.
 		}
 	}
 	refreshPrints = func() {
-		filter := repository.PrintJobFilter{}
+		filter := domain.PrintJobFilter{}
 		if len(printers) > 0 {
 			idx := printerCombo.Selected()
 			if int(idx) < len(printers) {

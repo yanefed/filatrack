@@ -2,19 +2,19 @@ package service
 
 import (
 	"awesomeProject/internal/domain"
-	"awesomeProject/internal/repository"
+	"awesomeProject/internal/port"
 	"context"
 	"fmt"
 	"os"
 )
 
 type PrintService struct {
-	prints   repository.PrintJobRepository
-	spools   repository.SpoolRepository
+	prints   port.PrintJobRepository
+	spools   port.SpoolRepository
 	previews *PreviewImageStore
 }
 
-func NewPrintService(prints repository.PrintJobRepository, spools repository.SpoolRepository) *PrintService {
+func NewPrintService(prints port.PrintJobRepository, spools port.SpoolRepository) *PrintService {
 	return &PrintService{prints: prints, spools: spools}
 }
 
@@ -55,7 +55,7 @@ func (s *PrintService) ChangeSpool(ctx context.Context, printJobID, spoolID stri
 	return nil
 }
 
-func (s *PrintService) List(ctx context.Context, filter repository.PrintJobFilter) ([]domain.PrintJob, error) {
+func (s *PrintService) List(ctx context.Context, filter domain.PrintJobFilter) ([]domain.PrintJob, error) {
 	jobs, err := s.prints.List(ctx, filter)
 	if err != nil {
 		return jobs, err
@@ -73,11 +73,11 @@ func (s *PrintService) migrateLegacyPreviews(ctx context.Context, jobs []domain.
 	return migrateLegacyPrintPreviews(ctx, s.previews, s.prints, jobs)
 }
 
-func migrateLegacyPrintPreviews(ctx context.Context, previews *PreviewImageStore, prints repository.PrintJobRepository, jobs []domain.PrintJob) error {
+func migrateLegacyPrintPreviews(ctx context.Context, previews *PreviewImageStore, prints port.PrintJobRepository, jobs []domain.PrintJob) error {
 	if previews == nil {
 		return nil
 	}
-	updater, ok := prints.(repository.PrintJobPreviewUpdater)
+	updater, ok := prints.(port.PrintJobPreviewUpdater)
 	if !ok {
 		return nil
 	}
@@ -104,7 +104,7 @@ func migrateLegacyPrintPreviews(ctx context.Context, previews *PreviewImageStore
 	return nil
 }
 
-func (s *PrintService) GetStats(ctx context.Context, filter repository.StatsFilter) (*repository.PrintStats, error) {
+func (s *PrintService) GetStats(ctx context.Context, filter domain.StatsFilter) (*domain.PrintStats, error) {
 	return s.prints.GetStats(ctx, filter)
 }
 

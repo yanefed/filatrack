@@ -3,7 +3,6 @@ package drying
 import (
 	"awesomeProject/internal/domain"
 	"awesomeProject/internal/i18n"
-	"awesomeProject/internal/repository"
 	"awesomeProject/internal/service"
 	"awesomeProject/internal/ui/widgets"
 	"context"
@@ -20,7 +19,7 @@ type dryingHistoryItem struct {
 
 func loadDryingHistory(ctx context.Context, dryingSvc *service.DryingService, spoolSvc *service.SpoolService) ([]dryingHistoryItem, error) {
 	notArchived := false
-	spools, err := spoolSvc.List(ctx, repository.SpoolFilter{Archived: &notArchived})
+	spools, err := spoolSvc.List(ctx, domain.SpoolFilter{Archived: &notArchived})
 	if err != nil {
 		return nil, err
 	}

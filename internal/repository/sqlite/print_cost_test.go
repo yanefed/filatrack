@@ -2,7 +2,6 @@ package sqlite
 
 import (
 	"awesomeProject/internal/domain"
-	"awesomeProject/internal/repository"
 	"testing"
 	"time"
 
@@ -32,7 +31,7 @@ func TestPrintCostUsesCurrentSpoolPrice(t *testing.T) {
 	if err := settings.SetSetting(ctx, "currency", "EUR"); err != nil {
 		t.Fatal(err)
 	}
-	jobs, err := prints.List(ctx, repository.PrintJobFilter{})
+	jobs, err := prints.List(ctx, domain.PrintJobFilter{})
 	if err != nil || len(jobs) != 3 {
 		t.Fatalf("jobs: %+v, %v", jobs, err)
 	}

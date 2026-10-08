@@ -2,7 +2,6 @@ package sqlite
 
 import (
 	"awesomeProject/internal/domain"
-	"awesomeProject/internal/repository"
 	"testing"
 	"time"
 )
@@ -31,14 +30,14 @@ func TestPrintHistoryMatchesRemoteIDAndLiveFingerprint(t *testing.T) {
 		}
 	}
 	printerID := "p"
-	jobs, err := repo.List(ctx, repository.PrintJobFilter{PrinterID: &printerID, HistoryMatches: []repository.PrintHistoryMatch{
+	jobs, err := repo.List(ctx, domain.PrintJobFilter{PrinterID: &printerID, HistoryMatches: []domain.PrintHistoryMatch{
 		{ExternalPrintID: "r1"},
 		{ExternalPrintID: "remote-live", Filename: "part.gcode", EndedAt: minute.Add(40 * time.Second)},
 	}})
 	if err != nil || len(jobs) != 2 || jobs[0].ID != "live" || jobs[1].ID != "remote" {
 		t.Fatalf("matched jobs=%+v error=%v", jobs, err)
 	}
-	jobs, err = repo.List(ctx, repository.PrintJobFilter{PrinterID: &printerID, HistoryMatches: []repository.PrintHistoryMatch{}})
+	jobs, err = repo.List(ctx, domain.PrintJobFilter{PrinterID: &printerID, HistoryMatches: []domain.PrintHistoryMatch{}})
 	if err != nil || len(jobs) != 0 {
 		t.Fatalf("empty page matched jobs=%+v error=%v", jobs, err)
 	}
