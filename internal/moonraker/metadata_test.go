@@ -12,38 +12,6 @@ import (
 	"time"
 )
 
-func TestMetadataURL(t *testing.T) {
-	got, err := metadataURL("ws://printer.local/websocket", "folder/part.gcode")
-	if err != nil {
-		t.Fatalf("metadataURL: %v", err)
-	}
-	want := "http://printer.local/server/files/metadata?filename=folder%2Fpart.gcode"
-	if got != want {
-		t.Fatalf("metadata URL = %q, want %q", got, want)
-	}
-}
-
-func TestServerInfoURL(t *testing.T) {
-	got, err := serverInfoURL("wss://printer.local/websocket")
-	if err != nil {
-		t.Fatalf("serverInfoURL: %v", err)
-	}
-	if got != "https://printer.local/server/info" {
-		t.Fatalf("server info URL = %q", got)
-	}
-}
-
-func TestThumbnailURL(t *testing.T) {
-	got, err := thumbnailURL("ws://printer.local/websocket", "folder/part.gcode", ".thumbs/part.png")
-	if err != nil {
-		t.Fatalf("thumbnailURL: %v", err)
-	}
-	want := "http://printer.local/server/files/gcodes/folder/.thumbs/part.png"
-	if got != want {
-		t.Fatalf("thumbnail URL = %q, want %q", got, want)
-	}
-}
-
 func TestHTTPMetadataFetcher(t *testing.T) {
 	var gotAPIKey string
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

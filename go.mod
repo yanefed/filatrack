@@ -12,6 +12,7 @@ require (
 	github.com/gorilla/websocket v1.5.3
 	github.com/jackc/pgx/v5 v5.11.0
 	github.com/pressly/goose/v3 v3.28.0
+	github.com/yanefed/moonraker v0.0.0
 	go.uber.org/fx v1.24.0
 )
 
@@ -35,3 +36,5 @@ require (
 	modernc.org/mathutil v1.7.1 // indirect
 	modernc.org/memory v1.12.1 // indirect
 )
+
+replace github.com/yanefed/moonraker => ./modules/moonraker
