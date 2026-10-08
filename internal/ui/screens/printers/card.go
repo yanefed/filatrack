@@ -10,7 +10,7 @@ import (
 	"github.com/diamondburned/gotk4/pkg/pango"
 )
 
-func newPrinterCard(t i18n.T, printer domain.Printer, spools []domain.Spool, onAssign func(uint), onEdit func()) (*gtk.Box, *gtk.Box) {
+func newPrinterCard(t i18n.T, printer domain.Printer, spools []domain.Spool, onAssign func(uint), onEdit func()) (*gtk.Box, *widgets.PrinterStatusWidget) {
 	card := gtk.NewBox(gtk.OrientationVertical, 0)
 	card.AddCSSClass("card")
 	card.SetMarginTop(4)
@@ -24,9 +24,8 @@ func newPrinterCard(t i18n.T, printer domain.Printer, spools []domain.Spool, onA
 	content.SetMarginStart(12)
 	content.SetMarginEnd(12)
 
-	statusSlot := gtk.NewBox(gtk.OrientationVertical, 0)
-	statusSlot.Append(widgets.NewPrinterStatus(t, printer))
-	content.Append(statusSlot)
+	status := widgets.NewPrinterStatus(t, printer)
+	content.Append(status)
 	endpoint := gtk.NewBox(gtk.OrientationHorizontal, 6)
 	endpointIcon := gtk.NewImageFromIconName("network-server-symbolic")
 	endpointIcon.AddCSSClass("dim-label")
@@ -67,5 +66,5 @@ func newPrinterCard(t i18n.T, printer domain.Printer, spools []domain.Spool, onA
 	content.Append(assignment)
 
 	card.Append(content)
-	return card, statusSlot
+	return card, status
 }

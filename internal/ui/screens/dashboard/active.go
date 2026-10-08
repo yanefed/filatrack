@@ -8,7 +8,7 @@ import (
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 )
 
-func newActivePrintsView(t i18n.T, printers []domain.Printer) *gtk.FlowBox {
+func newActivePrintsView(t i18n.T, printers []domain.Printer) (*gtk.FlowBox, []*widgets.PrinterStatusWidget) {
 	grid := gtk.NewFlowBox()
 	grid.SetSelectionMode(gtk.SelectionNone)
 	grid.SetHomogeneous(true)
@@ -18,8 +18,9 @@ func newActivePrintsView(t i18n.T, printers []domain.Printer) *gtk.FlowBox {
 	grid.SetRowSpacing(12)
 	if len(printers) == 0 {
 		grid.Append(newDashboardStateCard("object-select-symbolic", "success", t.NoActivePrints))
-		return grid
+		return grid, nil
 	}
+	statuses := make([]*widgets.PrinterStatusWidget, 0, len(printers))
 	for _, printer := range printers {
 		card := gtk.NewBox(gtk.OrientationVertical, 0)
 		card.AddCSSClass("card")
@@ -34,8 +35,9 @@ func newActivePrintsView(t i18n.T, printers []domain.Printer) *gtk.FlowBox {
 		status.SetMarginEnd(12)
 		card.Append(status)
 		grid.Append(card)
+		statuses = append(statuses, status)
 	}
-	return grid
+	return grid, statuses
 }
 
 func newDashboardStateCard(iconName, colorClass, text string) *gtk.Box {

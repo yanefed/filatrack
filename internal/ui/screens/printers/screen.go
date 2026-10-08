@@ -28,7 +28,7 @@ func NewPrintersScreen(ctx context.Context, parent *gtk.Window, printerSvc *serv
 	list.SetSelectionMode(gtk.SelectionNone)
 	box.Append(widgets.NewScrolled(list))
 
-	statusSlots := map[string]*gtk.Box{}
+	statusSlots := map[string]*widgets.PrinterStatusWidget{}
 	var refreshPrinters func()
 	refreshPrinterStatuses := func() {
 		printers, err := printerSvc.List(ctx)
@@ -36,19 +36,19 @@ func NewPrintersScreen(ctx context.Context, parent *gtk.Window, printerSvc *serv
 			return
 		}
 		for _, printer := range printers {
-			slot, ok := statusSlots[printer.ID]
+			status, ok := statusSlots[printer.ID]
 			if !ok {
 				refreshPrinters()
 				return
 			}
-			widgets.ReplaceBoxChild(slot, widgets.NewPrinterStatus(t, printer))
+			status.Update(t, printer)
 		}
 	}
 
 	refreshPrinters = func() {
 		messageLabel.SetVisible(false)
 		widgets.ClearListBox(list)
-		statusSlots = map[string]*gtk.Box{}
+		statusSlots = map[string]*widgets.PrinterStatusWidget{}
 
 		configuredPrinters, err := printerSvc.List(ctx)
 		if err != nil {
@@ -61,7 +61,7 @@ func NewPrintersScreen(ctx context.Context, parent *gtk.Window, printerSvc *serv
 		spools := shared.ActiveSpools(ctx, spoolSvc)
 
 		for _, printer := range configuredPrinters {
-			card, statusSlot := newPrinterCard(t, printer, spools, func(index uint) {
+			card, status := newPrinterCard(t, printer, spools, func(index uint) {
 				var err error
 				if index == 0 {
 					err = printerSvc.ClearAssignedSpool(ctx, printer.ID)
@@ -86,7 +86,7 @@ func NewPrintersScreen(ctx context.Context, parent *gtk.Window, printerSvc *serv
 					}
 				})
 			})
-			statusSlots[printer.ID] = statusSlot
+			statusSlots[printer.ID] = status
 			list.Append(card)
 		}
 	}

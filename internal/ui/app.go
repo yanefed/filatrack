@@ -117,9 +117,12 @@ func (a *App) activate(app *adw.Application) {
 			"settings":  false,
 		}
 		refreshLive = func() {
-			refreshPrintsLive()
-			refreshPrintersLive()
-			if activePage == "dashboard" {
+			switch activePage {
+			case "prints":
+				refreshPrintsLive()
+			case "printers":
+				refreshPrintersLive()
+			case "dashboard":
 				refreshDashboardLive()
 			}
 		}
@@ -238,6 +241,7 @@ func (a *App) activate(app *adw.Application) {
 			activePage = stack.VisibleChildName()
 			updateHeaderActions()
 			refreshActive(false)
+			refreshLive()
 		})
 	}
 
@@ -253,10 +257,14 @@ func (a *App) activate(app *adw.Application) {
 		refreshLive()
 		return true
 	})
+	memoryTimer := startMemoryDiagnostics()
 	window.ConnectDestroy(func() {
 		cancel()
 		glib.SourceRemove(refreshTimer)
 		glib.SourceRemove(liveTimer)
+		if memoryTimer != 0 {
+			glib.SourceRemove(memoryTimer)
+		}
 		refreshActive = func(bool) {}
 		refreshLive = func() {}
 	})

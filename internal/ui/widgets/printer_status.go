@@ -9,8 +9,25 @@ import (
 	"github.com/diamondburned/gotk4/pkg/pango"
 )
 
+// PrinterStatusWidget keeps its GTK objects alive and updates their contents in place.
+type PrinterStatusWidget struct {
+	*gtk.Box
+	dot      *gtk.Box
+	info     *gtk.Label
+	file     *gtk.Label
+	progress *gtk.ProgressBar
+
+	lastInfo     string
+	lastFile     string
+	lastProgress float64
+	lastOnline   bool
+	lastHasFile  bool
+	lastHasPrint bool
+	initialized  bool
+}
+
 // NewPrinterStatus creates a compact status block for a Moonraker printer.
-func NewPrinterStatus(t i18n.T, printer domain.Printer) *gtk.Box {
+func NewPrinterStatus(t i18n.T, printer domain.Printer) *PrinterStatusWidget {
 	row := gtk.NewBox(gtk.OrientationVertical, 4)
 	row.SetMarginTop(6)
 	row.SetMarginBottom(8)
@@ -18,15 +35,9 @@ func NewPrinterStatus(t i18n.T, printer domain.Printer) *gtk.Box {
 	header := gtk.NewBox(gtk.OrientationHorizontal, 8)
 	dot := gtk.NewBox(gtk.OrientationHorizontal, 0)
 	dot.AddCSSClass("printer-status-dot")
-	if PrinterOnline(printer) {
-		dot.AddCSSClass("online")
-	} else {
-		dot.AddCSSClass("offline")
-	}
 	header.Append(dot)
 
-	progress := ClampProgress(printer.Progress)
-	info := gtk.NewLabel(PrinterInfoText(t, printer))
+	info := gtk.NewLabel("")
 	info.AddCSSClass("heading")
 	info.SetHAlign(gtk.AlignStart)
 	info.SetHExpand(true)
@@ -35,25 +46,67 @@ func NewPrinterStatus(t i18n.T, printer domain.Printer) *gtk.Box {
 	header.Append(info)
 	row.Append(header)
 
-	if printer.CurrentFile != "" {
-		file := gtk.NewLabel(fmt.Sprintf(t.CurrentFileFmt, printer.CurrentFile))
-		file.SetHAlign(gtk.AlignStart)
-		file.SetHExpand(true)
-		file.SetEllipsize(pango.EllipsizeEnd)
-		file.SetMaxWidthChars(80)
-		file.AddCSSClass("dim-label")
-		row.Append(file)
-	}
+	file := gtk.NewLabel("")
+	file.SetHAlign(gtk.AlignStart)
+	file.SetHExpand(true)
+	file.SetEllipsize(pango.EllipsizeEnd)
+	file.SetMaxWidthChars(80)
+	file.AddCSSClass("dim-label")
+	row.Append(file)
 
-	if PrinterHasActivePrint(printer) {
-		bar := gtk.NewProgressBar()
-		bar.SetFraction(progress)
-		bar.SetShowText(true)
-		bar.SetText(fmt.Sprintf("%.0f%%", progress*100))
-		row.Append(bar)
-	}
+	bar := gtk.NewProgressBar()
+	bar.SetShowText(true)
+	row.Append(bar)
 
-	return row
+	status := &PrinterStatusWidget{Box: row, dot: dot, info: info, file: file, progress: bar}
+	status.Update(t, printer)
+	return status
+}
+
+// Update changes only the properties whose displayed values have changed.
+func (status *PrinterStatusWidget) Update(t i18n.T, printer domain.Printer) {
+	infoText := PrinterInfoText(t, printer)
+	fileText := ""
+	hasFile := printer.CurrentFile != ""
+	if hasFile {
+		fileText = fmt.Sprintf(t.CurrentFileFmt, printer.CurrentFile)
+	}
+	progress := ClampProgress(printer.Progress)
+	hasPrint := PrinterHasActivePrint(printer)
+	online := PrinterOnline(printer)
+
+	if !status.initialized || infoText != status.lastInfo {
+		status.info.SetLabel(infoText)
+		status.lastInfo = infoText
+	}
+	if !status.initialized || fileText != status.lastFile {
+		status.file.SetLabel(fileText)
+		status.lastFile = fileText
+	}
+	if !status.initialized || hasFile != status.lastHasFile {
+		status.file.SetVisible(hasFile)
+		status.lastHasFile = hasFile
+	}
+	if !status.initialized || progress != status.lastProgress {
+		status.progress.SetFraction(progress)
+		status.progress.SetText(fmt.Sprintf("%.0f%%", progress*100))
+		status.lastProgress = progress
+	}
+	if !status.initialized || hasPrint != status.lastHasPrint {
+		status.progress.SetVisible(hasPrint)
+		status.lastHasPrint = hasPrint
+	}
+	if !status.initialized || online != status.lastOnline {
+		if online {
+			status.dot.RemoveCSSClass("offline")
+			status.dot.AddCSSClass("online")
+		} else {
+			status.dot.RemoveCSSClass("online")
+			status.dot.AddCSSClass("offline")
+		}
+		status.lastOnline = online
+	}
+	status.initialized = true
 }
 
 func PrinterOnline(printer domain.Printer) bool {
