@@ -88,7 +88,10 @@ func (c HTTPControlClient) DownloadFile(ctx context.Context, printer domain.Prin
 
 func (c HTTPControlClient) Upload(ctx context.Context, printer domain.Printer, localPath, remotePath string, startPrint bool) (domain.PrinterUploadResult, error) {
 	result, err := c.client().Upload(ctx, printerConfig(printer), localPath, remotePath, startPrint)
-	return domain.PrinterUploadResult{Path: result.Path, PrintStarted: result.PrintStarted, PrintQueued: result.PrintQueued}, err
+	if err != nil {
+		return domain.PrinterUploadResult{}, err
+	}
+	return domain.PrinterUploadResult{Path: result.Path, PrintStarted: result.PrintStarted, PrintQueued: result.PrintQueued}, nil
 }
 
 func (c HTTPControlClient) FetchMetadata(ctx context.Context, printer domain.Printer, filename string) (*domain.GcodeMetadata, error) {
