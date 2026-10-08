@@ -5,6 +5,7 @@ import (
 	"awesomeProject/internal/repository"
 	"context"
 	"fmt"
+	"slices"
 	"time"
 )
 
@@ -79,8 +80,38 @@ func (s *SpoolService) GetWithRemaining(ctx context.Context, id string) (*domain
 	return spool, spool.RemainingWeightG(used), nil
 }
 
-func (s *SpoolService) List(ctx context.Context, filter repository.SpoolFilter) ([]domain.Spool, error) {
+func (s *SpoolService) List(ctx context.Context, filter domain.SpoolFilter) ([]domain.Spool, error) {
 	return s.spools.List(ctx, filter)
+}
+
+type SpoolFilterOptions struct {
+	Manufacturers []string
+	Materials     []domain.Material
+}
+
+// FilterOptions includes all active spools, independent of the current selection.
+func (s *SpoolService) FilterOptions(ctx context.Context) (SpoolFilterOptions, error) {
+	archived := false
+	spools, err := s.spools.List(ctx, domain.SpoolFilter{Archived: &archived})
+	if err != nil {
+		return SpoolFilterOptions{}, err
+	}
+	manufacturers := make(map[string]struct{})
+	materials := make(map[domain.Material]struct{})
+	for _, spool := range spools {
+		manufacturers[spool.Manufacturer] = struct{}{}
+		materials[spool.Material] = struct{}{}
+	}
+	options := SpoolFilterOptions{}
+	for manufacturer := range manufacturers {
+		options.Manufacturers = append(options.Manufacturers, manufacturer)
+	}
+	for material := range materials {
+		options.Materials = append(options.Materials, material)
+	}
+	slices.Sort(options.Manufacturers)
+	slices.Sort(options.Materials)
+	return options, nil
 }
 
 func (s *SpoolService) NeedsDrying(ctx context.Context, spool *domain.Spool) (bool, error) {

@@ -52,6 +52,13 @@ type T struct {
 	SpoolInfoFmt       string
 	SpoolWeightFmt     string
 
+	// Spool filters
+	AllManufacturers  string
+	AllMaterials      string
+	ResetFilters      string
+	NoMatchingSpools  string
+	FilterUnspecified string
+
 	// Prints
 	PrintCostFmt   string
 	CostNotSet     string

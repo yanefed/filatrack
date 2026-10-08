@@ -16,12 +16,8 @@ type SpoolRepository interface {
 	GetUsedWeight(ctx context.Context, spoolID string) (float64, error)
 }
 
-type SpoolFilter struct {
-	Material     *domain.Material
-	Manufacturer *string
-	Color        *string
-	Archived     *bool
-}
+// SpoolFilter remains an alias for existing repository clients.
+type SpoolFilter = domain.SpoolFilter
 
 type PrintJobRepository interface {
 	Create(ctx context.Context, job *domain.PrintJob) error

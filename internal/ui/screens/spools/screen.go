@@ -2,7 +2,6 @@ package spools
 
 import (
 	"awesomeProject/internal/i18n"
-	"awesomeProject/internal/repository"
 	"awesomeProject/internal/service"
 	"awesomeProject/internal/ui/widgets"
 	"context"
@@ -15,6 +14,14 @@ import (
 func NewSpoolsScreen(ctx context.Context, parent *gtk.Window, spoolSvc *service.SpoolService, dryingSvc *service.DryingService, settingsSvc *service.SettingsService, onChanged func()) (*gtk.Box, func(), func()) {
 	t := i18n.L()
 	box := widgets.NewScreen(t.Spools)
+	var refreshList func()
+	filters := newSpoolFilters(t, func() { refreshList() })
+	box.Append(filters.root)
+
+	emptyLabel := gtk.NewLabel(t.NoMatchingSpools)
+	emptyLabel.AddCSSClass("dim-label")
+	emptyLabel.SetVisible(false)
+	box.Append(emptyLabel)
 
 	spoolGrid := gtk.NewFlowBox()
 	spoolGrid.SetVAlign(gtk.AlignStart)
@@ -30,16 +37,17 @@ func NewSpoolsScreen(ctx context.Context, parent *gtk.Window, spoolSvc *service.
 	box.Append(scrolled)
 
 	var refreshSpools func()
-	refreshSpools = func() {
+	refreshList = func() {
 		spoolGrid.RemoveAll()
+		emptyLabel.SetVisible(false)
 
-		notArchived := false
-		spools, err := spoolSvc.List(ctx, repository.SpoolFilter{Archived: &notArchived})
+		spools, err := spoolSvc.List(ctx, filters.Filter())
 		if err != nil {
 			label := gtk.NewLabel(fmt.Sprintf("%s: %v", t.ErrorPrefix, err))
 			spoolGrid.Append(label)
 			return
 		}
+		emptyLabel.SetVisible(len(spools) == 0)
 
 		for _, spool := range spools {
 			_, remaining, err := spoolSvc.GetWithRemaining(ctx, spool.ID)
@@ -77,6 +85,17 @@ func NewSpoolsScreen(ctx context.Context, parent *gtk.Window, spoolSvc *service.
 				},
 			}))
 		}
+	}
+	refreshSpools = func() {
+		options, err := spoolSvc.FilterOptions(ctx)
+		if err != nil {
+			spoolGrid.RemoveAll()
+			emptyLabel.SetVisible(false)
+			spoolGrid.Append(gtk.NewLabel(fmt.Sprintf("%s: %v", t.ErrorPrefix, err)))
+			return
+		}
+		filters.SetOptions(options)
+		refreshList()
 	}
 
 	openAddDialog := func() {

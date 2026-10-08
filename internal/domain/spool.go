@@ -22,6 +22,14 @@ type Spool struct {
 	UpdatedAt    time.Time
 }
 
+// SpoolFilter combines optional conditions; nil fields impose no restriction.
+type SpoolFilter struct {
+	Material     *Material
+	Manufacturer *string
+	Color        *string
+	Archived     *bool
+}
+
 func (s *Spool) RemainingWeightG(usedG float64) float64 {
 	return max(s.TotalWeightG-usedG, 0)
 }
