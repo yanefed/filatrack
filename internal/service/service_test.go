@@ -800,6 +800,7 @@ func TestPrinterServiceAssignHistoryJobSpoolRecalculatesExistingUsage(t *testing
 		ID: "local-1", PrinterID: "printer-1", ExternalPrintID: "remote-1",
 		Status: domain.PrintStatusSuccess, EstimatedLengthMM: 1000,
 	}}
+	prints.list = []domain.PrintJob{*prints.created}
 	client := &printerJobClientStub{history: []domain.PrinterHistoryJob{{
 		PrinterID: "printer-1", ExternalPrintID: "remote-1", GcodeFilename: "benchy.gcode",
 	}}}

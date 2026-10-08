@@ -68,7 +68,8 @@ func TestIncrementalHistorySurvivesDatabaseReopen(t *testing.T) {
 	if n, err := app.printers.SyncPrinterHistory(t.Context(), printer.ID, 0); err != nil || n != 0 {
 		t.Fatalf("repeat import: created=%d error=%v", n, err)
 	}
-	if historyRequests.Load() != 1 || metadataRequests.Load() != 0 {
+	// The overlapping boundary job is checked again for its missing preview.
+	if historyRequests.Load() != 1 || metadataRequests.Load() != 1 {
 		t.Fatalf("repeat requests: history=%d metadata=%d", historyRequests.Load(), metadataRequests.Load())
 	}
 	jobs, err := sqlite.NewPrintJobRepo(app.db).List(t.Context(), repository.PrintJobFilter{PrinterID: &printer.ID})
