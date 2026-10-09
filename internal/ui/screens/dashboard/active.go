@@ -8,19 +8,12 @@ import (
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 )
 
-func newActivePrintsView(t i18n.T, printers []domain.Printer) (*gtk.FlowBox, []*widgets.PrinterStatusWidget) {
-	grid := gtk.NewFlowBox()
-	grid.SetSelectionMode(gtk.SelectionNone)
-	grid.SetHomogeneous(true)
-	grid.SetHAlign(gtk.AlignFill)
-	grid.SetHExpand(true)
-	grid.SetMinChildrenPerLine(1)
-	grid.SetMaxChildrenPerLine(2)
-	grid.SetColumnSpacing(12)
-	grid.SetRowSpacing(12)
+func newActivePrintsView(t i18n.T, printers []domain.Printer) (*gtk.Box, []*widgets.PrinterStatusWidget) {
+	list := gtk.NewBox(gtk.OrientationVertical, 8)
+	list.SetHExpand(true)
 	if len(printers) == 0 {
-		grid.Append(newDashboardStateCard("object-select-symbolic", "success", t.NoActivePrints))
-		return grid, nil
+		list.Append(newDashboardStateCard("object-select-symbolic", "success", t.NoActivePrints))
+		return list, nil
 	}
 	statuses := make([]*widgets.PrinterStatusWidget, 0, len(printers))
 	for _, printer := range printers {
@@ -38,10 +31,10 @@ func newActivePrintsView(t i18n.T, printers []domain.Printer) (*gtk.FlowBox, []*
 		status.SetMarginStart(12)
 		status.SetMarginEnd(12)
 		card.Append(status)
-		grid.Append(card)
+		list.Append(card)
 		statuses = append(statuses, status)
 	}
-	return grid, statuses
+	return list, statuses
 }
 
 func newDashboardStateCard(iconName, colorClass, text string) *gtk.Box {
