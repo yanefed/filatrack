@@ -13,7 +13,7 @@ func TestPrintStatsCost(t *testing.T) {
 	ctx := t.Context()
 	prints := NewPrintJobRepo(db)
 	spools := NewSpoolRepo(db)
-	stats, err := prints.GetStats(ctx, repository.StatsFilter{})
+	stats, err := prints.GetStats(ctx, domain.StatsFilter{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -49,7 +49,7 @@ func TestPrintStatsCost(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	check := func(filter repository.StatsFilter, wantCost float64, wantPrints, wantUnpriced, wantEstimated int) {
+	check := func(filter domain.StatsFilter, wantCost float64, wantPrints, wantUnpriced, wantEstimated int) {
 		t.Helper()
 		stats, err := prints.GetStats(ctx, filter)
 		if err != nil {
@@ -59,20 +59,20 @@ func TestPrintStatsCost(t *testing.T) {
 			t.Fatalf("stats: %+v; want cost %v, prints %d, unpriced %d, estimated %d", stats, wantCost, wantPrints, wantUnpriced, wantEstimated)
 		}
 	}
-	check(repository.StatsFilter{}, 64, 8, 3, 1)
+	check(domain.StatsFilter{}, 64, 8, 3, 1)
 	from, to := now.Add(-time.Hour), now.Add(time.Hour)
-	check(repository.StatsFilter{From: &from, To: &to}, 58, 7, 3, 1)
+	check(domain.StatsFilter{From: &from, To: &to}, 58, 7, 3, 1)
 	// Archived spools still contribute, and changing their price updates history costs.
 	priced.Price = 3000
 	priced.Archived = true
 	if err := spools.Update(ctx, priced); err != nil {
 		t.Fatal(err)
 	}
-	check(repository.StatsFilter{}, 96.02, 8, 3, 1)
+	check(domain.StatsFilter{}, 96.02, 8, 3, 1)
 	if err := prints.UpdateSpool(ctx, jobs[1].ID, ""); err != nil {
 		t.Fatal(err)
 	}
-	check(repository.StatsFilter{}, 84.02, 8, 4, 0)
+	check(domain.StatsFilter{}, 84.02, 8, 4, 0)
 }
 
 func TestPrintCostUsesCurrentSpoolPrice(t *testing.T) {
