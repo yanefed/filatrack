@@ -23,6 +23,7 @@ func NewDashboard(ctx context.Context, spoolSvc *service.SpoolService, printSvc 
 	box.Append(widgets.NewScrolled(content))
 
 	activeSlot := gtk.NewBox(gtk.OrientationVertical, 0)
+	activeSlot.SetHExpand(true)
 	var activeIDs []string
 	var activeStatuses []*widgets.PrinterStatusWidget
 	updateActive := func(printers []domain.Printer) {
@@ -60,21 +61,16 @@ func NewDashboard(ctx context.Context, spoolSvc *service.SpoolService, printSvc 
 		updateActive(data.activePrinters())
 		content.Append(activeSlot)
 
-		columns := gtk.NewFlowBox()
-		columns.SetSelectionMode(gtk.SelectionNone)
+		columns := gtk.NewBox(gtk.OrientationHorizontal, 12)
 		columns.SetHomogeneous(true)
-		columns.SetMinChildrenPerLine(1)
-		columns.SetMaxChildrenPerLine(2)
-		columns.SetColumnSpacing(12)
-		columns.SetRowSpacing(12)
 		recent := gtk.NewBox(gtk.OrientationVertical, 8)
-		recent.SetSizeRequest(280, -1)
+		recent.SetHExpand(true)
 		recent.Append(widgets.NewSectionTitle(t.RecentPrints))
 		recent.Append(newRecentPrintsPanel(t, data.recent))
 		columns.Append(recent)
 
 		attention := gtk.NewBox(gtk.OrientationVertical, 8)
-		attention.SetSizeRequest(280, -1)
+		attention.SetHExpand(true)
 		attention.Append(widgets.NewSectionTitle(t.DryingWarnings))
 		attention.Append(newAttentionPanel(t, data.dryingWarnings()))
 		columns.Append(attention)

@@ -12,6 +12,8 @@ func newActivePrintsView(t i18n.T, printers []domain.Printer) (*gtk.FlowBox, []*
 	grid := gtk.NewFlowBox()
 	grid.SetSelectionMode(gtk.SelectionNone)
 	grid.SetHomogeneous(true)
+	grid.SetHAlign(gtk.AlignFill)
+	grid.SetHExpand(true)
 	grid.SetMinChildrenPerLine(1)
 	grid.SetMaxChildrenPerLine(2)
 	grid.SetColumnSpacing(12)
@@ -24,6 +26,8 @@ func newActivePrintsView(t i18n.T, printers []domain.Printer) (*gtk.FlowBox, []*
 	for _, printer := range printers {
 		card := gtk.NewBox(gtk.OrientationVertical, 0)
 		card.AddCSSClass("card")
+		card.SetHAlign(gtk.AlignFill)
+		card.SetHExpand(true)
 		card.SetMarginTop(2)
 		card.SetMarginBottom(2)
 		card.SetMarginStart(2)
