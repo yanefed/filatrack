@@ -48,24 +48,6 @@ type PreviewImageRepository interface {
 	Get(ctx context.Context, hash string) ([]byte, error)
 }
 
-type StatsFilter struct {
-	From *time.Time
-	To   *time.Time
-}
-
-type PrintStats struct {
-	TotalCost          float64
-	CostCurrency       string
-	UnpricedCount      int
-	EstimatedCostCount int
-	TotalPrints        int
-	SuccessCount       int
-	FailedCount        int
-	CancelledCount     int
-	TotalWeightG       float64
-	AvgWeightG         float64
-}
-
 type DryingSessionRepository interface {
 	Create(ctx context.Context, session *domain.DryingSession) error
 	List(ctx context.Context, spoolID string) ([]domain.DryingSession, error)
