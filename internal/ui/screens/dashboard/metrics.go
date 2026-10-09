@@ -52,8 +52,8 @@ func newMetricsGrid(t i18n.T, data dashboardData) *gtk.FlowBox {
 	grid.SetSelectionMode(gtk.SelectionNone)
 	grid.SetHomogeneous(true)
 	grid.SetHExpand(true)
-	grid.SetMinChildrenPerLine(3)
-	grid.SetMaxChildrenPerLine(3)
+	grid.SetMinChildrenPerLine(1)
+	grid.SetMaxChildrenPerLine(uint(len(cards)))
 	grid.SetColumnSpacing(metricGridSpacing)
 	grid.SetRowSpacing(metricGridSpacing)
 	for _, card := range cards {
