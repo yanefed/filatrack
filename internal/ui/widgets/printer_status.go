@@ -2,6 +2,7 @@ package widgets
 
 import (
 	"fmt"
+
 	"github.com/yanefed/filatrack/internal/domain"
 	"github.com/yanefed/filatrack/internal/i18n"
 	"github.com/yanefed/filatrack/internal/ui/layout"
@@ -29,15 +30,10 @@ type PrinterStatusWidget struct {
 // NewPrinterStatus creates a compact status block for a Moonraker printer.
 func NewPrinterStatus(t i18n.T, printer domain.Printer, views ...*layout.View) *PrinterStatusWidget {
 	view := layout.Use("printer-status", views...)
-
 	row := layout.Get[*gtk.Box](view, "row")
-
 	dot := layout.Get[*gtk.Box](view, "dot")
-
 	info := layout.Get[*gtk.Label](view, "info")
-
 	file := layout.Get[*gtk.Label](view, "file")
-
 	bar := layout.Get[*gtk.ProgressBar](view, "bar")
 
 	status := &PrinterStatusWidget{Box: row, dot: dot, info: info, file: file, progress: bar}

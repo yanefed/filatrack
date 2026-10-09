@@ -2,15 +2,11 @@ package dashboard
 
 import (
 	"fmt"
+
 	"github.com/yanefed/filatrack/internal/i18n"
 	"github.com/yanefed/filatrack/internal/ui/layout"
 
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
-)
-
-const (
-	metricCardMinWidth = 150
-	metricGridSpacing  = 6
 )
 
 func newMetricsGrid(t i18n.T, data dashboardData) *gtk.FlowBox {

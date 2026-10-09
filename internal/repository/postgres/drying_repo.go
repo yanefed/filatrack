@@ -5,9 +5,10 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"log/slog"
+
 	"github.com/yanefed/filatrack/internal/domain"
 	"github.com/yanefed/filatrack/internal/port"
-	"log/slog"
 
 	"github.com/yanefed/filatrack/internal/repository/entity"
 
@@ -18,10 +19,6 @@ import (
 type DryingRepo struct {
 	logger *slog.Logger
 	db     *DB
-}
-
-func NewDryingRepo(db *DB) port.DryingSessionRepository {
-	return NewDryingRepoWithLogger(db, nil)
 }
 
 func NewDryingRepoWithLogger(db *DB, logger *slog.Logger,

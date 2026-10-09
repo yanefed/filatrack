@@ -1,9 +1,10 @@
 package widgets
 
 import (
+	"math"
+
 	"github.com/yanefed/filatrack/internal/ui/colors"
 	"github.com/yanefed/filatrack/internal/ui/layout"
-	"math"
 
 	"github.com/diamondburned/gotk4/pkg/cairo"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
@@ -13,8 +14,6 @@ import (
 // указанного цвета.
 func NewSpoolPreview(colorHex string, views ...*layout.View) *gtk.DrawingArea {
 	view := layout.Use("spool-preview", views...)
-
-	const size = 58
 
 	color := colors.FromHex(colorHex)
 	area := layout.Get[*gtk.DrawingArea](view, "area")

@@ -3,19 +3,13 @@ package drying
 import (
 	"context"
 	"fmt"
+
 	"github.com/yanefed/filatrack/internal/domain"
 	"github.com/yanefed/filatrack/internal/i18n"
 	"github.com/yanefed/filatrack/internal/service"
 	"github.com/yanefed/filatrack/internal/ui/layout"
 
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
-)
-
-const (
-	recommendationCardWidth      = 190
-	recommendationCardHeight     = 128
-	recommendationViewportHeight = 140
-	recommendationStripHeight    = 158
 )
 
 func newRecommendationsView(t i18n.T, ctx context.Context, dryingSvc *service.DryingService, views ...*layout.View) (*gtk.ScrolledWindow, func()) {

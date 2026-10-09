@@ -4,9 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/yanefed/filatrack/internal/domain"
-	"github.com/yanefed/filatrack/internal/gcode"
-	"github.com/yanefed/filatrack/internal/port"
 	"log/slog"
 	"os"
 	"path"
@@ -15,6 +12,10 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/yanefed/filatrack/internal/domain"
+	"github.com/yanefed/filatrack/internal/gcode"
+	"github.com/yanefed/filatrack/internal/port"
 )
 
 const metadataSyncConcurrency = 4

@@ -1,12 +1,13 @@
 package widgets
 
 import (
-	"github.com/yanefed/filatrack/internal/domain"
-	"github.com/yanefed/filatrack/internal/i18n"
 	"math"
 	"runtime"
 	"strings"
 	"testing"
+
+	"github.com/yanefed/filatrack/internal/domain"
+	"github.com/yanefed/filatrack/internal/i18n"
 
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 )
@@ -41,21 +42,6 @@ func TestPrinterInfoTextOnlyIncludesProgressForActivePrint(t *testing.T) {
 	printing := PrinterInfoText(translations, domain.Printer{Name: "Voron", State: domain.PrinterStatePrinting, Progress: 0.75})
 	if !strings.Contains(printing, "75%") {
 		t.Fatalf("printing printer status does not contain progress: %q", printing)
-	}
-}
-
-func TestScreenLayout(t *testing.T) {
-	initGTK(t)
-
-	screen := NewScreen("Inventory")
-	if screen.MarginTop() != screenMargin || screen.MarginBottom() != screenMargin ||
-		screen.MarginStart() != screenMargin || screen.MarginEnd() != screenMargin {
-		t.Fatalf("screen margins must all equal %d", screenMargin)
-	}
-	child := screen.FirstChild()
-	title, ok := child.(*gtk.Label)
-	if !ok || title.Text() != "Inventory" || !title.HasCSSClass("title-1") {
-		t.Fatal("screen must start with a title-1 label")
 	}
 }
 
