@@ -1,0 +1,88 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<!-- Created with Cambalache 1.0.3 -->
+<interface>
+  <!-- interface-name material-dialog.ui -->
+  <requires lib="gtk" version="4.10"/>
+  <requires lib="libadwaita" version="1.5"/>
+  <object class="GtkWindow" id="dialog">
+    <property name="default-height">-1</property>
+    <property name="default-width">480</property>
+    <property name="modal">true</property>
+    <child>
+      <object class="GtkBox" id="box">
+        <property name="margin-bottom">16</property>
+        <property name="margin-end">16</property>
+        <property name="margin-start">16</property>
+        <property name="margin-top">16</property>
+        <property name="orientation">vertical</property>
+        <property name="spacing">16</property>
+        <child>
+          <object class="AdwPreferencesGroup" id="materialGroup">
+            <property name="title">Material</property>
+            <child>
+              <object class="AdwEntryRow" id="materialGroup_slot_1_entry">
+                <property name="title">Value</property>
+              </object>
+            </child>
+            <child>
+              <object class="AdwEntryRow" id="materialGroup_slot_2_entry">
+                <property name="title">Value</property>
+              </object>
+            </child>
+          </object>
+        </child>
+        <child>
+          <object class="AdwPreferencesGroup" id="dryingGroup">
+            <property name="title">Drying</property>
+            <child>
+              <object class="AdwEntryRow" id="dryingGroup_slot_1_entry">
+                <property name="title">Value</property>
+              </object>
+            </child>
+            <child>
+              <object class="AdwEntryRow" id="dryingGroup_slot_2_entry">
+                <property name="title">Value</property>
+              </object>
+            </child>
+            <child>
+              <object class="AdwEntryRow" id="dryingGroup_slot_3_entry">
+                <property name="title">Value</property>
+              </object>
+            </child>
+          </object>
+        </child>
+        <child>
+          <object class="GtkLabel" id="errorLabel">
+            <property name="halign">start</property>
+            <property name="label"/>
+            <property name="visible">false</property>
+            <property name="wrap">true</property>
+            <style>
+              <class name="error"/>
+            </style>
+          </object>
+        </child>
+        <child>
+          <object class="GtkBox" id="actions">
+            <property name="halign">end</property>
+            <property name="orientation">horizontal</property>
+            <property name="spacing">8</property>
+            <child>
+              <object class="GtkButton" id="cancelBtn">
+                <property name="label">Cancel</property>
+              </object>
+            </child>
+            <child>
+              <object class="GtkButton" id="saveBtn">
+                <property name="label">Save</property>
+                <style>
+                  <class name="suggested-action"/>
+                </style>
+              </object>
+            </child>
+          </object>
+        </child>
+      </object>
+    </child>
+  </object>
+</interface>

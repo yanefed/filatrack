@@ -3,11 +3,11 @@ package dashboard
 import (
 	"awesomeProject/internal/domain"
 	"awesomeProject/internal/i18n"
+	"awesomeProject/internal/ui/layout"
 	"awesomeProject/internal/ui/widgets"
 	"fmt"
 
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
-	"github.com/diamondburned/gotk4/pkg/pango"
 )
 
 const dashboardWarningLimit = 3
@@ -21,53 +21,39 @@ func newAttentionPanel(t i18n.T, warnings []dashboardSpool) *gtk.Box {
 	visible := min(len(warnings), dashboardWarningLimit)
 	for i := range visible {
 		if i > 0 {
-			card.Append(gtk.NewSeparator(gtk.OrientationHorizontal))
+			view := layout.Load("dashboard-warning-separator")
+
+			card.Append(layout.Get[*gtk.Separator](view, "object_191"))
 		}
 		card.Append(newDryingWarningRow(t, warnings[i]))
 	}
 	if hidden := len(warnings) - visible; hidden > 0 {
-		card.Append(gtk.NewSeparator(gtk.OrientationHorizontal))
-		more := gtk.NewLabel(fmt.Sprintf(t.MoreItemsFmt, hidden))
-		more.AddCSSClass("caption")
-		more.AddCSSClass("dim-label")
-		more.SetHAlign(gtk.AlignStart)
-		more.SetMarginTop(10)
-		more.SetMarginBottom(10)
-		more.SetMarginStart(12)
-		more.SetMarginEnd(12)
+		view := layout.Load("dashboard-more-warnings")
+
+		card.Append(layout.Get[*gtk.Separator](view, "object_193"))
+		more := layout.Configure[*gtk.Label](view, "more", func(w *gtk.Label) { w.SetLabel(fmt.Sprintf(t.MoreItemsFmt, hidden)) })
+
 		card.Append(more)
 	}
 	return card
 }
 
 func newDryingWarningRow(t i18n.T, spool dashboardSpool) *gtk.Box {
-	row := gtk.NewBox(gtk.OrientationHorizontal, 10)
-	row.SetMarginTop(10)
-	row.SetMarginBottom(10)
-	row.SetMarginStart(12)
-	row.SetMarginEnd(12)
-	preview := widgets.NewSpoolPreview(spool.ColorHex)
-	preview.SetSizeRequest(48, 48)
-	row.Append(preview)
+	view := layout.Load("dashboard-warning-row")
 
-	labels := gtk.NewBox(gtk.OrientationVertical, 2)
-	labels.SetHExpand(true)
+	row := layout.Get[*gtk.Box](view, "row")
+
+	_ = widgets.NewSpoolPreview(spool.ColorHex, layout.Scope(view, "row_slot_1"))
+
 	name := spool.Manufacturer
 	if spool.DisplayCode != "" {
 		name = fmt.Sprintf("%s — %s", spool.DisplayCode, spool.Manufacturer)
 	}
-	title := gtk.NewLabel(name)
-	title.AddCSSClass("heading")
-	title.SetHAlign(gtk.AlignStart)
-	title.SetEllipsize(pango.EllipsizeEnd)
-	labels.Append(title)
-	details := gtk.NewLabel(fmt.Sprintf("%s · %s · %s", spool.Color, spool.Material, t.SpoolNeedsDrying))
-	details.AddCSSClass("caption")
-	details.AddCSSClass("warning")
-	details.SetHAlign(gtk.AlignStart)
-	details.SetEllipsize(pango.EllipsizeEnd)
-	labels.Append(details)
-	row.Append(labels)
+	_ = layout.Configure[*gtk.Label](view, "title", func(w *gtk.Label) { w.SetLabel(name) })
+	_ = layout.Configure[*gtk.Label](view, "details", func(w *gtk.Label) {
+		w.SetLabel(fmt.Sprintf("%s · %s · %s", spool.Color, spool.Material, t.SpoolNeedsDrying))
+	})
+
 	return row
 }
 
@@ -79,7 +65,9 @@ func newRecentPrintsPanel(t i18n.T, jobs []domain.PrintJob) *gtk.Box {
 	}
 	for i, job := range jobs {
 		if i > 0 {
-			card.Append(gtk.NewSeparator(gtk.OrientationHorizontal))
+			view := layout.Load("dashboard-print-separator")
+
+			card.Append(layout.Get[*gtk.Separator](view, "object_225"))
 		}
 		card.Append(newRecentPrintRow(job))
 	}
@@ -87,11 +75,9 @@ func newRecentPrintsPanel(t i18n.T, jobs []domain.PrintJob) *gtk.Box {
 }
 
 func newRecentPrintRow(job domain.PrintJob) *gtk.Box {
-	row := gtk.NewBox(gtk.OrientationHorizontal, 10)
-	row.SetMarginTop(10)
-	row.SetMarginBottom(10)
-	row.SetMarginStart(12)
-	row.SetMarginEnd(12)
+	view := layout.Load("dashboard-print-row")
+
+	row := layout.Get[*gtk.Box](view, "row")
 
 	statusIcon := "object-select-symbolic"
 	statusClass := "success"
@@ -103,59 +89,43 @@ func newRecentPrintRow(job domain.PrintJob) *gtk.Box {
 		statusIcon = "process-stop-symbolic"
 		statusClass = "warning"
 	}
-	icon := gtk.NewImageFromIconName(statusIcon)
-	icon.SetPixelSize(24)
-	icon.AddCSSClass(statusClass)
-	row.Append(icon)
+	icon := layout.Configure[*gtk.Image](view, "icon", func(w *gtk.Image) { w.SetFromIconName(statusIcon) })
 
-	labels := gtk.NewBox(gtk.OrientationVertical, 2)
-	labels.SetHExpand(true)
+	icon.AddCSSClass(statusClass)
+
 	name := job.ModelName
 	if name == "" {
 		name = job.GcodeFilename
 	}
-	title := gtk.NewLabel(name)
-	title.AddCSSClass("heading")
-	title.SetHAlign(gtk.AlignStart)
-	title.SetEllipsize(pango.EllipsizeEnd)
-	labels.Append(title)
+	_ = layout.Configure[*gtk.Label](view, "title", func(w *gtk.Label) { w.SetLabel(name) })
+
 	weight := job.ActualWeightG
 	if weight == 0 {
 		weight = job.EstimatedWeightG
 	}
-	details := gtk.NewLabel(fmt.Sprintf("%s · %s · %s", job.Status, formatFilamentWeight(weight), job.PrintedAt.Format("02.01.2006")))
-	details.AddCSSClass("caption")
-	details.AddCSSClass("dim-label")
-	details.SetHAlign(gtk.AlignStart)
-	details.SetEllipsize(pango.EllipsizeEnd)
-	labels.Append(details)
-	row.Append(labels)
+	_ = layout.Configure[*gtk.Label](view, "details", func(w *gtk.Label) {
+		w.SetLabel(fmt.Sprintf("%s · %s · %s", job.Status, formatFilamentWeight(weight), job.PrintedAt.Format("02.01.2006")))
+	})
+
 	return row
 }
 
 func newDashboardPanelCard() *gtk.Box {
-	card := gtk.NewBox(gtk.OrientationVertical, 0)
-	card.AddCSSClass("card")
-	card.SetMarginTop(2)
-	card.SetMarginBottom(2)
-	card.SetMarginStart(2)
-	card.SetMarginEnd(2)
+	view := layout.Load("dashboard-panel")
+
+	card := layout.Get[*gtk.Box](view, "card")
+
 	return card
 }
 
 func newDashboardPanelState(iconName, colorClass, text string) *gtk.Box {
-	row := gtk.NewBox(gtk.OrientationHorizontal, 10)
-	row.SetMarginTop(14)
-	row.SetMarginBottom(14)
-	row.SetMarginStart(14)
-	row.SetMarginEnd(14)
-	icon := gtk.NewImageFromIconName(iconName)
+	view := layout.Load("dashboard-panel-state")
+
+	row := layout.Get[*gtk.Box](view, "row")
+
+	icon := layout.Configure[*gtk.Image](view, "icon", func(w *gtk.Image) { w.SetFromIconName(iconName) })
 	icon.AddCSSClass(colorClass)
-	row.Append(icon)
-	label := gtk.NewLabel(text)
-	label.AddCSSClass("dim-label")
-	label.SetHAlign(gtk.AlignStart)
-	label.SetWrap(true)
-	row.Append(label)
+	_ = layout.Configure[*gtk.Label](view, "label", func(w *gtk.Label) { w.SetLabel(text) })
+
 	return row
 }

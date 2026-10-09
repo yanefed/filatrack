@@ -1,0 +1,16 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<!-- Created with Cambalache 1.0.3 -->
+<interface>
+  <!-- interface-name message-label.ui -->
+  <requires lib="gtk" version="4.10"/>
+  <requires lib="libadwaita" version="1.5"/>
+  <object class="GtkLabel" id="label">
+    <property name="halign">start</property>
+    <property name="label"/>
+    <property name="visible">false</property>
+    <property name="wrap">true</property>
+    <style>
+      <class name="dim-label"/>
+    </style>
+  </object>
+</interface>

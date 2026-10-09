@@ -4,6 +4,7 @@ import (
 	"awesomeProject/internal/domain"
 	"awesomeProject/internal/i18n"
 	"awesomeProject/internal/service"
+	"awesomeProject/internal/ui/layout"
 	"awesomeProject/internal/ui/widgets"
 	"fmt"
 
@@ -17,76 +18,41 @@ type spoolCardActions struct {
 }
 
 func newSpoolCard(t i18n.T, spool domain.Spool, remaining, percent float64, dryingStatus service.DryingStatus, dryingErr error, handlers spoolCardActions) *gtk.Box {
-	card := gtk.NewBox(gtk.OrientationVertical, 10)
-	card.AddCSSClass("card")
-	card.SetMarginTop(2)
-	card.SetMarginBottom(2)
-	card.SetMarginStart(2)
-	card.SetMarginEnd(2)
-	card.SetSizeRequest(270, -1)
+	view := layout.Load("spool-card")
 
-	content := gtk.NewBox(gtk.OrientationHorizontal, 12)
-	content.SetMarginTop(14)
-	content.SetMarginStart(14)
-	content.SetMarginEnd(14)
-	content.Append(widgets.NewSpoolPreview(spool.ColorHex))
+	card := layout.Get[*gtk.Box](view, "card")
 
-	labels := gtk.NewBox(gtk.OrientationVertical, 3)
-	labels.SetHExpand(true)
-	name := gtk.NewLabel(fmt.Sprintf("%s — %s", spool.DisplayCode, spool.Manufacturer))
-	name.AddCSSClass("heading")
-	name.SetHAlign(gtk.AlignStart)
-	name.SetWrap(true)
-	name.SetMaxWidthChars(24)
-	labels.Append(name)
-	details := gtk.NewLabel(fmt.Sprintf("%s · %s", spool.Color, spool.Material))
-	details.AddCSSClass("dim-label")
-	details.SetHAlign(gtk.AlignStart)
-	details.SetWrap(true)
-	labels.Append(details)
-	content.Append(labels)
-	card.Append(content)
+	_ = widgets.NewSpoolPreview(spool.ColorHex, layout.Scope(view, "content_slot_1"))
+	_ = layout.Configure[*gtk.Label](view, "name", func(w *gtk.Label) { w.SetLabel(fmt.Sprintf("%s — %s", spool.DisplayCode, spool.Manufacturer)) })
+	_ = layout.Configure[*gtk.Label](view, "details", func(w *gtk.Label) { w.SetLabel(fmt.Sprintf("%s · %s", spool.Color, spool.Material)) })
 
 	weightText := fmt.Sprintf(t.SpoolWeightFmt, remaining, spool.TotalWeightG, percent)
-	progress := widgets.NewLevelProgress(percent, weightText)
-	progress.SetMarginStart(14)
-	progress.SetMarginEnd(14)
-	card.Append(progress)
+	_ = widgets.NewLevelProgress(percent, weightText, layout.Scope(view, "card_slot_2"))
 
-	weight := gtk.NewLabel(weightText)
-	weight.AddCSSClass("caption")
-	weight.AddCSSClass("dim-label")
-	weight.SetHAlign(gtk.AlignStart)
-	weight.SetMarginStart(14)
-	weight.SetMarginEnd(14)
-	card.Append(weight)
-	card.Append(newSpoolDryingSection(t, dryingStatus, dryingErr))
+	_ = layout.Configure[*gtk.Label](view, "weight", func(w *gtk.Label) { w.SetLabel(weightText) })
 
-	actions := widgets.NewActions(8, gtk.AlignEnd)
-	actions.SetMarginBottom(12)
-	actions.SetMarginStart(14)
-	actions.SetMarginEnd(14)
-	dryBtn := spoolActionButton("weather-windy-symbolic", t.DrySpool)
+	_ = newSpoolDryingSection(t, dryingStatus, dryingErr, layout.Scope(view, "card_slot_4"))
+
+	dryBtn := spoolActionButton(t.DrySpool, layout.Scope(view, "actions_slot_1"))
 	if dryingStatus.NeedsDrying {
 		dryBtn.AddCSSClass("warning")
 	}
 	dryBtn.ConnectClicked(handlers.dry)
-	actions.Append(dryBtn)
-	editBtn := spoolActionButton("document-edit-symbolic", t.Edit)
+
+	editBtn := spoolActionButton(t.Edit, layout.Scope(view, "actions_slot_2"))
 	editBtn.ConnectClicked(handlers.edit)
-	actions.Append(editBtn)
-	archiveBtn := spoolActionButton("edit-delete-symbolic", t.Archive)
-	archiveBtn.AddCSSClass("destructive-action")
+
+	archiveBtn := spoolActionButton(t.Archive, layout.Scope(view, "actions_slot_3"))
 	archiveBtn.ConnectClicked(handlers.archive)
-	actions.Append(archiveBtn)
-	card.Append(actions)
 
 	return card
 }
 
-func spoolActionButton(iconName, tooltip string) *gtk.Button {
-	button := gtk.NewButtonFromIconName(iconName)
-	button.AddCSSClass("circular")
+func spoolActionButton(tooltip string, views ...*layout.View) *gtk.Button {
+	view := layout.Use("spool-action", views...)
+
+	button := layout.Get[*gtk.Button](view, "button")
+
 	button.SetTooltipText(tooltip)
 	return button
 }

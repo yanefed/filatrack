@@ -4,6 +4,7 @@ import (
 	"awesomeProject/internal/domain"
 	"awesomeProject/internal/i18n"
 	"awesomeProject/internal/service"
+	"awesomeProject/internal/ui/layout"
 	"context"
 	"fmt"
 
@@ -17,16 +18,12 @@ const (
 	recommendationStripHeight    = 158
 )
 
-func newRecommendationsView(t i18n.T, ctx context.Context, dryingSvc *service.DryingService) (*gtk.ScrolledWindow, func()) {
-	row := gtk.NewBox(gtk.OrientationHorizontal, 10)
-	row.SetMarginBottom(8)
+func newRecommendationsView(t i18n.T, ctx context.Context, dryingSvc *service.DryingService, views ...*layout.View) (*gtk.ScrolledWindow, func()) {
+	view := layout.Use("drying-recommendations", views...)
 
-	scrolled := gtk.NewScrolledWindow()
-	scrolled.SetPolicy(gtk.PolicyAutomatic, gtk.PolicyNever)
-	scrolled.SetOverlayScrolling(false)
-	scrolled.SetMinContentHeight(recommendationViewportHeight)
-	scrolled.SetSizeRequest(-1, recommendationStripHeight)
-	scrolled.SetChild(row)
+	row := layout.Get[*gtk.Box](view, "row")
+
+	scrolled := layout.Get[*gtk.ScrolledWindow](view, "scrolled")
 
 	refresh := func() {
 		for child := row.FirstChild(); child != nil; child = row.FirstChild() {
@@ -45,38 +42,16 @@ func newRecommendationsView(t i18n.T, ctx context.Context, dryingSvc *service.Dr
 }
 
 func newRecommendationCard(t i18n.T, profile domain.DryingProfile) *gtk.Box {
-	card := gtk.NewBox(gtk.OrientationVertical, 5)
-	card.AddCSSClass("card")
-	card.SetSizeRequest(recommendationCardWidth, recommendationCardHeight)
-	card.SetMarginTop(2)
-	card.SetMarginBottom(2)
-	card.SetMarginStart(2)
-	card.SetMarginEnd(2)
+	view := layout.Load("drying-recommendation-card")
 
-	material := gtk.NewLabel(string(profile.Material))
-	material.AddCSSClass("heading")
-	material.SetHAlign(gtk.AlignStart)
-	material.SetMarginTop(12)
-	material.SetMarginStart(12)
-	material.SetMarginEnd(12)
-	card.Append(material)
+	card := layout.Get[*gtk.Box](view, "card")
 
-	parameters := gtk.NewLabel(fmt.Sprintf("%d °C · %s", profile.TemperatureC, formatHours(profile.DurationHours, t.Hours)))
-	parameters.AddCSSClass("title-3")
-	parameters.SetHAlign(gtk.AlignStart)
-	parameters.SetMarginStart(12)
-	parameters.SetMarginEnd(12)
-	card.Append(parameters)
+	_ = layout.Configure[*gtk.Label](view, "material", func(w *gtk.Label) { w.SetLabel(string(profile.Material)) })
+	_ = layout.Configure[*gtk.Label](view, "parameters", func(w *gtk.Label) {
+		w.SetLabel(fmt.Sprintf("%d °C · %s", profile.TemperatureC, formatHours(profile.DurationHours, t.Hours)))
+	})
+	_ = layout.Configure[*gtk.Label](view, "interval", func(w *gtk.Label) { w.SetLabel(fmt.Sprintf("%s: %d %s", t.MaxDaysNoDry, profile.MaxDaysNoDry, t.Days)) })
 
-	interval := gtk.NewLabel(fmt.Sprintf("%s: %d %s", t.MaxDaysNoDry, profile.MaxDaysNoDry, t.Days))
-	interval.AddCSSClass("caption")
-	interval.AddCSSClass("dim-label")
-	interval.SetHAlign(gtk.AlignStart)
-	interval.SetWrap(true)
-	interval.SetMarginBottom(12)
-	interval.SetMarginStart(12)
-	interval.SetMarginEnd(12)
-	card.Append(interval)
 	return card
 }
 

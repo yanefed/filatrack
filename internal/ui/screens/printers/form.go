@@ -3,6 +3,7 @@ package printers
 import (
 	"awesomeProject/internal/domain"
 	"awesomeProject/internal/i18n"
+	"awesomeProject/internal/ui/layout"
 	"strings"
 
 	"github.com/diamondburned/gotk4-adwaita/pkg/adw"
@@ -15,19 +16,18 @@ type printerForm struct {
 	apiKeyEntry *adw.PasswordEntryRow
 }
 
-func newPrinterForm(t i18n.T, printer *domain.Printer) *printerForm {
-	form := &printerForm{root: adw.NewPreferencesGroup()}
-	form.nameEntry = adw.NewEntryRow()
+func newPrinterForm(t i18n.T, printer *domain.Printer, views ...*layout.View) *printerForm {
+	view := layout.Use("printer-form", views...)
+
+	form := &printerForm{root: layout.Get[*adw.PreferencesGroup](view, "form_root")}
+	form.nameEntry = layout.Get[*adw.EntryRow](view, "form_nameEntry")
 	form.nameEntry.SetTitle(t.PrinterName)
-	form.root.Add(form.nameEntry)
 
-	form.urlEntry = adw.NewEntryRow()
+	form.urlEntry = layout.Get[*adw.EntryRow](view, "form_urlEntry")
 	form.urlEntry.SetTitle(t.MoonrakerURL)
-	form.root.Add(form.urlEntry)
 
-	form.apiKeyEntry = adw.NewPasswordEntryRow()
+	form.apiKeyEntry = layout.Get[*adw.PasswordEntryRow](view, "form_apiKeyEntry")
 	form.apiKeyEntry.SetTitle(t.APIKey)
-	form.root.Add(form.apiKeyEntry)
 
 	if printer != nil {
 		form.nameEntry.SetText(printer.Name)

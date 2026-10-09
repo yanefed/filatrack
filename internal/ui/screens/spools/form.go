@@ -3,6 +3,7 @@ package spools
 import (
 	"awesomeProject/internal/domain"
 	"awesomeProject/internal/i18n"
+	"awesomeProject/internal/ui/layout"
 	"awesomeProject/internal/ui/widgets"
 	"fmt"
 	"strconv"
@@ -25,11 +26,20 @@ type spoolForm struct {
 	densityEntry      *adw.EntryRow
 }
 
-func newSpoolForm(t i18n.T, materials []domain.MaterialDefinition, spool *domain.Spool) *spoolForm {
-	form := &spoolForm{root: adw.NewPreferencesGroup()}
-	form.manufacturerEntry = adw.NewEntryRow()
+func newSpoolForm(t i18n.T, materials []domain.MaterialDefinition, spool *domain.Spool, views ...*layout.View) *spoolForm {
+	builder := layout.Use("spool-form", views...)
+	form := &spoolForm{
+		root:              layout.Get[*adw.PreferencesGroup](builder, "spool_form"),
+		manufacturerEntry: layout.Get[*adw.EntryRow](builder, "manufacturer_entry"),
+		materialCombo:     layout.Get[*adw.ComboRow](builder, "material_combo"),
+		colorEntry:        layout.Get[*adw.EntryRow](builder, "color_entry"),
+		weightEntry:       layout.Get[*adw.EntryRow](builder, "weight_entry"),
+		priceEntry:        layout.Get[*adw.EntryRow](builder, "price_entry"),
+		additionalRow:     layout.Get[*adw.ExpanderRow](builder, "additional_row"),
+		diameterEntry:     layout.Get[*adw.EntryRow](builder, "diameter_entry"),
+		densityEntry:      layout.Get[*adw.EntryRow](builder, "density_entry"),
+	}
 	form.manufacturerEntry.SetTitle(t.ManufacturerPH)
-	form.root.Add(form.manufacturerEntry)
 
 	names := make([]string, len(materials))
 	selected := uint(0)
@@ -41,48 +51,24 @@ func newSpoolForm(t i18n.T, materials []domain.MaterialDefinition, spool *domain
 			selected = uint(i)
 		}
 	}
-	form.materialCombo = adw.NewComboRow()
 	form.materialCombo.SetTitle(t.MaterialLabel)
 	form.materialCombo.SetModel(gtk.NewStringList(names))
 	form.materialCombo.SetSelected(selected)
-	form.root.Add(form.materialCombo)
 
-	form.colorEntry = adw.NewEntryRow()
 	form.colorEntry.SetTitle(t.ColorPH)
-	form.root.Add(form.colorEntry)
 	colorHex := ""
 	if spool != nil {
 		colorHex = spool.ColorHex
 	}
-	form.colorPicker = widgets.NewColorPicker(t.ColorHexLabel, colorHex)
-	colorRow := adw.NewActionRow()
+	form.colorPicker = widgets.NewColorPicker(t.ColorHexLabel, colorHex, layout.Scope(builder, "color_picker"))
+	colorRow := layout.Get[*adw.ActionRow](builder, "color_row")
 	colorRow.SetTitle(t.ColorHexLabel)
-	colorButton := form.colorPicker.Button()
-	colorRow.AddSuffix(colorButton)
-	colorRow.SetActivatableWidget(colorButton)
-	form.root.Add(colorRow)
 
-	form.weightEntry = adw.NewEntryRow()
 	form.weightEntry.SetTitle(t.NetWeightPH)
-	form.weightEntry.SetInputPurpose(gtk.InputPurposeNumber)
-	form.root.Add(form.weightEntry)
-	form.priceEntry = adw.NewEntryRow()
 	form.priceEntry.SetTitle(t.PricePH)
-	form.priceEntry.SetInputPurpose(gtk.InputPurposeNumber)
-	form.root.Add(form.priceEntry)
-
-	form.additionalRow = adw.NewExpanderRow()
 	form.additionalRow.SetTitle(t.AdditionalSettings)
-	form.additionalRow.SetExpanded(false)
-	form.diameterEntry = adw.NewEntryRow()
 	form.diameterEntry.SetTitle(t.FilamentDiameter)
-	form.diameterEntry.SetInputPurpose(gtk.InputPurposeNumber)
-	form.additionalRow.AddRow(form.diameterEntry)
-	form.densityEntry = adw.NewEntryRow()
 	form.densityEntry.SetTitle(t.FilamentDensity)
-	form.densityEntry.SetInputPurpose(gtk.InputPurposeNumber)
-	form.additionalRow.AddRow(form.densityEntry)
-	form.root.Add(form.additionalRow)
 
 	diameter := domain.DefaultDiameter
 	density := selectedMaterialDensity(materials, selected)

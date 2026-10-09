@@ -4,36 +4,35 @@ import (
 	"awesomeProject/internal/domain"
 	"awesomeProject/internal/i18n"
 	"awesomeProject/internal/service"
+	"awesomeProject/internal/ui/layout"
 	"awesomeProject/internal/ui/screens/shared"
-	"awesomeProject/internal/ui/widgets"
+
 	"context"
 	"fmt"
 
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 )
 
-func NewModelsScreen(ctx context.Context, parent *gtk.Window, printerSvc *service.PrinterService, spoolSvc *service.SpoolService, settingsSvc *service.SettingsService, onChanged func()) (*gtk.Box, func(), *gtk.Button, *gtk.Button) {
+func NewModelsScreen(ctx context.Context, parent *gtk.Window, printerSvc *service.PrinterService, spoolSvc *service.SpoolService, settingsSvc *service.SettingsService, onChanged func(), views ...*layout.View) (*gtk.Box, func(), *gtk.Button, *gtk.Button) {
+	view := layout.Use("models-screen", views...)
+
 	t := i18n.L()
 
-	box := widgets.NewScreen(t.Models)
+	box := layout.Configure[*gtk.Box](view, "box", func(w *gtk.Box) { layout.Get[*gtk.Label](view, "box_title").SetLabel(t.Models) })
 
-	messageLabel := widgets.NewMessageLabel()
-	box.Append(messageLabel)
+	messageLabel := layout.Get[*gtk.Label](view, "messageLabel")
 
 	var printers []domain.Printer
 	var spools []domain.Spool
 
-	addModelBtn := gtk.NewButtonFromIconName("list-add-symbolic")
+	addModelBtn := layout.Get[*gtk.Button](view, "addModelBtn")
 	addModelBtn.SetTooltipText(t.UploadModel)
-	refreshModelsBtn := gtk.NewButtonFromIconName("view-refresh-symbolic")
+	refreshModelsBtn := layout.Get[*gtk.Button](view, "refreshModelsBtn")
 	refreshModelsBtn.SetTooltipText(t.RefreshModels)
 
-	emptyLabel := gtk.NewLabel(t.NoPrinterModels)
-	emptyLabel.AddCSSClass("dim-label")
-	emptyLabel.SetVisible(false)
-	box.Append(emptyLabel)
-	modelsList, updateModelsList := newVirtualModelsList(t, ctx, parent, printerSvc, settingsSvc, messageLabel, onChanged)
-	box.Append(widgets.NewScrolled(modelsList))
+	emptyLabel := layout.Configure[*gtk.Label](view, "emptyLabel", func(w *gtk.Label) { w.SetLabel(t.NoPrinterModels) })
+
+	_, updateModelsList := newVirtualModelsList(t, ctx, parent, printerSvc, settingsSvc, messageLabel, onChanged, layout.Scope(view, "object_634_slot"))
 
 	refreshPrinterChoices := func() {
 		loaded, err := printerSvc.List(ctx)
@@ -118,19 +117,21 @@ func NewModelsScreen(ctx context.Context, parent *gtk.Window, printerSvc *servic
 }
 
 func showPrintLaunchDialog(t i18n.T, ctx context.Context, parent *gtk.Window, printerSvc *service.PrinterService, settingsSvc *service.SettingsService, printers []domain.Printer, spools []domain.Spool, defaultPrinterID string, launch func(domain.PrintLaunchRequest) (*domain.PrintLaunchResult, error), messageLabel *gtk.Label, onSuccess func()) {
-	dialog := shared.NewModalWindow(parent)
+	view := layout.Load("print-launch-dialog")
+
+	dialog := layout.Configure[*gtk.Window](view, "dialog", func(w *gtk.Window) {
+		if parent != nil {
+			w.SetTransientFor(parent)
+			w.SetDestroyWithParent(true)
+		}
+	})
 	dialog.SetTitle(t.PrintModelDialog)
-	dialog.SetDefaultSize(360, 220)
+
 	closed := false
 	dialog.ConnectDestroy(func() {
 		closed = true
 	})
-
-	box := widgets.NewDialogContent(10)
-
-	printerLabel := gtk.NewLabel(t.Printers)
-	printerLabel.SetHAlign(gtk.AlignStart)
-	box.Append(printerLabel)
+	_ = layout.Configure[*gtk.Label](view, "printerLabel", func(w *gtk.Label) { w.SetLabel(t.Printers) })
 
 	printerNames := make([]string, len(printers))
 	for i, printer := range printers {
@@ -139,18 +140,14 @@ func showPrintLaunchDialog(t i18n.T, ctx context.Context, parent *gtk.Window, pr
 	if len(printerNames) == 0 {
 		printerNames = []string{t.NoPrinters}
 	}
-	printerCombo := gtk.NewDropDown(gtk.NewStringList(printerNames), nil)
+	printerCombo := layout.Configure[*gtk.DropDown](view, "printerCombo", func(w *gtk.DropDown) { w.SetModel(gtk.NewStringList(printerNames)) })
 	for i, printer := range printers {
 		if printer.ID == defaultPrinterID {
 			printerCombo.SetSelected(uint(i))
 			break
 		}
 	}
-	box.Append(printerCombo)
-
-	spoolLabel := gtk.NewLabel(t.SpoolColon)
-	spoolLabel.SetHAlign(gtk.AlignStart)
-	box.Append(spoolLabel)
+	_ = layout.Configure[*gtk.Label](view, "spoolLabel", func(w *gtk.Label) { w.SetLabel(t.SpoolColon) })
 
 	spoolNames := make([]string, len(spools))
 	for i, spool := range spools {
@@ -159,7 +156,7 @@ func showPrintLaunchDialog(t i18n.T, ctx context.Context, parent *gtk.Window, pr
 	if len(spoolNames) == 0 {
 		spoolNames = []string{t.NoSpoolsAvail}
 	}
-	spoolCombo := gtk.NewDropDown(gtk.NewStringList(spoolNames), nil)
+	spoolCombo := layout.Configure[*gtk.DropDown](view, "spoolCombo", func(w *gtk.DropDown) { w.SetModel(gtk.NewStringList(spoolNames)) })
 	setSpoolFromSelectedPrinter := func() {
 		printerIndex := printerCombo.Selected()
 		if int(printerIndex) >= len(printers) {
@@ -178,16 +175,13 @@ func showPrintLaunchDialog(t i18n.T, ctx context.Context, parent *gtk.Window, pr
 	printerCombo.NotifyProperty("selected", func() {
 		setSpoolFromSelectedPrinter()
 	})
-	box.Append(spoolCombo)
 
-	actions := widgets.NewActions(8, gtk.AlignFill)
-	cancelBtn := gtk.NewButtonWithLabel(t.Cancel)
+	cancelBtn := layout.Configure[*gtk.Button](view, "cancelBtn", func(w *gtk.Button) { w.SetLabel(t.Cancel) })
 	cancelBtn.ConnectClicked(func() {
 		dialog.Destroy()
 	})
-	actions.Append(cancelBtn)
 
-	printBtn := gtk.NewButtonWithLabel(t.PrintModel)
+	printBtn := layout.Configure[*gtk.Button](view, "printBtn", func(w *gtk.Button) { w.SetLabel(t.PrintModel) })
 	printBtn.ConnectClicked(func() {
 		targetID := selectedPrinterID(printerCombo, printers)
 		spoolID := selectedDirectSpool(spoolCombo, spools)
@@ -231,10 +225,7 @@ func showPrintLaunchDialog(t i18n.T, ctx context.Context, parent *gtk.Window, pr
 			}
 		})
 	})
-	actions.Append(printBtn)
-	box.Append(actions)
 
-	dialog.SetChild(box)
 	dialog.SetVisible(true)
 }
 

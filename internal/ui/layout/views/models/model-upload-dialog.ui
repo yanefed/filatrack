@@ -1,0 +1,118 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<!-- Created with Cambalache 1.0.3 -->
+<interface>
+  <!-- interface-name model-upload-dialog.ui -->
+  <requires lib="gtk" version="4.10"/>
+  <requires lib="libadwaita" version="1.5"/>
+  <object class="GtkWindow" id="dialog">
+    <property name="default-height">-1</property>
+    <property name="default-width">500</property>
+    <property name="modal">true</property>
+    <child>
+      <object class="GtkBox" id="box">
+        <property name="margin-bottom">16</property>
+        <property name="margin-end">16</property>
+        <property name="margin-start">16</property>
+        <property name="margin-top">16</property>
+        <property name="orientation">vertical</property>
+        <property name="spacing">16</property>
+        <child>
+          <object class="AdwPreferencesGroup" id="fileGroup">
+            <child>
+              <object class="AdwActionRow" id="fileRow">
+                <property name="activatable-widget">chooseBtn</property>
+                <property name="title">G-code file</property>
+                <property name="use-markup">false</property>
+                <child type="prefix">
+                  <object class="GtkImage" id="fileIcon">
+                    <property name="icon-name">text-x-generic-symbolic</property>
+                  </object>
+                </child>
+                <child type="suffix">
+                  <object class="GtkButton" id="chooseBtn">
+                    <property name="label">Choose file</property>
+                    <property name="valign">center</property>
+                  </object>
+                </child>
+              </object>
+            </child>
+          </object>
+        </child>
+        <child>
+          <object class="AdwPreferencesGroup" id="optionsGroup">
+            <child>
+              <object class="AdwActionRow" id="printerRow">
+                <property name="activatable-widget">printerCombo</property>
+                <property name="title">Printer</property>
+                <child type="prefix">
+                  <object class="GtkImage" id="printerIcon">
+                    <property name="icon-name">printer-symbolic</property>
+                  </object>
+                </child>
+                <child type="suffix">
+                  <object class="GtkDropDown" id="printerCombo">
+                    <property name="valign">center</property>
+                  </object>
+                </child>
+              </object>
+            </child>
+            <child>
+              <object class="AdwActionRow" id="startRow">
+                <property name="activatable-widget">startCheck</property>
+                <property name="title">Start after upload</property>
+                <child type="prefix">
+                  <object class="GtkImage" id="startIcon">
+                    <property name="icon-name">media-playback-start-symbolic</property>
+                  </object>
+                </child>
+                <child type="suffix">
+                  <object class="GtkCheckButton" id="startCheck">
+                    <property name="valign">center</property>
+                  </object>
+                </child>
+              </object>
+            </child>
+            <child>
+              <object class="AdwActionRow" id="spoolRow">
+                <property name="activatable-widget">spoolCombo</property>
+                <property name="title">Spool</property>
+                <property name="visible">false</property>
+                <child type="prefix">
+                  <object class="GtkImage" id="spoolIcon">
+                    <property name="icon-name">media-record-symbolic</property>
+                  </object>
+                </child>
+                <child type="suffix">
+                  <object class="GtkDropDown" id="spoolCombo">
+                    <property name="valign">center</property>
+                  </object>
+                </child>
+              </object>
+            </child>
+          </object>
+        </child>
+        <child>
+          <object class="GtkBox" id="actions">
+            <property name="halign">end</property>
+            <property name="orientation">horizontal</property>
+            <property name="spacing">8</property>
+            <child>
+              <object class="GtkButton" id="cancelBtn">
+                <property name="label">Cancel</property>
+              </object>
+            </child>
+            <child>
+              <object class="GtkButton" id="uploadBtn">
+                <property name="label">Upload</property>
+                <property name="sensitive">false</property>
+                <style>
+                  <class name="suggested-action"/>
+                </style>
+              </object>
+            </child>
+          </object>
+        </child>
+      </object>
+    </child>
+  </object>
+</interface>

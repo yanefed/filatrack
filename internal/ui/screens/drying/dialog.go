@@ -4,8 +4,8 @@ import (
 	"awesomeProject/internal/domain"
 	"awesomeProject/internal/i18n"
 	"awesomeProject/internal/service"
-	"awesomeProject/internal/ui/screens/shared"
-	"awesomeProject/internal/ui/widgets"
+	"awesomeProject/internal/ui/layout"
+
 	"context"
 	"fmt"
 
@@ -13,21 +13,20 @@ import (
 )
 
 func showAddDryingDialog(ctx context.Context, parent *gtk.Window, dryingSvc *service.DryingService, spoolSvc *service.SpoolService, onSave func()) {
+	view := layout.Load("drying-dialog")
+
 	t := i18n.L()
-	dialog := shared.NewModalWindow(parent)
+	dialog := layout.Configure[*gtk.Window](view, "dialog", func(w *gtk.Window) {
+		if parent != nil {
+			w.SetTransientFor(parent)
+			w.SetDestroyWithParent(true)
+		}
+	})
 	dialog.SetTitle(t.AddDrying)
-	dialog.SetDefaultSize(480, -1)
 
-	box := widgets.NewDialogContent(16)
-	form := newDryingForm(t)
-	box.Append(form.root)
+	form := newDryingForm(t, layout.Scope(view, "box_slot_1"))
 
-	errorLabel := gtk.NewLabel("")
-	errorLabel.AddCSSClass("error")
-	errorLabel.SetHAlign(gtk.AlignStart)
-	errorLabel.SetWrap(true)
-	errorLabel.SetVisible(false)
-	box.Append(errorLabel)
+	errorLabel := layout.Get[*gtk.Label](view, "errorLabel")
 
 	notArchived := false
 	spools, err := spoolSvc.List(ctx, domain.SpoolFilter{Archived: &notArchived})
@@ -44,13 +43,11 @@ func showAddDryingDialog(ctx context.Context, parent *gtk.Window, dryingSvc *ser
 	form.spoolDropdown.NotifyProperty("selected", applyRecommendation)
 	applyRecommendation()
 
-	actions := widgets.NewActions(8, gtk.AlignEnd)
-	cancelBtn := gtk.NewButtonWithLabel(t.Cancel)
+	cancelBtn := layout.Configure[*gtk.Button](view, "cancelBtn", func(w *gtk.Button) { w.SetLabel(t.Cancel) })
 	cancelBtn.ConnectClicked(dialog.Destroy)
-	actions.Append(cancelBtn)
 
-	saveBtn := gtk.NewButtonWithLabel(t.AddDrying)
-	saveBtn.AddCSSClass("suggested-action")
+	saveBtn := layout.Configure[*gtk.Button](view, "saveBtn", func(w *gtk.Button) { w.SetLabel(t.AddDrying) })
+
 	updateSaveState := func() {
 		saveBtn.SetSensitive(form.Valid(spools))
 	}
@@ -73,10 +70,7 @@ func showAddDryingDialog(ctx context.Context, parent *gtk.Window, dryingSvc *ser
 			onSave()
 		}
 	})
-	actions.Append(saveBtn)
-	box.Append(actions)
 
-	dialog.SetChild(box)
 	dialog.SetVisible(true)
 }
 

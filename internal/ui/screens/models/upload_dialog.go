@@ -4,8 +4,9 @@ import (
 	"awesomeProject/internal/domain"
 	"awesomeProject/internal/i18n"
 	"awesomeProject/internal/service"
+	"awesomeProject/internal/ui/layout"
 	"awesomeProject/internal/ui/screens/shared"
-	"awesomeProject/internal/ui/widgets"
+
 	"context"
 	"path/filepath"
 
@@ -14,27 +15,26 @@ import (
 )
 
 func showModelUploadDialog(t i18n.T, ctx context.Context, parent *gtk.Window, printerSvc *service.PrinterService, settingsSvc *service.SettingsService, printers []domain.Printer, spools []domain.Spool, messageLabel *gtk.Label, onSuccess func()) {
-	dialog := shared.NewModalWindow(parent)
+	view := layout.Load("model-upload-dialog")
+
+	dialog := layout.Configure[*gtk.Window](view, "dialog", func(w *gtk.Window) {
+		if parent != nil {
+			w.SetTransientFor(parent)
+			w.SetDestroyWithParent(true)
+		}
+	})
 	dialog.SetTitle(t.UploadModel)
-	dialog.SetDefaultSize(500, -1)
+
 	closed := false
 	dialog.ConnectDestroy(func() { closed = true })
-	box := widgets.NewDialogContent(16)
 
 	var localPath string
-	fileGroup := adw.NewPreferencesGroup()
-	fileRow := adw.NewActionRow()
-	fileIcon := gtk.NewImageFromIconName("text-x-generic-symbolic")
-	fileRow.AddPrefix(fileIcon)
-	fileRow.SetUseMarkup(false)
+
+	fileRow := layout.Get[*adw.ActionRow](view, "fileRow")
+
 	fileRow.SetTitle(t.NoFileSelected)
 	fileRow.SetSubtitle(t.SelectGCode)
-	chooseBtn := gtk.NewButtonWithLabel(t.SelectGCode)
-	chooseBtn.SetVAlign(gtk.AlignCenter)
-	fileRow.AddSuffix(chooseBtn)
-	fileRow.SetActivatableWidget(chooseBtn)
-	fileGroup.Add(fileRow)
-	box.Append(fileGroup)
+	chooseBtn := layout.Configure[*gtk.Button](view, "chooseBtn", func(w *gtk.Button) { w.SetLabel(t.SelectGCode) })
 
 	printerNames := make([]string, len(printers))
 	for i, printer := range printers {
@@ -43,26 +43,17 @@ func showModelUploadDialog(t i18n.T, ctx context.Context, parent *gtk.Window, pr
 	if len(printerNames) == 0 {
 		printerNames = []string{t.NoPrinters}
 	}
-	optionsGroup := adw.NewPreferencesGroup()
-	printerRow := adw.NewActionRow()
-	printerIcon := gtk.NewImageFromIconName("printer-symbolic")
-	printerRow.AddPrefix(printerIcon)
-	printerRow.SetTitle(t.Printers)
-	printerCombo := gtk.NewDropDown(gtk.NewStringList(printerNames), nil)
-	printerCombo.SetVAlign(gtk.AlignCenter)
-	printerRow.AddSuffix(printerCombo)
-	printerRow.SetActivatableWidget(printerCombo)
-	optionsGroup.Add(printerRow)
 
-	startCheck := gtk.NewCheckButton()
-	startCheck.SetVAlign(gtk.AlignCenter)
-	startRow := adw.NewActionRow()
-	startIcon := gtk.NewImageFromIconName("media-playback-start-symbolic")
-	startRow.AddPrefix(startIcon)
+	printerRow := layout.Get[*adw.ActionRow](view, "printerRow")
+
+	printerRow.SetTitle(t.Printers)
+	printerCombo := layout.Configure[*gtk.DropDown](view, "printerCombo", func(w *gtk.DropDown) { w.SetModel(gtk.NewStringList(printerNames)) })
+
+	startCheck := layout.Get[*gtk.CheckButton](view, "startCheck")
+
+	startRow := layout.Get[*adw.ActionRow](view, "startRow")
+
 	startRow.SetTitle(t.StartAfterUpload)
-	startRow.AddSuffix(startCheck)
-	startRow.SetActivatableWidget(startCheck)
-	optionsGroup.Add(startRow)
 
 	spoolNames := make([]string, len(spools))
 	for i, spool := range spools {
@@ -71,17 +62,10 @@ func showModelUploadDialog(t i18n.T, ctx context.Context, parent *gtk.Window, pr
 	if len(spoolNames) == 0 {
 		spoolNames = []string{t.NoSpoolsAvail}
 	}
-	spoolRow := adw.NewActionRow()
-	spoolIcon := gtk.NewImageFromIconName("media-record-symbolic")
-	spoolRow.AddPrefix(spoolIcon)
+	spoolRow := layout.Get[*adw.ActionRow](view, "spoolRow")
+
 	spoolRow.SetTitle(t.SpoolColon)
-	spoolCombo := gtk.NewDropDown(gtk.NewStringList(spoolNames), nil)
-	spoolCombo.SetVAlign(gtk.AlignCenter)
-	spoolRow.AddSuffix(spoolCombo)
-	spoolRow.SetActivatableWidget(spoolCombo)
-	spoolRow.SetVisible(false)
-	optionsGroup.Add(spoolRow)
-	box.Append(optionsGroup)
+	spoolCombo := layout.Configure[*gtk.DropDown](view, "spoolCombo", func(w *gtk.DropDown) { w.SetModel(gtk.NewStringList(spoolNames)) })
 
 	setSpoolFromPrinter := func() {
 		printerIndex := printerCombo.Selected()
@@ -101,15 +85,10 @@ func showModelUploadDialog(t i18n.T, ctx context.Context, parent *gtk.Window, pr
 	setSpoolFromPrinter()
 	printerCombo.NotifyProperty("selected", setSpoolFromPrinter)
 
-	actions := widgets.NewActions(8, gtk.AlignEnd)
-	cancelBtn := gtk.NewButtonWithLabel(t.Cancel)
+	cancelBtn := layout.Configure[*gtk.Button](view, "cancelBtn", func(w *gtk.Button) { w.SetLabel(t.Cancel) })
 	cancelBtn.ConnectClicked(dialog.Destroy)
-	actions.Append(cancelBtn)
-	uploadBtn := gtk.NewButtonWithLabel(t.UploadModel)
-	uploadBtn.AddCSSClass("suggested-action")
-	uploadBtn.SetSensitive(false)
-	actions.Append(uploadBtn)
-	box.Append(actions)
+
+	uploadBtn := layout.Configure[*gtk.Button](view, "uploadBtn", func(w *gtk.Button) { w.SetLabel(t.UploadModel) })
 
 	updateState := func() {
 		startPrint := startCheck.Active()
@@ -183,6 +162,5 @@ func showModelUploadDialog(t i18n.T, ctx context.Context, parent *gtk.Window, pr
 		})
 	})
 
-	dialog.SetChild(box)
 	dialog.SetVisible(true)
 }

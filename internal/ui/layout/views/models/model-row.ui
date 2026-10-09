@@ -1,0 +1,72 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<!-- Created with Cambalache 1.0.3 -->
+<interface>
+  <!-- interface-name model-row.ui -->
+  <requires lib="gtk" version="4.10"/>
+  <requires lib="libadwaita" version="1.5"/>
+  <object class="GtkBox" id="card">
+    <property name="margin-bottom">4</property>
+    <property name="margin-end">4</property>
+    <property name="margin-start">4</property>
+    <property name="margin-top">4</property>
+    <property name="orientation">vertical</property>
+    <property name="spacing">0</property>
+    <child>
+      <object class="GtkBox" id="row">
+        <property name="margin-bottom">12</property>
+        <property name="margin-end">12</property>
+        <property name="margin-start">12</property>
+        <property name="margin-top">12</property>
+        <property name="orientation">horizontal</property>
+        <property name="spacing">12</property>
+        <child>
+          <object class="GtkPicture" id="picture">
+            <property name="content-fit">contain</property>
+            <property name="height-request">72</property>
+            <property name="visible">false</property>
+            <property name="width-request">96</property>
+          </object>
+        </child>
+        <child>
+          <object class="GtkBox" id="textBox">
+            <property name="hexpand">true</property>
+            <property name="orientation">vertical</property>
+            <property name="spacing">4</property>
+            <child>
+              <object class="GtkLabel" id="name">
+                <property name="ellipsize">end</property>
+                <property name="halign">start</property>
+                <property name="hexpand">true</property>
+                <property name="label"/>
+                <property name="max-width-chars">80</property>
+                <style>
+                  <class name="heading"/>
+                </style>
+              </object>
+            </child>
+            <child>
+              <object class="GtkLabel" id="details">
+                <property name="ellipsize">end</property>
+                <property name="halign">start</property>
+                <property name="label"/>
+                <property name="max-width-chars">80</property>
+                <style>
+                  <class name="dim-label"/>
+                </style>
+              </object>
+            </child>
+          </object>
+        </child>
+        <child>
+          <object class="GtkButton" id="printBtn">
+            <property name="icon-name">media-playback-start-symbolic</property>
+            <property name="valign">center</property>
+          </object>
+        </child>
+      </object>
+    </child>
+    <style>
+      <class name="card"/>
+    </style>
+  </object>
+</interface>

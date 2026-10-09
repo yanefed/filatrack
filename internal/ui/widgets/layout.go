@@ -1,5 +1,6 @@
 package widgets
 
+import "awesomeProject/internal/ui/layout"
 import "github.com/diamondburned/gotk4/pkg/gtk/v4"
 
 const (
@@ -9,61 +10,65 @@ const (
 
 // NewScreen creates the common vertical shell used by application screens.
 func NewScreen(title string) *gtk.Box {
-	box := gtk.NewBox(gtk.OrientationVertical, screenSpacing)
-	box.SetMarginTop(screenMargin)
-	box.SetMarginBottom(screenMargin)
-	box.SetMarginStart(screenMargin)
-	box.SetMarginEnd(screenMargin)
-	box.Append(NewTitle(title))
+	view := layout.Load("screen-shell")
+
+	box := layout.Get[*gtk.Box](view, "box")
+
+	_ = layout.Configure[*gtk.Label](view, "object_1637", func(w *gtk.Label) { w.SetLabel(title) })
 	return box
 }
 
 // NewTitle creates a primary screen title.
 func NewTitle(text string) *gtk.Label {
-	label := gtk.NewLabel(text)
-	label.AddCSSClass("title-1")
+	view := layout.Load("screen-title")
+
+	label := layout.Configure[*gtk.Label](view, "label", func(w *gtk.Label) { w.SetLabel(text) })
+
 	return label
 }
 
 // NewSectionTitle creates a left-aligned section heading.
 func NewSectionTitle(text string) *gtk.Label {
-	label := gtk.NewLabel(text)
-	label.SetHAlign(gtk.AlignStart)
-	label.AddCSSClass("title-3")
+	view := layout.Load("section-title")
+
+	label := layout.Configure[*gtk.Label](view, "label", func(w *gtk.Label) { w.SetLabel(text) })
+
 	return label
 }
 
 // NewMessageLabel creates a hidden, wrapping label for screen-level feedback.
 func NewMessageLabel() *gtk.Label {
-	label := gtk.NewLabel("")
-	label.SetHAlign(gtk.AlignStart)
-	label.AddCSSClass("dim-label")
-	label.SetWrap(true)
-	label.SetVisible(false)
+	view := layout.Load("message-label")
+
+	label := layout.Get[*gtk.Label](view, "label")
+
 	return label
 }
 
 // NewScrolled creates a vertically expanding scrolled container.
 func NewScrolled(child gtk.Widgetter) *gtk.ScrolledWindow {
-	scrolled := gtk.NewScrolledWindow()
-	scrolled.SetVExpand(true)
-	scrolled.SetChild(child)
+	view := layout.Load("scrolled-container")
+
+	scrolled := layout.Get[*gtk.ScrolledWindow](view, "scrolled")
+
+	layout.Mount(view, "scrolled_slot_1", child)
 	return scrolled
 }
 
 // NewDialogContent creates the common padded content box used by modal windows.
 func NewDialogContent(spacing int) *gtk.Box {
-	box := gtk.NewBox(gtk.OrientationVertical, spacing)
-	box.SetMarginTop(16)
-	box.SetMarginBottom(16)
-	box.SetMarginStart(16)
-	box.SetMarginEnd(16)
+	view := layout.Load("dialog-content")
+
+	box := layout.Configure[*gtk.Box](view, "box", func(w *gtk.Box) { w.SetSpacing(spacing) })
+
 	return box
 }
 
 // NewActions creates a horizontal button row.
 func NewActions(spacing int, align gtk.Align) *gtk.Box {
-	box := gtk.NewBox(gtk.OrientationHorizontal, spacing)
+	view := layout.Load("dialog-actions")
+
+	box := layout.Configure[*gtk.Box](view, "box", func(w *gtk.Box) { w.SetSpacing(spacing) })
 	box.SetHAlign(align)
 	return box
 }

@@ -4,6 +4,7 @@ import (
 	"awesomeProject/internal/domain"
 	"awesomeProject/internal/i18n"
 	"awesomeProject/internal/service"
+	"awesomeProject/internal/ui/layout"
 
 	"github.com/diamondburned/gotk4-adwaita/pkg/adw"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
@@ -21,30 +22,25 @@ type spoolFilters struct {
 	t             i18n.T
 }
 
-func newSpoolFilters(t i18n.T, onChanged func()) *spoolFilters {
-	f := &spoolFilters{root: gtk.NewBox(gtk.OrientationHorizontal, 12), t: t}
-	add := func(title, all string) *adw.ComboRow {
-		group := adw.NewPreferencesGroup()
-		group.SetHExpand(true)
-		dropdown := adw.NewComboRow()
+func newSpoolFilters(t i18n.T, onChanged func(), views ...*layout.View) *spoolFilters {
+	view := layout.Use("spool-filters", views...)
+
+	f := &spoolFilters{root: layout.Get[*gtk.Box](view, "f_root"), t: t}
+	add := func(title, all string, view *layout.View) *adw.ComboRow {
+
+		dropdown := layout.Get[*adw.ComboRow](view, "dropdown")
 		dropdown.SetTitle(title)
-		dropdown.SetUseSubtitle(true)
+
 		dropdown.SetModel(gtk.NewStringList([]string{all}))
 		dropdown.SetTooltipText(title)
-		dropdown.SetEnableSearch(true)
-		group.Add(dropdown)
-		f.root.Append(group)
+
 		return dropdown
 	}
-	f.manufacturer = add(t.ManufacturerPH, t.AllManufacturers)
-	f.material = add(t.MaterialLabel, t.AllMaterials)
-	f.reset = gtk.NewButtonFromIconName("edit-clear-symbolic")
+	f.manufacturer = add(t.ManufacturerPH, t.AllManufacturers, layout.Scope(view, "manufacturer"))
+	f.material = add(t.MaterialLabel, t.AllMaterials, layout.Scope(view, "material"))
+	f.reset = layout.Get[*gtk.Button](view, "f_reset")
 	f.reset.SetTooltipText(t.ResetFilters)
-	f.reset.AddCSSClass("flat")
-	f.reset.AddCSSClass("circular")
-	f.reset.SetVAlign(gtk.AlignCenter)
-	f.reset.SetSensitive(false)
-	f.root.Append(f.reset)
+
 	changed := func() {
 		if f.updating {
 			return

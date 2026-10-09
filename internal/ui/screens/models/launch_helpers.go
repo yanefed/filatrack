@@ -3,6 +3,7 @@ package models
 import (
 	"awesomeProject/internal/domain"
 	"awesomeProject/internal/i18n"
+	"awesomeProject/internal/ui/layout"
 	"context"
 	"fmt"
 
@@ -43,11 +44,13 @@ func showLaunchResult(t i18n.T, label *gtk.Label, result *domain.PrintLaunchResu
 }
 
 func showGCodeFileChooser(parent *gtk.Window, onSelected func(string)) {
+	view := layout.Load("gcode-file-dialog")
+
 	t := i18n.L()
-	dialog := gtk.NewFileDialog()
+	dialog := layout.Get[*gtk.FileDialog](view, "dialog")
 	dialog.SetTitle(t.SelectGCode)
 	dialog.SetAcceptLabel(t.SelectGCode)
-	filter := gtk.NewFileFilter()
+	filter := layout.Get[*gtk.FileFilter](view, "filter")
 	for _, suffix := range []string{"gcode", "gco", "gc"} {
 		filter.AddSuffix(suffix)
 	}

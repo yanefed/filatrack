@@ -4,6 +4,7 @@ import (
 	"awesomeProject/internal/domain"
 	"awesomeProject/internal/i18n"
 	"awesomeProject/internal/service"
+	"awesomeProject/internal/ui/layout"
 	"awesomeProject/internal/ui/screens/shared"
 	"awesomeProject/internal/ui/widgets"
 	"context"
@@ -11,7 +12,6 @@ import (
 
 	coreglib "github.com/diamondburned/gotk4/pkg/core/glib"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
-	"github.com/diamondburned/gotk4/pkg/pango"
 )
 
 type printListState struct {
@@ -30,7 +30,9 @@ type printRowWidgets struct {
 	assignBtn *gtk.Button
 }
 
-func newVirtualPrintsList(t i18n.T, ctx context.Context, printSvc *service.PrintService, messageLabel *gtk.Label) (*gtk.ListView, func([]domain.PrintJob, []domain.Spool)) {
+func newVirtualPrintsList(t i18n.T, ctx context.Context, printSvc *service.PrintService, messageLabel *gtk.Label, views ...*layout.View) (*gtk.ListView, func([]domain.PrintJob, []domain.Spool)) {
+	view := layout.Use("print-list", views...)
+
 	state := &printListState{}
 	model := gtk.NewStringList(nil)
 	selection := gtk.NewNoSelection(model)
@@ -40,7 +42,7 @@ func newVirtualPrintsList(t i18n.T, ctx context.Context, printSvc *service.Print
 	var activeButton *gtk.Button
 	var activeRow *gtk.Box
 	chooserModel := gtk.NewStringList(nil)
-	chooser := gtk.NewDropDown(chooserModel, nil)
+	chooser := layout.Configure[*gtk.DropDown](view, "chooser", func(w *gtk.DropDown) { w.SetModel(chooserModel) })
 	changingSelection := false
 	finishChoosing := func() {
 		if activeRow != nil && chooser.Parent() != nil {
@@ -115,56 +117,28 @@ func newVirtualPrintsList(t i18n.T, ctx context.Context, printSvc *service.Print
 	}
 
 	factory.ConnectSetup(func(object *coreglib.Object) {
+		view := layout.Load("print-row")
+
 		item := object.Cast().(*gtk.ListItem)
 		item.SetActivatable(false)
 		item.SetFocusable(false)
-		card := gtk.NewBox(gtk.OrientationVertical, 0)
-		card.AddCSSClass("card")
-		card.SetMarginTop(4)
-		card.SetMarginBottom(4)
-		card.SetMarginStart(4)
-		card.SetMarginEnd(4)
-		row := gtk.NewBox(gtk.OrientationHorizontal, 12)
-		row.SetMarginTop(12)
-		row.SetMarginBottom(12)
-		row.SetMarginStart(12)
-		row.SetMarginEnd(12)
-		picture := gtk.NewPicture()
-		picture.SetSizeRequest(widgets.PreviewWidth, widgets.PreviewHeight)
-		picture.SetContentFit(gtk.ContentFitContain)
-		picture.SetVisible(false)
-		row.Append(picture)
-		content := gtk.NewBox(gtk.OrientationVertical, 4)
-		content.SetHExpand(true)
-		titleRow := gtk.NewBox(gtk.OrientationHorizontal, 8)
-		status := gtk.NewImageFromIconName("object-select-symbolic")
-		status.SetPixelSize(18)
-		titleRow.Append(status)
-		header := gtk.NewLabel("")
-		header.AddCSSClass("heading")
-		header.SetHAlign(gtk.AlignStart)
-		header.SetHExpand(true)
-		header.SetEllipsize(pango.EllipsizeEnd)
-		header.SetMaxWidthChars(80)
-		titleRow.Append(header)
-		content.Append(titleRow)
-		details := gtk.NewLabel("")
-		details.SetHAlign(gtk.AlignStart)
-		details.AddCSSClass("dim-label")
-		content.Append(details)
-		cost := gtk.NewLabel("")
-		cost.SetHAlign(gtk.AlignStart)
-		cost.SetWrap(true)
-		cost.AddCSSClass("caption")
-		content.Append(cost)
-		assignRow := gtk.NewBox(gtk.OrientationHorizontal, 6)
-		assignRow.SetHAlign(gtk.AlignStart)
-		assignBtn := gtk.NewButtonWithLabel(t.SpoolColon)
+		card := layout.Get[*gtk.Box](view, "card")
+
+		picture := layout.Get[*gtk.Picture](view, "picture")
+
+		status := layout.Get[*gtk.Image](view, "status")
+
+		header := layout.Get[*gtk.Label](view, "header")
+
+		details := layout.Get[*gtk.Label](view, "details")
+
+		cost := layout.Get[*gtk.Label](view, "cost")
+
+		assignRow := layout.Get[*gtk.Box](view, "assignRow")
+
+		assignBtn := layout.Configure[*gtk.Button](view, "assignBtn", func(w *gtk.Button) { w.SetLabel(t.SpoolColon) })
 		//assignBtn.AddCSSClass("flat")
-		assignRow.Append(assignBtn)
-		content.Append(assignRow)
-		row.Append(content)
-		card.Append(row)
+
 		item.SetChild(card)
 
 		itemNative := item.Native()
@@ -249,9 +223,8 @@ func newVirtualPrintsList(t i18n.T, ctx context.Context, printSvc *service.Print
 		delete(rows, item.Native())
 	})
 
-	view := gtk.NewListView(selection, &factory.ListItemFactory)
-	view.AddCSSClass("card-list")
-	view.SetVExpand(true)
+	listView := layout.Configure[*gtk.ListView](view, "view", func(w *gtk.ListView) { w.SetModel(selection); w.SetFactory(&factory.ListItemFactory) })
+
 	update := func(jobs []domain.PrintJob, spools []domain.Spool) {
 		finishChoosing()
 		state.jobs = jobs
@@ -263,7 +236,7 @@ func newVirtualPrintsList(t i18n.T, ctx context.Context, printSvc *service.Print
 		}
 		model.Splice(0, model.NItems(), keys)
 	}
-	return view, update
+	return listView, update
 }
 
 func printSpoolButtonLabel(t i18n.T, spoolID string, spools []domain.Spool) string {

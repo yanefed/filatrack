@@ -4,6 +4,7 @@ import (
 	"awesomeProject/internal/domain"
 	"awesomeProject/internal/i18n"
 	"awesomeProject/internal/service"
+	"awesomeProject/internal/ui/layout"
 	"awesomeProject/internal/ui/widgets"
 	"context"
 	"fmt"
@@ -13,17 +14,23 @@ import (
 )
 
 // NewDashboard creates the application overview and its lightweight live refresh.
-func NewDashboard(ctx context.Context, spoolSvc *service.SpoolService, printSvc *service.PrintService, printerSvc *service.PrinterService) (*gtk.Box, func(), func()) {
+func NewDashboard(ctx context.Context, spoolSvc *service.SpoolService, printSvc *service.PrintService, printerSvc *service.PrinterService, views ...*layout.View) (*gtk.Box, func(), func()) {
+	view := layout.Use("dashboard-screen", views...)
+
 	t := i18n.L()
-	box := widgets.NewScreen(t.Dashboard)
+	box := layout.Configure[*gtk.Box](view, "box", func(w *gtk.Box) { layout.Get[*gtk.Label](view, "box_title").SetLabel(t.Dashboard) })
 
-	messageLabel := widgets.NewMessageLabel()
-	box.Append(messageLabel)
-	content := gtk.NewBox(gtk.OrientationVertical, 18)
-	box.Append(widgets.NewScrolled(content))
+	messageLabel := layout.Get[*gtk.Label](view, "messageLabel")
 
-	activeSlot := gtk.NewBox(gtk.OrientationVertical, 0)
-	activeSlot.SetHExpand(true)
+	layout.Get[*gtk.Label](view, "active_title").SetLabel(t.ActivePrints)
+	layout.Get[*gtk.Label](view, "recent_title").SetLabel(t.RecentPrints)
+	layout.Get[*gtk.Label](view, "attention_title").SetLabel(t.DryingWarnings)
+
+	activeSlot := layout.Get[*gtk.Box](view, "activeSlot")
+
+	metricsSlot := layout.Get[*gtk.Box](view, "metrics_slot")
+	recentSlot := layout.Get[*gtk.Box](view, "recent_slot")
+	attentionSlot := layout.Get[*gtk.Box](view, "attention_slot")
 	var activeIDs []string
 	var activeStatuses []*widgets.PrinterStatusWidget
 	updateActive := func(printers []domain.Printer) {
@@ -52,29 +59,11 @@ func NewDashboard(ctx context.Context, spoolSvc *service.SpoolService, printSvc 
 		activeStatuses = statuses
 	}
 	render := func(data dashboardData) {
-		for child := content.FirstChild(); child != nil; child = content.FirstChild() {
-			content.Remove(child)
-		}
-		content.Append(newMetricsGrid(t, data))
 
-		content.Append(widgets.NewSectionTitle(t.ActivePrints))
+		widgets.ReplaceBoxChild(metricsSlot, newMetricsGrid(t, data))
 		updateActive(data.activePrinters())
-		content.Append(activeSlot)
-
-		columns := gtk.NewBox(gtk.OrientationHorizontal, 12)
-		columns.SetHomogeneous(true)
-		recent := gtk.NewBox(gtk.OrientationVertical, 8)
-		recent.SetHExpand(true)
-		recent.Append(widgets.NewSectionTitle(t.RecentPrints))
-		recent.Append(newRecentPrintsPanel(t, data.recent))
-		columns.Append(recent)
-
-		attention := gtk.NewBox(gtk.OrientationVertical, 8)
-		attention.SetHExpand(true)
-		attention.Append(widgets.NewSectionTitle(t.DryingWarnings))
-		attention.Append(newAttentionPanel(t, data.dryingWarnings()))
-		columns.Append(attention)
-		content.Append(columns)
+		widgets.ReplaceBoxChild(recentSlot, newRecentPrintsPanel(t, data.recent))
+		widgets.ReplaceBoxChild(attentionSlot, newAttentionPanel(t, data.dryingWarnings()))
 
 		showDashboardErrors(t, messageLabel, data)
 	}

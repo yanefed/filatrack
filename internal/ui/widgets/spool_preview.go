@@ -2,6 +2,7 @@ package widgets
 
 import (
 	"awesomeProject/internal/ui/colors"
+	"awesomeProject/internal/ui/layout"
 	"math"
 
 	"github.com/diamondburned/gotk4/pkg/cairo"
@@ -10,14 +11,14 @@ import (
 
 // NewSpoolPreview создаёт схематичное изображение катушки с филаментом
 // указанного цвета.
-func NewSpoolPreview(colorHex string) *gtk.DrawingArea {
+func NewSpoolPreview(colorHex string, views ...*layout.View) *gtk.DrawingArea {
+	view := layout.Use("spool-preview", views...)
+
 	const size = 58
 
 	color := colors.FromHex(colorHex)
-	area := gtk.NewDrawingArea()
-	area.SetContentWidth(size)
-	area.SetContentHeight(size)
-	area.SetVAlign(gtk.AlignCenter)
+	area := layout.Get[*gtk.DrawingArea](view, "area")
+
 	area.SetTooltipText(colors.ToHex(color))
 	area.SetDrawFunc(func(_ *gtk.DrawingArea, cr *cairo.Context, width, height int) {
 		centerX := float64(width) / 2

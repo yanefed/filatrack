@@ -3,10 +3,10 @@ package widgets
 import (
 	"awesomeProject/internal/domain"
 	"awesomeProject/internal/i18n"
+	"awesomeProject/internal/ui/layout"
 	"fmt"
 
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
-	"github.com/diamondburned/gotk4/pkg/pango"
 )
 
 // PrinterStatusWidget keeps its GTK objects alive and updates their contents in place.
@@ -27,36 +27,18 @@ type PrinterStatusWidget struct {
 }
 
 // NewPrinterStatus creates a compact status block for a Moonraker printer.
-func NewPrinterStatus(t i18n.T, printer domain.Printer) *PrinterStatusWidget {
-	row := gtk.NewBox(gtk.OrientationVertical, 4)
-	row.SetMarginTop(6)
-	row.SetMarginBottom(8)
+func NewPrinterStatus(t i18n.T, printer domain.Printer, views ...*layout.View) *PrinterStatusWidget {
+	view := layout.Use("printer-status", views...)
 
-	header := gtk.NewBox(gtk.OrientationHorizontal, 8)
-	dot := gtk.NewBox(gtk.OrientationHorizontal, 0)
-	dot.AddCSSClass("printer-status-dot")
-	header.Append(dot)
+	row := layout.Get[*gtk.Box](view, "row")
 
-	info := gtk.NewLabel("")
-	info.AddCSSClass("heading")
-	info.SetHAlign(gtk.AlignStart)
-	info.SetHExpand(true)
-	info.SetEllipsize(pango.EllipsizeEnd)
-	info.SetMaxWidthChars(80)
-	header.Append(info)
-	row.Append(header)
+	dot := layout.Get[*gtk.Box](view, "dot")
 
-	file := gtk.NewLabel("")
-	file.SetHAlign(gtk.AlignStart)
-	file.SetHExpand(true)
-	file.SetEllipsize(pango.EllipsizeEnd)
-	file.SetMaxWidthChars(80)
-	file.AddCSSClass("dim-label")
-	row.Append(file)
+	info := layout.Get[*gtk.Label](view, "info")
 
-	bar := gtk.NewProgressBar()
-	bar.SetShowText(true)
-	row.Append(bar)
+	file := layout.Get[*gtk.Label](view, "file")
+
+	bar := layout.Get[*gtk.ProgressBar](view, "bar")
 
 	status := &PrinterStatusWidget{Box: row, dot: dot, info: info, file: file, progress: bar}
 	status.Update(t, printer)

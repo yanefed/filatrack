@@ -4,6 +4,7 @@ import (
 	"awesomeProject/internal/domain"
 	"awesomeProject/internal/i18n"
 	"awesomeProject/internal/service"
+	"awesomeProject/internal/ui/layout"
 	"awesomeProject/internal/ui/widgets"
 	"context"
 	"fmt"
@@ -40,50 +41,22 @@ func loadDryingHistory(ctx context.Context, dryingSvc *service.DryingService, sp
 }
 
 func newDryingHistoryCard(t i18n.T, item dryingHistoryItem) *gtk.Box {
-	card := gtk.NewBox(gtk.OrientationVertical, 0)
-	card.AddCSSClass("card")
-	card.SetMarginTop(4)
-	card.SetMarginBottom(4)
-	card.SetMarginStart(4)
-	card.SetMarginEnd(4)
+	view := layout.Load("drying-history-card")
 
-	row := gtk.NewBox(gtk.OrientationHorizontal, 12)
-	row.SetMarginTop(12)
-	row.SetMarginBottom(12)
-	row.SetMarginStart(12)
-	row.SetMarginEnd(12)
-	row.Append(widgets.NewSpoolPreview(item.spool.ColorHex))
+	card := layout.Get[*gtk.Box](view, "card")
 
-	identity := gtk.NewBox(gtk.OrientationVertical, 3)
-	identity.SetHExpand(true)
+	_ = widgets.NewSpoolPreview(item.spool.ColorHex, layout.Scope(view, "row_slot_1"))
+
 	nameText := item.spool.Manufacturer
 	if item.spool.DisplayCode != "" {
 		nameText = fmt.Sprintf("%s — %s", item.spool.DisplayCode, item.spool.Manufacturer)
 	}
-	name := gtk.NewLabel(nameText)
-	name.AddCSSClass("heading")
-	name.SetHAlign(gtk.AlignStart)
-	name.SetWrap(true)
-	identity.Append(name)
-	details := gtk.NewLabel(fmt.Sprintf("%s · %s", item.spool.Color, item.spool.Material))
-	details.AddCSSClass("dim-label")
-	details.SetHAlign(gtk.AlignStart)
-	identity.Append(details)
-	row.Append(identity)
+	_ = layout.Configure[*gtk.Label](view, "name", func(w *gtk.Label) { w.SetLabel(nameText) })
+	_ = layout.Configure[*gtk.Label](view, "details", func(w *gtk.Label) { w.SetLabel(fmt.Sprintf("%s · %s", item.spool.Color, item.spool.Material)) })
+	_ = layout.Configure[*gtk.Label](view, "parameters", func(w *gtk.Label) {
+		w.SetLabel(fmt.Sprintf("%d °C · %s", item.session.TemperatureC, formatHours(item.session.DurationHours, t.Hours)))
+	})
+	_ = layout.Configure[*gtk.Label](view, "date", func(w *gtk.Label) { w.SetLabel(item.session.DriedAt.Format("02.01.2006 15:04")) })
 
-	result := gtk.NewBox(gtk.OrientationVertical, 3)
-	result.SetVAlign(gtk.AlignCenter)
-	parameters := gtk.NewLabel(fmt.Sprintf("%d °C · %s", item.session.TemperatureC, formatHours(item.session.DurationHours, t.Hours)))
-	parameters.AddCSSClass("heading")
-	parameters.SetHAlign(gtk.AlignEnd)
-	result.Append(parameters)
-	date := gtk.NewLabel(item.session.DriedAt.Format("02.01.2006 15:04"))
-	date.AddCSSClass("caption")
-	date.AddCSSClass("dim-label")
-	date.SetHAlign(gtk.AlignEnd)
-	result.Append(date)
-	row.Append(result)
-
-	card.Append(row)
 	return card
 }

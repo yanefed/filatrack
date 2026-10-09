@@ -4,8 +4,8 @@ import (
 	"awesomeProject/internal/domain"
 	"awesomeProject/internal/i18n"
 	"awesomeProject/internal/service"
-	"awesomeProject/internal/ui/screens/shared"
-	"awesomeProject/internal/ui/widgets"
+	"awesomeProject/internal/ui/layout"
+
 	"context"
 	"fmt"
 	"strconv"
@@ -13,38 +13,31 @@ import (
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 )
 
-func newSpoolDryingSection(t i18n.T, status service.DryingStatus, statusErr error) *gtk.Box {
-	section := gtk.NewBox(gtk.OrientationVertical, 4)
-	section.SetMarginStart(14)
-	section.SetMarginEnd(14)
+func newSpoolDryingSection(t i18n.T, status service.DryingStatus, statusErr error, views ...*layout.View) *gtk.Box {
+	view := layout.Use("spool-drying-status", views...)
 
-	separator := gtk.NewSeparator(gtk.OrientationHorizontal)
-	separator.SetMarginBottom(4)
-	section.Append(separator)
+	section := layout.Get[*gtk.Box](view, "section")
 
 	lastText := t.NeverDried
 	if status.LastSession != nil {
 		lastText = fmt.Sprintf(t.LastDryingFmt, status.LastSession.DriedAt.Format("02.01.2006"))
 	}
-	lastLabel := dryingCaption(lastText)
-	section.Append(lastLabel)
+	_ = dryingCaption(lastText, layout.Scope(view, "section_slot_2"))
 
-	stateLabel := dryingCaption(dryingStateText(t, status, statusErr))
+	stateLabel := dryingCaption(dryingStateText(t, status, statusErr), layout.Scope(view, "section_slot_3"))
 	if status.NeedsDrying {
 		stateLabel.RemoveCSSClass("dim-label")
 		stateLabel.AddCSSClass("drying-warning")
 	}
-	section.Append(stateLabel)
 
 	return section
 }
 
-func dryingCaption(text string) *gtk.Label {
-	label := gtk.NewLabel(text)
-	label.AddCSSClass("caption")
-	label.AddCSSClass("dim-label")
-	label.SetHAlign(gtk.AlignStart)
-	label.SetWrap(true)
+func dryingCaption(text string, views ...*layout.View) *gtk.Label {
+	view := layout.Use("drying-caption", views...)
+
+	label := layout.Configure[*gtk.Label](view, "label", func(w *gtk.Label) { w.SetLabel(text) })
+
 	return label
 }
 
@@ -71,58 +64,40 @@ func dryingStateText(t i18n.T, status service.DryingStatus, statusErr error) str
 }
 
 func showDrySpoolDialog(ctx context.Context, parent *gtk.Window, dryingSvc *service.DryingService, spool domain.Spool, profile *domain.DryingProfile, onSave func()) {
+	view := layout.Load("dry-spool-dialog")
+
 	t := i18n.L()
-	dialog := shared.NewModalWindow(parent)
+	dialog := layout.Configure[*gtk.Window](view, "dialog", func(w *gtk.Window) {
+		if parent != nil {
+			w.SetTransientFor(parent)
+			w.SetDestroyWithParent(true)
+		}
+	})
 	dialog.SetTitle(fmt.Sprintf("%s", t.DrySpool))
-	dialog.SetDefaultSize(360, 240)
+	_ = layout.Configure[*gtk.Label](view, "spoolLabel", func(w *gtk.Label) {
+		w.SetLabel(fmt.Sprintf("%s — %s %s (%s)", spool.DisplayCode, spool.Manufacturer, spool.Color, spool.Material))
+	})
+	_ = layout.Configure[*gtk.Label](view, "temperatureLabel", func(w *gtk.Label) { w.SetLabel(t.TemperatureC) })
 
-	box := widgets.NewDialogContent(8)
-
-	spoolLabel := gtk.NewLabel(fmt.Sprintf("%s — %s %s (%s)", spool.DisplayCode, spool.Manufacturer, spool.Color, spool.Material))
-	spoolLabel.AddCSSClass("heading")
-	spoolLabel.SetHAlign(gtk.AlignStart)
-	spoolLabel.SetWrap(true)
-	box.Append(spoolLabel)
-
-	parametersGrid := gtk.NewGrid()
-	parametersGrid.SetColumnSpacing(10)
-	parametersGrid.SetRowSpacing(8)
-
-	temperatureLabel := gtk.NewLabel(t.TemperatureC)
-	temperatureLabel.SetHAlign(gtk.AlignEnd)
-	temperatureEntry := gtk.NewEntry()
+	temperatureEntry := layout.Get[*gtk.Entry](view, "temperatureEntry")
 	temperatureEntry.SetPlaceholderText(t.TemperatureC)
-	temperatureEntry.SetHExpand(true)
-	parametersGrid.Attach(temperatureLabel, 0, 0, 1, 1)
-	parametersGrid.Attach(temperatureEntry, 1, 0, 1, 1)
+	_ = layout.Configure[*gtk.Label](view, "durationLabel", func(w *gtk.Label) { w.SetLabel(t.DurationHours) })
 
-	durationLabel := gtk.NewLabel(t.DurationHours)
-	durationLabel.SetHAlign(gtk.AlignEnd)
-	durationEntry := gtk.NewEntry()
+	durationEntry := layout.Get[*gtk.Entry](view, "durationEntry")
 	durationEntry.SetPlaceholderText(t.DurationHours)
-	durationEntry.SetHExpand(true)
-	parametersGrid.Attach(durationLabel, 0, 1, 1, 1)
-	parametersGrid.Attach(durationEntry, 1, 1, 1, 1)
-	box.Append(parametersGrid)
 
 	if profile != nil {
 		temperatureEntry.SetText(strconv.Itoa(profile.TemperatureC))
 		durationEntry.SetText(strconv.FormatFloat(profile.DurationHours, 'f', -1, 64))
 	}
 
-	errorLabel := gtk.NewLabel("")
-	errorLabel.AddCSSClass("error")
-	errorLabel.SetHAlign(gtk.AlignStart)
-	errorLabel.SetWrap(true)
-	box.Append(errorLabel)
+	errorLabel := layout.Get[*gtk.Label](view, "errorLabel")
 
-	actions := widgets.NewActions(8, gtk.AlignEnd)
-	cancelBtn := gtk.NewButtonWithLabel(t.Cancel)
+	cancelBtn := layout.Configure[*gtk.Button](view, "cancelBtn", func(w *gtk.Button) { w.SetLabel(t.Cancel) })
 	cancelBtn.ConnectClicked(dialog.Destroy)
-	actions.Append(cancelBtn)
 
-	saveBtn := gtk.NewButtonWithLabel(t.Save)
-	saveBtn.AddCSSClass("suggested-action")
+	saveBtn := layout.Configure[*gtk.Button](view, "saveBtn", func(w *gtk.Button) { w.SetLabel(t.Save) })
+
 	saveBtn.ConnectClicked(func() {
 		temperature, err := strconv.Atoi(temperatureEntry.Text())
 		if err != nil {
@@ -150,9 +125,6 @@ func showDrySpoolDialog(ctx context.Context, parent *gtk.Window, dryingSvc *serv
 			onSave()
 		}
 	})
-	actions.Append(saveBtn)
-	box.Append(actions)
 
-	dialog.SetChild(box)
 	dialog.SetVisible(true)
 }

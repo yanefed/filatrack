@@ -3,7 +3,8 @@ package spools
 import (
 	"awesomeProject/internal/i18n"
 	"awesomeProject/internal/service"
-	"awesomeProject/internal/ui/widgets"
+	"awesomeProject/internal/ui/layout"
+
 	"context"
 	"fmt"
 
@@ -11,30 +12,17 @@ import (
 )
 
 // NewSpoolsScreen создаёт экран управления катушками филамента.
-func NewSpoolsScreen(ctx context.Context, parent *gtk.Window, spoolSvc *service.SpoolService, dryingSvc *service.DryingService, settingsSvc *service.SettingsService, onChanged func()) (*gtk.Box, func(), func()) {
+func NewSpoolsScreen(ctx context.Context, parent *gtk.Window, spoolSvc *service.SpoolService, dryingSvc *service.DryingService, settingsSvc *service.SettingsService, onChanged func(), views ...*layout.View) (*gtk.Box, func(), func()) {
+	view := layout.Use("spools-screen", views...)
+
 	t := i18n.L()
-	box := widgets.NewScreen(t.Spools)
+	box := layout.Configure[*gtk.Box](view, "box", func(w *gtk.Box) { layout.Get[*gtk.Label](view, "box_title").SetLabel(t.Spools) })
 	var refreshList func()
-	filters := newSpoolFilters(t, func() { refreshList() })
-	box.Append(filters.root)
+	filters := newSpoolFilters(t, func() { refreshList() }, layout.Scope(view, "box_slot_2"))
 
-	emptyLabel := gtk.NewLabel(t.NoMatchingSpools)
-	emptyLabel.AddCSSClass("dim-label")
-	emptyLabel.SetVisible(false)
-	box.Append(emptyLabel)
+	emptyLabel := layout.Configure[*gtk.Label](view, "emptyLabel", func(w *gtk.Label) { w.SetLabel(t.NoMatchingSpools) })
 
-	spoolGrid := gtk.NewFlowBox()
-	spoolGrid.SetVAlign(gtk.AlignStart)
-	spoolGrid.SetSelectionMode(gtk.SelectionNone)
-	spoolGrid.SetHomogeneous(true)
-	spoolGrid.SetMinChildrenPerLine(1)
-	spoolGrid.SetMaxChildrenPerLine(3)
-	spoolGrid.SetColumnSpacing(12)
-	spoolGrid.SetRowSpacing(12)
-
-	scrolled := widgets.NewScrolled(spoolGrid)
-	scrolled.SetPolicy(gtk.PolicyNever, gtk.PolicyAutomatic)
-	box.Append(scrolled)
+	spoolGrid := layout.Get[*gtk.FlowBox](view, "spoolGrid")
 
 	var refreshSpools func()
 	refreshList = func() {
@@ -43,7 +31,9 @@ func NewSpoolsScreen(ctx context.Context, parent *gtk.Window, spoolSvc *service.
 
 		spools, err := spoolSvc.List(ctx, filters.Filter())
 		if err != nil {
-			label := gtk.NewLabel(fmt.Sprintf("%s: %v", t.ErrorPrefix, err))
+			view := layout.Load("spools-error")
+
+			label := layout.Configure[*gtk.Label](view, "label", func(w *gtk.Label) { w.SetLabel(fmt.Sprintf("%s: %v", t.ErrorPrefix, err)) })
 			spoolGrid.Append(label)
 			return
 		}
@@ -89,9 +79,11 @@ func NewSpoolsScreen(ctx context.Context, parent *gtk.Window, spoolSvc *service.
 	refreshSpools = func() {
 		options, err := spoolSvc.FilterOptions(ctx)
 		if err != nil {
+			view := layout.Load("spools-filter-error")
+
 			spoolGrid.RemoveAll()
 			emptyLabel.SetVisible(false)
-			spoolGrid.Append(gtk.NewLabel(fmt.Sprintf("%s: %v", t.ErrorPrefix, err)))
+			spoolGrid.Append(layout.Configure[*gtk.Label](view, "object_1611", func(w *gtk.Label) { w.SetLabel(fmt.Sprintf("%s: %v", t.ErrorPrefix, err)) }))
 			return
 		}
 		filters.SetOptions(options)

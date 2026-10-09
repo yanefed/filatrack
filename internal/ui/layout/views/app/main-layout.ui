@@ -1,0 +1,820 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<!-- Created with Cambalache 1.0.3 -->
+<interface>
+  <!-- interface-name main-layout.ui -->
+  <requires lib="gtk" version="4.10"/>
+  <requires lib="libadwaita" version="1.5"/>
+  <object class="AdwToolbarView" id="toolbarView">
+    <child type="top">
+      <object class="AdwHeaderBar" id="headerBar">
+        <property name="show-end-title-buttons">true</property>
+        <child type="end">
+          <object class="GtkButton" id="headerBar_slot_1_button">
+            <property name="icon-name">help-about-symbolic</property>
+          </object>
+        </child>
+        <child type="end">
+          <object class="GtkButton" id="headerBar_slot_2_button">
+            <property name="icon-name">preferences-system-symbolic</property>
+          </object>
+        </child>
+        <child type="end">
+          <object class="GtkButton" id="addSpoolButton">
+            <property name="icon-name">list-add-symbolic</property>
+          </object>
+        </child>
+        <child type="end">
+          <object class="GtkButton" id="prints_syncHistoryBtn">
+            <property name="icon-name">view-refresh-symbolic</property>
+          </object>
+        </child>
+        <child type="end">
+          <object class="GtkDropDown" id="prints_printerCombo">
+            <property name="height-request">-1</property>
+            <property name="width-request">180</property>
+          </object>
+        </child>
+        <child type="end">
+          <object class="GtkButton" id="models_addModelBtn">
+            <property name="icon-name">list-add-symbolic</property>
+          </object>
+        </child>
+        <child type="end">
+          <object class="GtkButton" id="models_refreshModelsBtn">
+            <property name="icon-name">view-refresh-symbolic</property>
+          </object>
+        </child>
+        <child type="end">
+          <object class="GtkButton" id="drying_addDryingButton">
+            <property name="icon-name">list-add-symbolic</property>
+          </object>
+        </child>
+        <child type="end">
+          <object class="GtkButton" id="printers_addPrinterButton">
+            <property name="icon-name">list-add-symbolic</property>
+          </object>
+        </child>
+      </object>
+    </child>
+    <child>
+      <object class="GtkBox" id="splitView">
+        <property name="orientation">horizontal</property>
+        <property name="spacing">0</property>
+        <child>
+          <object class="GtkStackSidebar" id="sidebar">
+            <property name="height-request">-1</property>
+            <property name="stack">stack</property>
+            <property name="width-request">200</property>
+          </object>
+        </child>
+        <child>
+          <object class="GtkSeparator" id="separator">
+            <property name="orientation">vertical</property>
+          </object>
+        </child>
+        <child>
+          <object class="GtkStack" id="stack">
+            <property name="hexpand">true</property>
+            <property name="transition-type">crossfade</property>
+            <property name="vexpand">true</property>
+            <child>
+              <object class="GtkStackPage" id="dashboard_page">
+                <property name="child">
+                  <object class="GtkBox" id="dashboard_box">
+                    <property name="margin-bottom">24</property>
+                    <property name="margin-end">24</property>
+                    <property name="margin-start">24</property>
+                    <property name="margin-top">24</property>
+                    <property name="orientation">vertical</property>
+                    <property name="spacing">12</property>
+                    <child>
+                      <object class="GtkLabel" id="dashboard_box_title">
+                        <property name="label">Dashboard</property>
+                        <style>
+                          <class name="title-1"/>
+                        </style>
+                      </object>
+                    </child>
+                    <child>
+                      <object class="GtkLabel" id="dashboard_messageLabel">
+                        <property name="halign">start</property>
+                        <property name="label"/>
+                        <property name="visible">false</property>
+                        <property name="wrap">true</property>
+                        <style>
+                          <class name="dim-label"/>
+                        </style>
+                      </object>
+                    </child>
+                    <child>
+                      <object class="GtkScrolledWindow" id="dashboard_object_324">
+                        <property name="vexpand">true</property>
+                        <child>
+                          <object class="GtkBox" id="dashboard_content">
+                            <property name="orientation">vertical</property>
+                            <property name="spacing">18</property>
+                            <child>
+                              <object class="GtkBox" id="dashboard_metrics_slot"/>
+                            </child>
+                            <child>
+                              <object class="GtkLabel" id="dashboard_active_title">
+                                <property name="halign">start</property>
+                                <property name="label">Active prints</property>
+                                <style>
+                                  <class name="title-3"/>
+                                </style>
+                              </object>
+                            </child>
+                            <child>
+                              <object class="GtkBox" id="dashboard_activeSlot">
+                                <property name="hexpand">true</property>
+                                <property name="orientation">vertical</property>
+                                <property name="spacing">0</property>
+                              </object>
+                            </child>
+                            <child>
+                              <object class="GtkBox" id="dashboard_columns">
+                                <property name="homogeneous">true</property>
+                                <property name="orientation">horizontal</property>
+                                <property name="spacing">12</property>
+                                <child>
+                                  <object class="GtkBox" id="dashboard_recent">
+                                    <property name="hexpand">true</property>
+                                    <property name="orientation">vertical</property>
+                                    <property name="spacing">8</property>
+                                    <child>
+                                      <object class="GtkLabel" id="dashboard_recent_title">
+                                        <property name="halign">start</property>
+                                        <property name="label">Recent prints</property>
+                                        <style>
+                                          <class name="title-3"/>
+                                        </style>
+                                      </object>
+                                    </child>
+                                    <child>
+                                      <object class="GtkBox" id="dashboard_recent_slot">
+                                        <property name="orientation">vertical</property>
+                                      </object>
+                                    </child>
+                                  </object>
+                                </child>
+                                <child>
+                                  <object class="GtkBox" id="dashboard_attention">
+                                    <property name="hexpand">true</property>
+                                    <property name="orientation">vertical</property>
+                                    <property name="spacing">8</property>
+                                    <child>
+                                      <object class="GtkLabel" id="dashboard_attention_title">
+                                        <property name="halign">start</property>
+                                        <property name="label">Drying warnings</property>
+                                        <style>
+                                          <class name="title-3"/>
+                                        </style>
+                                      </object>
+                                    </child>
+                                    <child>
+                                      <object class="GtkBox" id="dashboard_attention_slot">
+                                        <property name="orientation">vertical</property>
+                                      </object>
+                                    </child>
+                                  </object>
+                                </child>
+                              </object>
+                            </child>
+                          </object>
+                        </child>
+                      </object>
+                    </child>
+                  </object>
+                </property>
+                <property name="name">dashboard</property>
+                <property name="title">Overview</property>
+              </object>
+            </child>
+            <child>
+              <object class="GtkStackPage" id="spools_page">
+                <property name="child">
+                  <object class="GtkBox" id="spools_box">
+                    <property name="margin-bottom">24</property>
+                    <property name="margin-end">24</property>
+                    <property name="margin-start">24</property>
+                    <property name="margin-top">24</property>
+                    <property name="orientation">vertical</property>
+                    <property name="spacing">12</property>
+                    <child>
+                      <object class="GtkLabel" id="spools_box_title">
+                        <property name="label">Spools</property>
+                        <style>
+                          <class name="title-1"/>
+                        </style>
+                      </object>
+                    </child>
+                    <child>
+                      <object class="GtkBox" id="spools_box_slot_2_f_root">
+                        <property name="orientation">horizontal</property>
+                        <property name="spacing">12</property>
+                        <child>
+                          <object class="AdwPreferencesGroup" id="spools_box_slot_2_manufacturer_group">
+                            <property name="hexpand">true</property>
+                            <child>
+                              <object class="AdwComboRow" id="spools_box_slot_2_manufacturer_dropdown">
+                                <property name="enable-search">true</property>
+                                <property name="title">Filter</property>
+                                <property name="use-subtitle">true</property>
+                              </object>
+                            </child>
+                          </object>
+                        </child>
+                        <child>
+                          <object class="AdwPreferencesGroup" id="spools_box_slot_2_material_group">
+                            <property name="hexpand">true</property>
+                            <child>
+                              <object class="AdwComboRow" id="spools_box_slot_2_material_dropdown">
+                                <property name="enable-search">true</property>
+                                <property name="title">Filter</property>
+                                <property name="use-subtitle">true</property>
+                              </object>
+                            </child>
+                          </object>
+                        </child>
+                        <child>
+                          <object class="GtkButton" id="spools_box_slot_2_f_reset">
+                            <property name="icon-name">edit-clear-symbolic</property>
+                            <property name="sensitive">false</property>
+                            <property name="valign">center</property>
+                            <style>
+                              <class name="flat"/>
+                              <class name="circular"/>
+                            </style>
+                          </object>
+                        </child>
+                      </object>
+                    </child>
+                    <child>
+                      <object class="GtkLabel" id="spools_emptyLabel">
+                        <property name="label">No records</property>
+                        <property name="visible">false</property>
+                        <style>
+                          <class name="dim-label"/>
+                        </style>
+                      </object>
+                    </child>
+                    <child>
+                      <object class="GtkScrolledWindow" id="spools_scrolled">
+                        <property name="hscrollbar-policy">never</property>
+                        <property name="vexpand">true</property>
+                        <property name="vscrollbar-policy">automatic</property>
+                        <child>
+                          <object class="GtkFlowBox" id="spools_spoolGrid">
+                            <property name="column-spacing">12</property>
+                            <property name="homogeneous">true</property>
+                            <property name="max-children-per-line">3</property>
+                            <property name="min-children-per-line">1</property>
+                            <property name="row-spacing">12</property>
+                            <property name="selection-mode">none</property>
+                            <property name="valign">start</property>
+                          </object>
+                        </child>
+                      </object>
+                    </child>
+                  </object>
+                </property>
+                <property name="name">spools</property>
+                <property name="title">Spools</property>
+              </object>
+            </child>
+            <child>
+              <object class="GtkStackPage" id="prints_page">
+                <property name="child">
+                  <object class="GtkBox" id="prints_box">
+                    <property name="margin-bottom">24</property>
+                    <property name="margin-end">24</property>
+                    <property name="margin-start">24</property>
+                    <property name="margin-top">24</property>
+                    <property name="orientation">vertical</property>
+                    <property name="spacing">12</property>
+                    <child>
+                      <object class="GtkLabel" id="prints_box_title">
+                        <property name="label">Prints</property>
+                        <style>
+                          <class name="title-1"/>
+                        </style>
+                      </object>
+                    </child>
+                    <child>
+                      <object class="GtkLabel" id="prints_messageLabel">
+                        <property name="halign">start</property>
+                        <property name="label"/>
+                        <property name="visible">false</property>
+                        <property name="wrap">true</property>
+                        <style>
+                          <class name="dim-label"/>
+                        </style>
+                      </object>
+                    </child>
+                    <child>
+                      <object class="GtkListBox" id="prints_box_slot_3_list">
+                        <property name="selection-mode">none</property>
+                        <style>
+                          <class name="card-list"/>
+                        </style>
+                      </object>
+                    </child>
+                    <child>
+                      <object class="GtkLabel" id="prints_emptyLabel">
+                        <property name="label">No records</property>
+                        <property name="visible">false</property>
+                        <style>
+                          <class name="dim-label"/>
+                        </style>
+                      </object>
+                    </child>
+                    <child>
+                      <object class="GtkScrolledWindow" id="prints_object_1087">
+                        <property name="vexpand">true</property>
+                        <child>
+                          <object class="GtkListView" id="prints_object_1087_slot_view">
+                            <property name="vexpand">true</property>
+                            <style>
+                              <class name="card-list"/>
+                            </style>
+                          </object>
+                        </child>
+                      </object>
+                    </child>
+                  </object>
+                </property>
+                <property name="name">prints</property>
+                <property name="title">Print history</property>
+              </object>
+            </child>
+            <child>
+              <object class="GtkStackPage" id="models_page">
+                <property name="child">
+                  <object class="GtkBox" id="models_box">
+                    <property name="margin-bottom">24</property>
+                    <property name="margin-end">24</property>
+                    <property name="margin-start">24</property>
+                    <property name="margin-top">24</property>
+                    <property name="orientation">vertical</property>
+                    <property name="spacing">12</property>
+                    <child>
+                      <object class="GtkLabel" id="models_box_title">
+                        <property name="label">Models</property>
+                        <style>
+                          <class name="title-1"/>
+                        </style>
+                      </object>
+                    </child>
+                    <child>
+                      <object class="GtkLabel" id="models_messageLabel">
+                        <property name="halign">start</property>
+                        <property name="label"/>
+                        <property name="visible">false</property>
+                        <property name="wrap">true</property>
+                        <style>
+                          <class name="dim-label"/>
+                        </style>
+                      </object>
+                    </child>
+                    <child>
+                      <object class="GtkLabel" id="models_emptyLabel">
+                        <property name="label">No records</property>
+                        <property name="visible">false</property>
+                        <style>
+                          <class name="dim-label"/>
+                        </style>
+                      </object>
+                    </child>
+                    <child>
+                      <object class="GtkScrolledWindow" id="models_object_634">
+                        <property name="vexpand">true</property>
+                        <child>
+                          <object class="GtkListView" id="models_object_634_slot_view">
+                            <property name="vexpand">true</property>
+                            <style>
+                              <class name="card-list"/>
+                            </style>
+                          </object>
+                        </child>
+                      </object>
+                    </child>
+                  </object>
+                </property>
+                <property name="name">models</property>
+                <property name="title">Models</property>
+              </object>
+            </child>
+            <child>
+              <object class="GtkStackPage" id="drying_page">
+                <property name="child">
+                  <object class="GtkBox" id="drying_box">
+                    <property name="margin-bottom">24</property>
+                    <property name="margin-end">24</property>
+                    <property name="margin-start">24</property>
+                    <property name="margin-top">24</property>
+                    <property name="orientation">vertical</property>
+                    <property name="spacing">12</property>
+                    <child>
+                      <object class="GtkLabel" id="drying_box_title">
+                        <property name="label">Drying</property>
+                        <style>
+                          <class name="title-1"/>
+                        </style>
+                      </object>
+                    </child>
+                    <child>
+                      <object class="GtkLabel" id="drying_object_512">
+                        <property name="halign">start</property>
+                        <property name="label">512</property>
+                        <style>
+                          <class name="title-3"/>
+                        </style>
+                      </object>
+                    </child>
+                    <child>
+                      <object class="GtkScrolledWindow" id="drying_box_slot_3_scrolled">
+                        <property name="height-request">158</property>
+                        <property name="hscrollbar-policy">automatic</property>
+                        <property name="min-content-height">140</property>
+                        <property name="overlay-scrolling">false</property>
+                        <property name="vscrollbar-policy">never</property>
+                        <child>
+                          <object class="GtkBox" id="drying_box_slot_3_row">
+                            <property name="margin-bottom">8</property>
+                            <property name="orientation">horizontal</property>
+                            <property name="spacing">10</property>
+                          </object>
+                        </child>
+                      </object>
+                    </child>
+                    <child>
+                      <object class="GtkLabel" id="drying_object_515">
+                        <property name="halign">start</property>
+                        <property name="label">515</property>
+                        <style>
+                          <class name="title-3"/>
+                        </style>
+                      </object>
+                    </child>
+                    <child>
+                      <object class="GtkLabel" id="drying_emptyLabel">
+                        <property name="label">No records</property>
+                        <property name="visible">false</property>
+                        <style>
+                          <class name="dim-label"/>
+                        </style>
+                      </object>
+                    </child>
+                    <child>
+                      <object class="GtkScrolledWindow" id="drying_object_522">
+                        <property name="vexpand">true</property>
+                        <child>
+                          <object class="GtkListBox" id="drying_historyList">
+                            <property name="selection-mode">none</property>
+                            <style>
+                              <class name="card-list"/>
+                            </style>
+                          </object>
+                        </child>
+                      </object>
+                    </child>
+                  </object>
+                </property>
+                <property name="name">drying</property>
+                <property name="title">Drying</property>
+              </object>
+            </child>
+            <child>
+              <object class="GtkStackPage" id="printers_page">
+                <property name="child">
+                  <object class="GtkBox" id="printers_box">
+                    <property name="margin-bottom">24</property>
+                    <property name="margin-end">24</property>
+                    <property name="margin-start">24</property>
+                    <property name="margin-top">24</property>
+                    <property name="orientation">vertical</property>
+                    <property name="spacing">12</property>
+                    <child>
+                      <object class="GtkLabel" id="printers_box_title">
+                        <property name="label">Printers</property>
+                        <style>
+                          <class name="title-1"/>
+                        </style>
+                      </object>
+                    </child>
+                    <child>
+                      <object class="GtkLabel" id="printers_messageLabel">
+                        <property name="halign">start</property>
+                        <property name="label"/>
+                        <property name="visible">false</property>
+                        <property name="wrap">true</property>
+                        <style>
+                          <class name="dim-label"/>
+                        </style>
+                      </object>
+                    </child>
+                    <child>
+                      <object class="GtkLabel" id="printers_emptyLabel">
+                        <property name="label">No records</property>
+                        <property name="visible">false</property>
+                        <style>
+                          <class name="dim-label"/>
+                        </style>
+                      </object>
+                    </child>
+                    <child>
+                      <object class="GtkScrolledWindow" id="printers_object_919">
+                        <property name="vexpand">true</property>
+                        <child>
+                          <object class="GtkListBox" id="printers_list">
+                            <property name="selection-mode">none</property>
+                            <style>
+                              <class name="card-list"/>
+                            </style>
+                          </object>
+                        </child>
+                      </object>
+                    </child>
+                  </object>
+                </property>
+                <property name="name">printers</property>
+                <property name="title">Printers</property>
+              </object>
+            </child>
+            <child>
+              <object class="GtkStackPage" id="settings_page">
+                <property name="child">
+                  <object class="GtkBox" id="settings_box">
+                    <property name="margin-bottom">24</property>
+                    <property name="margin-end">24</property>
+                    <property name="margin-start">24</property>
+                    <property name="margin-top">24</property>
+                    <property name="orientation">vertical</property>
+                    <property name="spacing">12</property>
+                    <child>
+                      <object class="GtkLabel" id="settings_box_title">
+                        <property name="label">Settings</property>
+                        <style>
+                          <class name="title-1"/>
+                        </style>
+                      </object>
+                    </child>
+                    <child>
+                      <object class="GtkScrolledWindow" id="settings_object_1219">
+                        <property name="vexpand">true</property>
+                        <child>
+                          <object class="GtkBox" id="settings_content">
+                            <property name="margin-top">12</property>
+                            <property name="orientation">vertical</property>
+                            <property name="spacing">18</property>
+                            <child>
+                              <object class="GtkBox" id="settings_content_slot_1_section">
+                                <property name="orientation">vertical</property>
+                                <property name="spacing">6</property>
+                                <child>
+                                  <object class="GtkLabel" id="settings_content_slot_1_object_1232">
+                                    <property name="halign">start</property>
+                                    <property name="label">1232</property>
+                                    <style>
+                                      <class name="title-3"/>
+                                    </style>
+                                  </object>
+                                </child>
+                                <child>
+                                  <object class="GtkBox" id="settings_content_slot_1_row">
+                                    <property name="orientation">horizontal</property>
+                                    <property name="spacing">6</property>
+                                    <child>
+                                      <object class="GtkDropDown" id="settings_content_slot_1_dropdown"/>
+                                    </child>
+                                    <child>
+                                      <object class="GtkButton" id="settings_content_slot_1_saveBtn">
+                                        <property name="label">Save</property>
+                                      </object>
+                                    </child>
+                                  </object>
+                                </child>
+                              </object>
+                            </child>
+                            <child>
+                              <object class="GtkBox" id="settings_content_slot_2_section">
+                                <property name="orientation">vertical</property>
+                                <property name="spacing">6</property>
+                                <child>
+                                  <object class="GtkLabel" id="settings_content_slot_2_object_1355">
+                                    <property name="halign">start</property>
+                                    <property name="label">1355</property>
+                                    <style>
+                                      <class name="title-3"/>
+                                    </style>
+                                  </object>
+                                </child>
+                                <child>
+                                  <object class="GtkBox" id="settings_content_slot_2_row">
+                                    <property name="orientation">horizontal</property>
+                                    <property name="spacing">6</property>
+                                    <child>
+                                      <object class="GtkDropDown" id="settings_content_slot_2_currency"/>
+                                    </child>
+                                    <child>
+                                      <object class="GtkButton" id="settings_content_slot_2_save">
+                                        <property name="label">Save</property>
+                                      </object>
+                                    </child>
+                                  </object>
+                                </child>
+                                <child>
+                                  <object class="GtkLabel" id="settings_content_slot_2_help">
+                                    <property name="halign">start</property>
+                                    <property name="label">Help</property>
+                                    <property name="wrap">true</property>
+                                    <style>
+                                      <class name="dim-label"/>
+                                    </style>
+                                  </object>
+                                </child>
+                                <child>
+                                  <object class="GtkLabel" id="settings_content_slot_2_message">
+                                    <property name="halign">start</property>
+                                    <property name="label"/>
+                                    <property name="visible">false</property>
+                                    <property name="wrap">true</property>
+                                    <style>
+                                      <class name="dim-label"/>
+                                    </style>
+                                  </object>
+                                </child>
+                              </object>
+                            </child>
+                            <child>
+                              <object class="GtkBox" id="settings_content_slot_3_section">
+                                <property name="orientation">vertical</property>
+                                <property name="spacing">6</property>
+                                <child>
+                                  <object class="GtkLabel" id="settings_content_slot_3_object_1245">
+                                    <property name="halign">start</property>
+                                    <property name="label">1245</property>
+                                    <style>
+                                      <class name="title-3"/>
+                                    </style>
+                                  </object>
+                                </child>
+                                <child>
+                                  <object class="GtkCheckButton" id="settings_content_slot_3_allowLowFilament"/>
+                                </child>
+                                <child>
+                                  <object class="GtkBox" id="settings_content_slot_3_row">
+                                    <property name="orientation">horizontal</property>
+                                    <property name="spacing">6</property>
+                                    <child>
+                                      <object class="GtkLabel" id="settings_content_slot_3_label">
+                                        <property name="halign">start</property>
+                                        <property name="hexpand">true</property>
+                                        <property name="label">Label</property>
+                                      </object>
+                                    </child>
+                                    <child>
+                                      <object class="GtkSpinButton" id="settings_content_slot_3_level">
+                                        <property name="adjustment">settings_content_slot_3_level_adjustment</property>
+                                        <property name="numeric">true</property>
+                                      </object>
+                                    </child>
+                                    <child>
+                                      <object class="GtkButton" id="settings_content_slot_3_saveBtn">
+                                        <property name="label">Save</property>
+                                      </object>
+                                    </child>
+                                  </object>
+                                </child>
+                              </object>
+                            </child>
+                            <child>
+                              <object class="GtkBox" id="settings_database_section_section">
+                                <property name="orientation">vertical</property>
+                                <property name="spacing">6</property>
+                                <child>
+                                  <object class="GtkLabel" id="settings_database_section_object_1165">
+                                    <property name="halign">start</property>
+                                    <property name="label">1165</property>
+                                    <style>
+                                      <class name="title-3"/>
+                                    </style>
+                                  </object>
+                                </child>
+                                <child>
+                                  <object class="GtkDropDown" id="settings_database_section_choice"/>
+                                </child>
+                                <child>
+                                  <object class="AdwEntryRow" id="settings_database_section_path">
+                                    <property name="title">SQLite path</property>
+                                  </object>
+                                </child>
+                                <child>
+                                  <object class="AdwPreferencesGroup" id="settings_database_section_postgresGroup">
+                                    <child>
+                                      <object class="AdwEntryRow" id="settings_database_section_postgresGroup_slot_1_entry">
+                                        <property name="title">Value</property>
+                                      </object>
+                                    </child>
+                                    <child>
+                                      <object class="AdwEntryRow" id="settings_database_section_postgresGroup_slot_2_entry">
+                                        <property name="title">Value</property>
+                                      </object>
+                                    </child>
+                                    <child>
+                                      <object class="AdwEntryRow" id="settings_database_section_postgresGroup_slot_3_entry">
+                                        <property name="title">Value</property>
+                                      </object>
+                                    </child>
+                                    <child>
+                                      <object class="AdwEntryRow" id="settings_database_section_postgresGroup_slot_4_entry">
+                                        <property name="title">Value</property>
+                                      </object>
+                                    </child>
+                                    <child>
+                                      <object class="AdwPasswordEntryRow" id="settings_database_section_password">
+                                        <property name="title">Password</property>
+                                      </object>
+                                    </child>
+                                  </object>
+                                </child>
+                                <child>
+                                  <object class="GtkCheckButton" id="settings_database_section_migrate"/>
+                                </child>
+                                <child>
+                                  <object class="GtkLabel" id="settings_database_section_help">
+                                    <property name="halign">start</property>
+                                    <property name="label">Help</property>
+                                    <property name="wrap">true</property>
+                                    <style>
+                                      <class name="dim-label"/>
+                                    </style>
+                                  </object>
+                                </child>
+                                <child>
+                                  <object class="GtkLabel" id="settings_database_section_message">
+                                    <property name="halign">start</property>
+                                    <property name="label"/>
+                                    <property name="visible">false</property>
+                                    <property name="wrap">true</property>
+                                    <style>
+                                      <class name="dim-label"/>
+                                    </style>
+                                  </object>
+                                </child>
+                                <child>
+                                  <object class="GtkButton" id="settings_database_section_apply">
+                                    <property name="halign">start</property>
+                                    <property name="label">Apply</property>
+                                  </object>
+                                </child>
+                              </object>
+                            </child>
+                            <child>
+                              <object class="GtkBox" id="settings_content_slot_4_section">
+                                <property name="orientation">vertical</property>
+                                <property name="spacing">6</property>
+                                <child>
+                                  <object class="GtkLabel" id="settings_content_slot_4_object_1266">
+                                    <property name="halign">start</property>
+                                    <property name="label">1266</property>
+                                    <style>
+                                      <class name="title-3"/>
+                                    </style>
+                                  </object>
+                                </child>
+                                <child>
+                                  <object class="GtkListBox" id="settings_content_slot_4_list">
+                                    <property name="selection-mode">none</property>
+                                  </object>
+                                </child>
+                                <child>
+                                  <object class="GtkButton" id="settings_content_slot_4_addBtn">
+                                    <property name="halign">start</property>
+                                    <property name="label">Add</property>
+                                  </object>
+                                </child>
+                              </object>
+                            </child>
+                          </object>
+                        </child>
+                      </object>
+                    </child>
+                  </object>
+                </property>
+                <property name="name">settings</property>
+              </object>
+            </child>
+          </object>
+        </child>
+      </object>
+    </child>
+  </object>
+  <object class="GtkDropDown" id="prints_object_1087_slot_chooser"/>
+  <object class="GtkAdjustment" id="settings_content_slot_3_level_adjustment">
+    <property name="lower">0</property>
+    <property name="page-increment">10</property>
+    <property name="step-increment">1</property>
+  </object>
+</interface>

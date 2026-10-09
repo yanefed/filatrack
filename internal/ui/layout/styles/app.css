@@ -1,0 +1,21 @@
+.card-list,
+.card-list > row {
+	background: transparent;
+	border: none;
+	box-shadow: none;
+}
+.printer-status-dot {
+	min-width: 12px;
+	min-height: 12px;
+	border-radius: 999px;
+}
+.printer-status-dot.online {
+	background: #2ec27e;
+}
+.printer-status-dot.offline {
+	background: #e01b24;
+}
+.drying-warning {
+	color: #e66100;
+	font-weight: 600;
+}

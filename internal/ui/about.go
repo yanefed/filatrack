@@ -2,6 +2,7 @@ package ui
 
 import (
 	"awesomeProject/internal/i18n"
+	"awesomeProject/internal/ui/layout"
 	"awesomeProject/packaging/metadata"
 	"fmt"
 
@@ -29,8 +30,10 @@ var openSourceComponents = []openSourceComponent{
 	{name: "Uber Fx", version: "1.24.0", license: "MIT", copyright: "Copyright © 2016–2018 Uber Technologies, Inc.", sourceURL: "https://github.com/uber-go/fx"},
 }
 
-func newSettingsButton(t i18n.T, showSettings func()) *gtk.Button {
-	button := gtk.NewButtonFromIconName("preferences-system-symbolic")
+func newSettingsButton(t i18n.T, showSettings func(), views ...*layout.View) *gtk.Button {
+	view := layout.Use("settings-button", views...)
+
+	button := layout.Get[*gtk.Button](view, "button")
 	button.SetTooltipText(t.Settings)
 	button.ConnectClicked(func() {
 		if showSettings != nil {
@@ -40,8 +43,10 @@ func newSettingsButton(t i18n.T, showSettings func()) *gtk.Button {
 	return button
 }
 
-func newAboutButton(t i18n.T, parent gtk.Widgetter) *gtk.Button {
-	button := gtk.NewButtonFromIconName("help-about-symbolic")
+func newAboutButton(t i18n.T, parent gtk.Widgetter, views ...*layout.View) *gtk.Button {
+	view := layout.Use("about-button", views...)
+
+	button := layout.Get[*gtk.Button](view, "button")
 	button.SetTooltipText(t.AboutProgram)
 	var dialog *adw.AboutDialog
 	button.ConnectClicked(func() {
@@ -54,7 +59,9 @@ func newAboutButton(t i18n.T, parent gtk.Widgetter) *gtk.Button {
 }
 
 func newAboutDialog() *adw.AboutDialog {
-	dialog := adw.NewAboutDialog()
+	view := layout.Load("about-dialog")
+
+	dialog := layout.Get[*adw.AboutDialog](view, "dialog")
 	dialog.SetApplicationIcon(metadata.Current.ID)
 	dialog.SetApplicationName(metadata.Current.Name)
 	dialog.SetVersion(metadata.Current.Version)
@@ -64,7 +71,6 @@ func newAboutDialog() *adw.AboutDialog {
 	dialog.SetWebsite(metadata.Current.Homepage)
 	dialog.SetIssueURL(metadata.Current.Homepage + "/issues")
 	dialog.SetCopyright(fmt.Sprintf("Copyright © 2026 %s", metadata.Current.Developer.Name))
-	dialog.SetLicenseType(gtk.LicenseMITX11)
 
 	for _, component := range openSourceComponents {
 		title := component.name

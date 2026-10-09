@@ -2,10 +2,10 @@ package dashboard
 
 import (
 	"awesomeProject/internal/i18n"
+	"awesomeProject/internal/ui/layout"
 	"fmt"
 
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
-	"github.com/diamondburned/gotk4/pkg/pango"
 )
 
 const (
@@ -14,6 +14,8 @@ const (
 )
 
 func newMetricsGrid(t i18n.T, data dashboardData) *gtk.FlowBox {
+	view := layout.Load("dashboard-metrics")
+
 	totalPrints := "—"
 	successRate := "—"
 	successDetail := t.StatsUnavailable
@@ -41,74 +43,36 @@ func newMetricsGrid(t i18n.T, data dashboardData) *gtk.FlowBox {
 		averageUsed = fmt.Sprintf("%s: %s", t.AvgPerPrint, formatFilamentWeight(data.stats.AvgWeightG))
 	}
 
-	cards := []*gtk.Box{
-		newMetricCard("printer-symbolic", "accent", t.TotalPrints, totalPrints, ""),
-		newMetricCard("object-select-symbolic", "success", t.SuccessRate, successRate, successDetail),
-		newMetricCard("view-grid-symbolic", "accent", t.Spools, fmt.Sprintf("%d", len(data.spools)), fmt.Sprintf(t.RemainingFilamentFmt, formatFilamentWeight(data.totalRemainingG()))),
-		newMetricCard("media-record-symbolic", "warning", t.TotalUsed, totalUsed, averageUsed),
-		newMetricCard("document-properties-symbolic", "accent", t.TotalCost, totalCost, costDetail),
+	_ = []*gtk.Box{
+		newMetricCard(t.TotalPrints, totalPrints, "", layout.Scope(view, "total_prints")),
+		newMetricCard(t.SuccessRate, successRate, successDetail, layout.Scope(view, "success_rate")),
+		newMetricCard(t.Spools, fmt.Sprintf("%d", len(data.spools)), fmt.Sprintf(t.RemainingFilamentFmt, formatFilamentWeight(data.totalRemainingG())), layout.Scope(view, "spools")),
+		newMetricCard(t.TotalUsed, totalUsed, averageUsed, layout.Scope(view, "total_used")),
+		newMetricCard(t.TotalCost, totalCost, costDetail, layout.Scope(view, "total_cost")),
 	}
-	grid := gtk.NewFlowBox()
-	grid.SetSelectionMode(gtk.SelectionNone)
-	grid.SetHomogeneous(true)
-	grid.SetHExpand(true)
-	grid.SetMinChildrenPerLine(1)
-	grid.SetMaxChildrenPerLine(uint(len(cards)))
-	grid.SetColumnSpacing(metricGridSpacing)
-	grid.SetRowSpacing(metricGridSpacing)
-	for _, card := range cards {
-		grid.Append(card)
-	}
+	grid := layout.Get[*gtk.FlowBox](view, "grid")
+
 	return grid
 }
 
-func newMetricCard(iconName, colorClass, title, value, subtitle string) *gtk.Box {
-	card := gtk.NewBox(gtk.OrientationVertical, 5)
-	card.AddCSSClass("card")
-	card.SetSizeRequest(metricCardMinWidth, 112)
-	card.SetMarginTop(2)
-	card.SetMarginBottom(2)
-	card.SetMarginStart(2)
-	card.SetMarginEnd(2)
+func newMetricCard(title, value, subtitle string, views ...*layout.View) *gtk.Box {
+	view := layout.Use("dashboard-metric-card", views...)
 
-	header := gtk.NewBox(gtk.OrientationHorizontal, 8)
-	header.SetMarginTop(12)
-	header.SetMarginStart(12)
-	header.SetMarginEnd(12)
-	icon := gtk.NewImageFromIconName(iconName)
-	icon.AddCSSClass(colorClass)
-	header.Append(icon)
-	label := gtk.NewLabel(title)
-	label.AddCSSClass("dim-label")
-	label.SetHAlign(gtk.AlignStart)
-	label.SetHExpand(true)
-	label.SetEllipsize(pango.EllipsizeEnd)
+	card := layout.Get[*gtk.Box](view, "card")
+
+	label := layout.Configure[*gtk.Label](view, "label", func(w *gtk.Label) { w.SetLabel(title) })
+
 	label.SetTooltipText(title)
-	header.Append(label)
-	card.Append(header)
 
-	valueLabel := gtk.NewLabel(value)
-	valueLabel.AddCSSClass("title-1")
-	valueLabel.SetHAlign(gtk.AlignFill)
-	valueLabel.SetXAlign(0)
-	valueLabel.SetEllipsize(pango.EllipsizeEnd)
+	valueLabel := layout.Configure[*gtk.Label](view, "valueLabel", func(w *gtk.Label) { w.SetLabel(value) })
+
 	valueLabel.SetTooltipText(value)
-	valueLabel.SetMarginStart(12)
-	valueLabel.SetMarginEnd(12)
-	card.Append(valueLabel)
 
-	if subtitle != "" {
-		detail := gtk.NewLabel(subtitle)
-		detail.AddCSSClass("caption")
-		detail.AddCSSClass("dim-label")
-		detail.SetHAlign(gtk.AlignStart)
-		detail.SetEllipsize(pango.EllipsizeEnd)
-		detail.SetTooltipText(subtitle)
-		detail.SetMarginBottom(10)
-		detail.SetMarginStart(12)
-		detail.SetMarginEnd(12)
-		card.Append(detail)
-	}
+	detail := layout.Get[*gtk.Label](view, "detail")
+	detail.SetVisible(subtitle != "")
+	detail.SetLabel(subtitle)
+	detail.SetTooltipText(subtitle)
+
 	return card
 }
 

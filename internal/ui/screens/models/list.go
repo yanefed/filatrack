@@ -4,13 +4,13 @@ import (
 	"awesomeProject/internal/domain"
 	"awesomeProject/internal/i18n"
 	"awesomeProject/internal/service"
+	"awesomeProject/internal/ui/layout"
 	"awesomeProject/internal/ui/widgets"
 	"context"
 	"fmt"
 
 	coreglib "github.com/diamondburned/gotk4/pkg/core/glib"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
-	"github.com/diamondburned/gotk4/pkg/pango"
 )
 
 type modelListState struct {
@@ -27,7 +27,9 @@ type modelRowWidgets struct {
 	details *gtk.Label
 }
 
-func newVirtualModelsList(t i18n.T, ctx context.Context, parent *gtk.Window, printerSvc *service.PrinterService, settingsSvc *service.SettingsService, messageLabel *gtk.Label, onChanged func()) (*gtk.ListView, func([]domain.PrinterModelFile, []domain.Printer, []domain.Spool)) {
+func newVirtualModelsList(t i18n.T, ctx context.Context, parent *gtk.Window, printerSvc *service.PrinterService, settingsSvc *service.SettingsService, messageLabel *gtk.Label, onChanged func(), views ...*layout.View) (*gtk.ListView, func([]domain.PrinterModelFile, []domain.Printer, []domain.Spool)) {
+	view := layout.Use("model-list", views...)
+
 	state := &modelListState{}
 	model := gtk.NewStringList(nil)
 	selection := gtk.NewNoSelection(model)
@@ -35,44 +37,22 @@ func newVirtualModelsList(t i18n.T, ctx context.Context, parent *gtk.Window, pri
 	rows := make(map[uintptr]*modelRowWidgets)
 
 	factory.ConnectSetup(func(object *coreglib.Object) {
+		view := layout.Load("model-row")
+
 		item := object.Cast().(*gtk.ListItem)
 		item.SetActivatable(false)
 		item.SetFocusable(false)
-		card := gtk.NewBox(gtk.OrientationVertical, 0)
-		card.AddCSSClass("card")
-		card.SetMarginTop(4)
-		card.SetMarginBottom(4)
-		card.SetMarginStart(4)
-		card.SetMarginEnd(4)
-		row := gtk.NewBox(gtk.OrientationHorizontal, 12)
-		row.SetMarginTop(12)
-		row.SetMarginBottom(12)
-		row.SetMarginStart(12)
-		row.SetMarginEnd(12)
-		picture := gtk.NewPicture()
-		picture.SetSizeRequest(widgets.PreviewWidth, widgets.PreviewHeight)
-		picture.SetContentFit(gtk.ContentFitContain)
-		picture.SetVisible(false)
-		row.Append(picture)
-		textBox := gtk.NewBox(gtk.OrientationVertical, 4)
-		textBox.SetHExpand(true)
-		name := gtk.NewLabel("")
-		name.AddCSSClass("heading")
-		name.SetHAlign(gtk.AlignStart)
-		name.SetHExpand(true)
-		name.SetEllipsize(pango.EllipsizeEnd)
-		name.SetMaxWidthChars(80)
-		textBox.Append(name)
-		details := gtk.NewLabel("")
-		details.SetHAlign(gtk.AlignStart)
-		details.AddCSSClass("dim-label")
-		details.SetEllipsize(pango.EllipsizeEnd)
-		details.SetMaxWidthChars(80)
-		textBox.Append(details)
-		row.Append(textBox)
-		printBtn := gtk.NewButtonFromIconName("media-playback-start-symbolic")
+		card := layout.Get[*gtk.Box](view, "card")
+
+		picture := layout.Get[*gtk.Picture](view, "picture")
+
+		name := layout.Get[*gtk.Label](view, "name")
+
+		details := layout.Get[*gtk.Label](view, "details")
+
+		printBtn := layout.Get[*gtk.Button](view, "printBtn")
 		printBtn.SetTooltipText(t.PrintModel)
-		printBtn.SetVAlign(gtk.AlignCenter)
+
 		itemNative := item.Native()
 		printBtn.ConnectClicked(func() {
 			row := rows[itemNative]
@@ -90,8 +70,7 @@ func newVirtualModelsList(t i18n.T, ctx context.Context, parent *gtk.Window, pri
 				return printerSvc.PrintModel(ctx, req)
 			}, messageLabel, onChanged)
 		})
-		row.Append(printBtn)
-		card.Append(row)
+
 		item.SetChild(card)
 		rows[itemNative] = &modelRowWidgets{item: item, picture: picture, name: name, details: details}
 	})
@@ -128,9 +107,8 @@ func newVirtualModelsList(t i18n.T, ctx context.Context, parent *gtk.Window, pri
 		delete(rows, item.Native())
 	})
 
-	view := gtk.NewListView(selection, &factory.ListItemFactory)
-	view.AddCSSClass("card-list")
-	view.SetVExpand(true)
+	listView := layout.Configure[*gtk.ListView](view, "view", func(w *gtk.ListView) { w.SetModel(selection); w.SetFactory(&factory.ListItemFactory) })
+
 	update := func(models []domain.PrinterModelFile, printers []domain.Printer, spools []domain.Spool) {
 		state.models = models
 		state.printers = printers
@@ -138,7 +116,7 @@ func newVirtualModelsList(t i18n.T, ctx context.Context, parent *gtk.Window, pri
 		state.printerNames = printerNamesByID(printers)
 		model.Splice(0, model.NItems(), modelKeys(models))
 	}
-	return view, update
+	return listView, update
 }
 
 func modelKeys(models []domain.PrinterModelFile) []string {

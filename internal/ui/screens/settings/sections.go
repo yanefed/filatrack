@@ -4,7 +4,8 @@ import (
 	"awesomeProject/internal/domain"
 	"awesomeProject/internal/i18n"
 	"awesomeProject/internal/service"
-	"awesomeProject/internal/ui/screens/shared"
+	"awesomeProject/internal/ui/layout"
+
 	"awesomeProject/internal/ui/widgets"
 	"context"
 	"fmt"
@@ -15,9 +16,11 @@ import (
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 )
 
-func newLanguageSettingsSection(ctx context.Context, settingsSvc *service.SettingsService, onLanguageChanged func()) *gtk.Box {
-	section := gtk.NewBox(gtk.OrientationVertical, 6)
-	section.Append(widgets.NewSectionTitle(i18n.L().LanguageLabel))
+func newLanguageSettingsSection(ctx context.Context, settingsSvc *service.SettingsService, onLanguageChanged func(), views ...*layout.View) *gtk.Box {
+	view := layout.Use("language-settings", views...)
+
+	section := layout.Get[*gtk.Box](view, "section")
+	_ = layout.Configure[*gtk.Label](view, "object_1232", func(w *gtk.Label) { w.SetLabel(i18n.L().LanguageLabel) })
 	languages := i18n.SupportedLanguages()
 	names := make([]string, len(languages))
 	selected := uint(0)
@@ -27,9 +30,9 @@ func newLanguageSettingsSection(ctx context.Context, settingsSvc *service.Settin
 			selected = uint(i)
 		}
 	}
-	dropdown := gtk.NewDropDown(gtk.NewStringList(names), nil)
+	dropdown := layout.Configure[*gtk.DropDown](view, "dropdown", func(w *gtk.DropDown) { w.SetModel(gtk.NewStringList(names)) })
 	dropdown.SetSelected(selected)
-	saveBtn := gtk.NewButtonWithLabel(i18n.L().Save)
+	saveBtn := layout.Configure[*gtk.Button](view, "saveBtn", func(w *gtk.Button) { w.SetLabel(i18n.L().Save) })
 	saveBtn.ConnectClicked(func() {
 		idx := dropdown.Selected()
 		if int(idx) >= len(languages) || settingsSvc.SetLanguage(ctx, languages[idx].Code) != nil {
@@ -39,17 +42,16 @@ func newLanguageSettingsSection(ctx context.Context, settingsSvc *service.Settin
 			onLanguageChanged()
 		}
 	})
-	row := gtk.NewBox(gtk.OrientationHorizontal, 6)
-	row.Append(dropdown)
-	row.Append(saveBtn)
-	section.Append(row)
+
 	return section
 }
 
-func newPrintSettingsSection(ctx context.Context, settingsSvc *service.SettingsService, onChanged func()) *gtk.Box {
-	section := gtk.NewBox(gtk.OrientationVertical, 6)
-	section.Append(widgets.NewSectionTitle(i18n.L().Print))
-	allowLowFilament := gtk.NewCheckButtonWithLabel(i18n.L().LowFilamentSetting)
+func newPrintSettingsSection(ctx context.Context, settingsSvc *service.SettingsService, onChanged func(), views ...*layout.View) *gtk.Box {
+	view := layout.Use("print-settings", views...)
+
+	section := layout.Get[*gtk.Box](view, "section")
+	_ = layout.Configure[*gtk.Label](view, "object_1245", func(w *gtk.Label) { w.SetLabel(i18n.L().Print) })
+	allowLowFilament := layout.Configure[*gtk.CheckButton](view, "allowLowFilament", func(w *gtk.CheckButton) { w.SetLabel(i18n.L().LowFilamentSetting) })
 	allowLowFilament.SetActive(settingsSvc.AllowLowFilamentWarning(ctx))
 	allowLowFilament.ConnectToggled(func() {
 		_ = settingsSvc.SetAllowLowFilamentWarning(ctx, allowLowFilament.Active())
@@ -57,17 +59,12 @@ func newPrintSettingsSection(ctx context.Context, settingsSvc *service.SettingsS
 			onChanged()
 		}
 	})
-	section.Append(allowLowFilament)
+	_ = layout.Configure[*gtk.Label](view, "label", func(w *gtk.Label) { w.SetLabel(i18n.L().LowFilamentLevel) })
 
-	row := gtk.NewBox(gtk.OrientationHorizontal, 6)
-	label := gtk.NewLabel(i18n.L().LowFilamentLevel)
-	label.SetHAlign(gtk.AlignStart)
-	label.SetHExpand(true)
-	row.Append(label)
-	level := gtk.NewSpinButtonWithRange(0, 1_000_000, 1)
+	level := layout.Get[*gtk.SpinButton](view, "level")
 	level.SetValue(float64(settingsSvc.GetLowFilamentLevel(ctx)))
-	row.Append(level)
-	saveBtn := gtk.NewButtonWithLabel(i18n.L().Save)
+
+	saveBtn := layout.Configure[*gtk.Button](view, "saveBtn", func(w *gtk.Button) { w.SetLabel(i18n.L().Save) })
 	saveBtn.ConnectClicked(func() {
 		if settingsSvc.SetLowFilamentLevel(ctx, level.ValueAsInt()) != nil {
 			return
@@ -76,17 +73,16 @@ func newPrintSettingsSection(ctx context.Context, settingsSvc *service.SettingsS
 			onChanged()
 		}
 	})
-	row.Append(saveBtn)
-	section.Append(row)
+
 	return section
 }
 
-func newMaterialsSection(ctx context.Context, parent *gtk.Window, settingsSvc *service.SettingsService, onChanged func()) (*gtk.Box, func()) {
-	section := gtk.NewBox(gtk.OrientationVertical, 6)
-	section.Append(widgets.NewSectionTitle(i18n.L().MaterialSettings))
-	list := gtk.NewListBox()
-	list.SetSelectionMode(gtk.SelectionNone)
-	section.Append(list)
+func newMaterialsSection(ctx context.Context, parent *gtk.Window, settingsSvc *service.SettingsService, onChanged func(), views ...*layout.View) (*gtk.Box, func()) {
+	view := layout.Use("material-settings", views...)
+
+	section := layout.Get[*gtk.Box](view, "section")
+	_ = layout.Configure[*gtk.Label](view, "object_1266", func(w *gtk.Label) { w.SetLabel(i18n.L().MaterialSettings) })
+	list := layout.Get[*gtk.ListBox](view, "list")
 
 	var refresh func()
 	refresh = func() {
@@ -96,22 +92,22 @@ func newMaterialsSection(ctx context.Context, parent *gtk.Window, settingsSvc *s
 			return
 		}
 		for _, item := range materials {
+			view := layout.Load("material-row")
+
 			material := item
-			row := gtk.NewBox(gtk.OrientationHorizontal, 8)
-			row.SetMarginTop(2)
-			row.SetMarginBottom(2)
-			label := gtk.NewLabel(fmt.Sprintf("%s · %.3g g/cm³ · %d°C · %g %s · %d %s",
-				material.Name, material.DensityGCM3, material.DryingTemperatureC,
-				material.DryingDurationHours, i18n.L().Hours, material.MaxDaysNoDry, i18n.L().Days))
-			label.SetHAlign(gtk.AlignStart)
-			label.SetHExpand(true)
-			row.Append(label)
-			editBtn := gtk.NewButtonWithLabel(i18n.L().Edit)
+			row := layout.Get[*gtk.Box](view, "row")
+			_ = layout.Configure[*gtk.Label](view, "label", func(w *gtk.Label) {
+				w.SetLabel(fmt.Sprintf("%s · %.3g g/cm³ · %d°C · %g %s · %d %s",
+					material.Name, material.DensityGCM3, material.DryingTemperatureC,
+					material.DryingDurationHours, i18n.L().Hours, material.MaxDaysNoDry, i18n.L().Days))
+			})
+
+			editBtn := layout.Configure[*gtk.Button](view, "editBtn", func(w *gtk.Button) { w.SetLabel(i18n.L().Edit) })
 			editBtn.ConnectClicked(func() {
 				showMaterialDialog(ctx, parent, settingsSvc, &material, refresh, onChanged)
 			})
-			row.Append(editBtn)
-			deleteBtn := gtk.NewButtonWithLabel(i18n.L().Delete)
+
+			deleteBtn := layout.Configure[*gtk.Button](view, "deleteBtn", func(w *gtk.Button) { w.SetLabel(i18n.L().Delete) })
 			deleteBtn.ConnectClicked(func() {
 				_ = settingsSvc.DeleteMaterial(ctx, material.Name)
 				refresh()
@@ -119,49 +115,46 @@ func newMaterialsSection(ctx context.Context, parent *gtk.Window, settingsSvc *s
 					onChanged()
 				}
 			})
-			row.Append(deleteBtn)
+
 			list.Append(row)
 		}
 	}
 
-	addBtn := gtk.NewButtonWithLabel(i18n.L().AddMaterial)
+	addBtn := layout.Configure[*gtk.Button](view, "addBtn", func(w *gtk.Button) { w.SetLabel(i18n.L().AddMaterial) })
 	addBtn.ConnectClicked(func() {
 		showMaterialDialog(ctx, parent, settingsSvc, nil, refresh, onChanged)
 	})
-	addBtn.SetHAlign(gtk.AlignStart)
-	section.Append(addBtn)
+
 	refresh()
 	return section, refresh
 }
 
 func showMaterialDialog(ctx context.Context, parent *gtk.Window, settingsSvc *service.SettingsService, original *domain.MaterialDefinition, refresh, onChanged func()) {
+	view := layout.Load("material-dialog")
+
 	t := i18n.L()
-	dialog := shared.NewModalWindow(parent)
+	dialog := layout.Configure[*gtk.Window](view, "dialog", func(w *gtk.Window) {
+		if parent != nil {
+			w.SetTransientFor(parent)
+			w.SetDestroyWithParent(true)
+		}
+	})
 	title := t.AddMaterial
 	if original != nil {
 		title = fmt.Sprintf("%s — %s", t.Edit, original.Name)
 	}
 	dialog.SetTitle(title)
-	dialog.SetDefaultSize(480, -1)
-	box := widgets.NewDialogContent(16)
 
-	materialGroup := adw.NewPreferencesGroup()
+	materialGroup := layout.Get[*adw.PreferencesGroup](view, "materialGroup")
 	materialGroup.SetTitle(t.MaterialSettings)
-	nameEntry := newMaterialEntry(t.MaterialName, false)
-	densityEntry := newMaterialEntry(t.FilamentDensity, true)
-	materialGroup.Add(nameEntry)
-	materialGroup.Add(densityEntry)
-	box.Append(materialGroup)
+	nameEntry := newMaterialEntry(t.MaterialName, false, layout.Scope(view, "materialGroup_slot_1"))
+	densityEntry := newMaterialEntry(t.FilamentDensity, true, layout.Scope(view, "materialGroup_slot_2"))
 
-	dryingGroup := adw.NewPreferencesGroup()
+	dryingGroup := layout.Get[*adw.PreferencesGroup](view, "dryingGroup")
 	dryingGroup.SetTitle(t.Drying)
-	temperatureEntry := newMaterialEntry(t.TemperatureC, true)
-	durationEntry := newMaterialEntry(t.DurationHours, true)
-	daysEntry := newMaterialEntry(t.MaxDaysNoDry, true)
-	dryingGroup.Add(temperatureEntry)
-	dryingGroup.Add(durationEntry)
-	dryingGroup.Add(daysEntry)
-	box.Append(dryingGroup)
+	temperatureEntry := newMaterialEntry(t.TemperatureC, true, layout.Scope(view, "dryingGroup_slot_1"))
+	durationEntry := newMaterialEntry(t.DurationHours, true, layout.Scope(view, "dryingGroup_slot_2"))
+	daysEntry := newMaterialEntry(t.MaxDaysNoDry, true, layout.Scope(view, "dryingGroup_slot_3"))
 
 	if original == nil {
 		densityEntry.SetText("1.24")
@@ -176,19 +169,13 @@ func showMaterialDialog(ctx context.Context, parent *gtk.Window, settingsSvc *se
 		durationEntry.SetText(strconv.FormatFloat(original.DryingDurationHours, 'f', -1, 64))
 		daysEntry.SetText(strconv.Itoa(original.MaxDaysNoDry))
 	}
-	errorLabel := gtk.NewLabel("")
-	errorLabel.AddCSSClass("error")
-	errorLabel.SetHAlign(gtk.AlignStart)
-	errorLabel.SetWrap(true)
-	errorLabel.SetVisible(false)
-	box.Append(errorLabel)
+	errorLabel := layout.Get[*gtk.Label](view, "errorLabel")
 
-	actions := widgets.NewActions(8, gtk.AlignEnd)
-	cancelBtn := gtk.NewButtonWithLabel(t.Cancel)
+	cancelBtn := layout.Configure[*gtk.Button](view, "cancelBtn", func(w *gtk.Button) { w.SetLabel(t.Cancel) })
 	cancelBtn.ConnectClicked(dialog.Destroy)
-	actions.Append(cancelBtn)
-	saveBtn := gtk.NewButtonWithLabel(t.Save)
-	saveBtn.AddCSSClass("suggested-action")
+
+	saveBtn := layout.Configure[*gtk.Button](view, "saveBtn", func(w *gtk.Button) { w.SetLabel(t.Save) })
+
 	materialFromForm := func() *domain.MaterialDefinition {
 		density, _ := strconv.ParseFloat(strings.TrimSpace(densityEntry.Text()), 64)
 		temperature, _ := strconv.Atoi(strings.TrimSpace(temperatureEntry.Text()))
@@ -226,9 +213,7 @@ func showMaterialDialog(ctx context.Context, parent *gtk.Window, settingsSvc *se
 			onChanged()
 		}
 	})
-	actions.Append(saveBtn)
-	box.Append(actions)
-	dialog.SetChild(box)
+
 	dialog.SetVisible(true)
 	if original == nil {
 		nameEntry.GrabFocus()
@@ -237,8 +222,10 @@ func showMaterialDialog(ctx context.Context, parent *gtk.Window, settingsSvc *se
 	}
 }
 
-func newMaterialEntry(title string, numeric bool) *adw.EntryRow {
-	entry := adw.NewEntryRow()
+func newMaterialEntry(title string, numeric bool, views ...*layout.View) *adw.EntryRow {
+	view := layout.Use("material-entry", views...)
+
+	entry := layout.Get[*adw.EntryRow](view, "entry")
 	entry.SetTitle(title)
 	if numeric {
 		entry.SetInputPurpose(gtk.InputPurposeNumber)
@@ -246,20 +233,22 @@ func newMaterialEntry(title string, numeric bool) *adw.EntryRow {
 	return entry
 }
 
-func newCurrencySettingsSection(ctx context.Context, settingsSvc *service.SettingsService, onChanged func()) *gtk.Box {
+func newCurrencySettingsSection(ctx context.Context, settingsSvc *service.SettingsService, onChanged func(), views ...*layout.View) *gtk.Box {
+	view := layout.Use("currency-settings", views...)
+
 	t := i18n.L()
-	section := gtk.NewBox(gtk.OrientationVertical, 6)
-	section.Append(widgets.NewSectionTitle(t.CurrencyLabel))
-	row := gtk.NewBox(gtk.OrientationHorizontal, 6)
-	currency := gtk.NewDropDown(gtk.NewStringList(domain.Currencies), nil)
+	section := layout.Get[*gtk.Box](view, "section")
+	_ = layout.Configure[*gtk.Label](view, "object_1355", func(w *gtk.Label) { w.SetLabel(t.CurrencyLabel) })
+
+	currency := layout.Configure[*gtk.DropDown](view, "currency", func(w *gtk.DropDown) { w.SetModel(gtk.NewStringList(domain.Currencies)) })
 	for i, code := range domain.Currencies {
 		if code == settingsSvc.GetCurrency(ctx) {
 			currency.SetSelected(uint(i))
 		}
 	}
-	row.Append(currency)
-	message := widgets.NewMessageLabel()
-	save := gtk.NewButtonWithLabel(t.Save)
+
+	message := layout.Get[*gtk.Label](view, "message")
+	save := layout.Configure[*gtk.Button](view, "save", func(w *gtk.Button) { w.SetLabel(t.Save) })
 	save.ConnectClicked(func() {
 		idx := currency.Selected()
 		if int(idx) >= len(domain.Currencies) {
@@ -275,13 +264,7 @@ func newCurrencySettingsSection(ctx context.Context, settingsSvc *service.Settin
 			onChanged()
 		}
 	})
-	row.Append(save)
-	section.Append(row)
-	help := gtk.NewLabel(t.CurrencyHelp)
-	help.SetWrap(true)
-	help.SetHAlign(gtk.AlignStart)
-	help.AddCSSClass("dim-label")
-	section.Append(help)
-	section.Append(message)
+	_ = layout.Configure[*gtk.Label](view, "help", func(w *gtk.Label) { w.SetLabel(t.CurrencyHelp) })
+
 	return section
 }

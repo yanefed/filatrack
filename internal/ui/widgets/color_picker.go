@@ -2,7 +2,9 @@ package widgets
 
 import (
 	"awesomeProject/internal/ui/colors"
+	"awesomeProject/internal/ui/layout"
 
+	coreglib "github.com/diamondburned/gotk4/pkg/core/glib"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 )
 
@@ -14,24 +16,22 @@ type ColorPicker struct {
 }
 
 // NewColorPicker создаёт подписанный выбор непрозрачного цвета.
-func NewColorPicker(title, initialHex string) *ColorPicker {
-	dialog := gtk.NewColorDialog()
-	dialog.SetTitle(title)
-	dialog.SetModal(true)
-	dialog.SetWithAlpha(false)
+func NewColorPicker(title, initialHex string, views ...*layout.View) *ColorPicker {
+	view := layout.Use("color-picker", views...)
 
-	button := gtk.NewColorDialogButton(dialog)
+	dialog := layout.Get[*gtk.ColorDialog](view, "dialog")
+	dialog.SetTitle(title)
+
+	button := layout.Configure[*gtk.ColorDialogButton](view, "button", func(w *gtk.ColorDialogButton) { w.SetDialog(dialog) })
 	button.SetTooltipText(title)
 	button.SetRGBA(colors.FromHex(initialHex))
 
-	root := gtk.NewBox(gtk.OrientationHorizontal, 8)
-	label := gtk.NewLabel(title)
-	label.SetHAlign(gtk.AlignStart)
-	label.SetHExpand(true)
-	root.Append(label)
-	root.Append(button)
+	root := layout.Get[*gtk.Box](view, "root")
+	_ = layout.Configure[*gtk.Label](view, "label", func(w *gtk.Label) { w.SetLabel(title) })
 
-	return &ColorPicker{root: root, button: button, buttonInRoot: true}
+	parent := button.Parent()
+	inRoot := parent != nil && coreglib.BaseObject(parent).Native() == coreglib.BaseObject(root).Native()
+	return &ColorPicker{root: root, button: button, buttonInRoot: inRoot}
 }
 
 // Widget возвращает корневой GTK-виджет выбора цвета.

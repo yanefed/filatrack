@@ -3,6 +3,7 @@ package printers
 import (
 	"awesomeProject/internal/i18n"
 	"awesomeProject/internal/service"
+	"awesomeProject/internal/ui/layout"
 	"awesomeProject/internal/ui/screens/shared"
 	"awesomeProject/internal/ui/widgets"
 	"context"
@@ -12,21 +13,17 @@ import (
 )
 
 // NewPrintersScreen creates the Moonraker printer management screen.
-func NewPrintersScreen(ctx context.Context, parent *gtk.Window, printerSvc *service.PrinterService, spoolSvc *service.SpoolService, onChanged func()) (*gtk.Box, func(), func(), *gtk.Button) {
+func NewPrintersScreen(ctx context.Context, parent *gtk.Window, printerSvc *service.PrinterService, spoolSvc *service.SpoolService, onChanged func(), views ...*layout.View) (*gtk.Box, func(), func(), *gtk.Button) {
+	view := layout.Use("printers-screen", views...)
+
 	t := i18n.L()
-	box := widgets.NewScreen(t.Printers)
+	box := layout.Configure[*gtk.Box](view, "box", func(w *gtk.Box) { layout.Get[*gtk.Label](view, "box_title").SetLabel(t.Printers) })
 
-	messageLabel := widgets.NewMessageLabel()
-	box.Append(messageLabel)
-	emptyLabel := gtk.NewLabel(t.NoPrinters)
-	emptyLabel.AddCSSClass("dim-label")
-	emptyLabel.SetVisible(false)
-	box.Append(emptyLabel)
+	messageLabel := layout.Get[*gtk.Label](view, "messageLabel")
 
-	list := gtk.NewListBox()
-	list.AddCSSClass("card-list")
-	list.SetSelectionMode(gtk.SelectionNone)
-	box.Append(widgets.NewScrolled(list))
+	emptyLabel := layout.Configure[*gtk.Label](view, "emptyLabel", func(w *gtk.Label) { w.SetLabel(t.NoPrinters) })
+
+	list := layout.Get[*gtk.ListBox](view, "list")
 
 	statusSlots := map[string]*widgets.PrinterStatusWidget{}
 	var refreshPrinters func()
@@ -91,7 +88,7 @@ func NewPrintersScreen(ctx context.Context, parent *gtk.Window, printerSvc *serv
 		}
 	}
 
-	addPrinterButton := gtk.NewButtonFromIconName("list-add-symbolic")
+	addPrinterButton := layout.Get[*gtk.Button](view, "addPrinterButton")
 	addPrinterButton.SetTooltipText(t.AddPrinter)
 	addPrinterButton.ConnectClicked(func() {
 		showAddPrinterDialog(ctx, parent, printerSvc, func() {

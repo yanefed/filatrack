@@ -4,8 +4,9 @@ import (
 	"awesomeProject/internal/domain"
 	"awesomeProject/internal/i18n"
 	"awesomeProject/internal/service"
+	"awesomeProject/internal/ui/layout"
 	"awesomeProject/internal/ui/screens/shared"
-	"awesomeProject/internal/ui/widgets"
+
 	"context"
 	"fmt"
 
@@ -27,35 +28,29 @@ func showEditPrinterDialog(ctx context.Context, parent *gtk.Window, printerSvc *
 }
 
 func showPrinterDialog(t i18n.T, ctx context.Context, parent *gtk.Window, printerSvc *service.PrinterService, title, actionLabel string, original *domain.Printer, save func(domain.Printer) error, onSave func()) {
-	dialog := shared.NewModalWindow(parent)
+	view := layout.Load("printer-dialog")
+
+	dialog := layout.Configure[*gtk.Window](view, "dialog", func(w *gtk.Window) {
+		if parent != nil {
+			w.SetTransientFor(parent)
+			w.SetDestroyWithParent(true)
+		}
+	})
 	dialog.SetTitle(title)
-	dialog.SetDefaultSize(500, -1)
+
 	closed := false
 	dialog.ConnectDestroy(func() { closed = true })
 
-	box := widgets.NewDialogContent(16)
-	form := newPrinterForm(t, original)
-	box.Append(form.root)
+	form := newPrinterForm(t, original, layout.Scope(view, "box_slot_1"))
 
-	statusLabel := gtk.NewLabel("")
-	statusLabel.SetHAlign(gtk.AlignStart)
-	statusLabel.SetWrap(true)
-	statusLabel.SetVisible(false)
-	box.Append(statusLabel)
+	statusLabel := layout.Get[*gtk.Label](view, "statusLabel")
 
-	actions := widgets.NewActions(8, gtk.AlignFill)
-	checkButton := gtk.NewButtonWithLabel(t.CheckConnection)
-	actions.Append(checkButton)
-	spacer := gtk.NewBox(gtk.OrientationHorizontal, 0)
-	spacer.SetHExpand(true)
-	actions.Append(spacer)
-	cancelButton := gtk.NewButtonWithLabel(t.Cancel)
+	checkButton := layout.Configure[*gtk.Button](view, "checkButton", func(w *gtk.Button) { w.SetLabel(t.CheckConnection) })
+
+	cancelButton := layout.Configure[*gtk.Button](view, "cancelButton", func(w *gtk.Button) { w.SetLabel(t.Cancel) })
 	cancelButton.ConnectClicked(dialog.Destroy)
-	actions.Append(cancelButton)
-	saveButton := gtk.NewButtonWithLabel(actionLabel)
-	saveButton.AddCSSClass("suggested-action")
-	actions.Append(saveButton)
-	box.Append(actions)
+
+	saveButton := layout.Configure[*gtk.Button](view, "saveButton", func(w *gtk.Button) { w.SetLabel(actionLabel) })
 
 	basePrinter := func() domain.Printer {
 		if original == nil {
@@ -139,7 +134,6 @@ func showPrinterDialog(t i18n.T, ctx context.Context, parent *gtk.Window, printe
 		})
 	})
 
-	dialog.SetChild(box)
 	dialog.SetVisible(true)
 	form.nameEntry.GrabFocus()
 }

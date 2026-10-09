@@ -4,6 +4,7 @@ import (
 	"awesomeProject/internal/database"
 	"awesomeProject/internal/i18n"
 	"awesomeProject/internal/service"
+	"awesomeProject/internal/ui/layout"
 	"awesomeProject/internal/ui/screens/dashboard"
 	"awesomeProject/internal/ui/screens/drying"
 	"awesomeProject/internal/ui/screens/models"
@@ -61,13 +62,15 @@ func (a *App) Run() error {
 }
 
 func (a *App) activate(app *adw.Application) {
+	view := layout.Load("main-window")
+
 	ctx, cancel := context.WithCancel(context.Background())
 
 	installAppCSS()
 
-	window := adw.NewApplicationWindow(&app.Application)
+	window := layout.Configure[*adw.ApplicationWindow](view, "window", func(w *adw.ApplicationWindow) { w.SetApplication(&app.Application) })
 	window.SetTitle(metadata.Current.Name)
-	window.SetDefaultSize(1000, 700)
+
 	parentWindow := &window.ApplicationWindow.Window
 
 	refreshActive := func(bool) {}
@@ -78,6 +81,8 @@ func (a *App) activate(app *adw.Application) {
 	var visibleChildHandle coreglib.SignalHandle
 	var rebuildUI func()
 	rebuildUI = func() {
+		view := layout.Load("main-layout")
+
 		if err := i18n.ConfigureToolkitLanguage(i18n.GetLanguage()); err != nil {
 			slog.Warn("updating GTK language", "language", i18n.GetLanguage(), "error", err)
 		}
@@ -94,8 +99,7 @@ func (a *App) activate(app *adw.Application) {
 
 		t := i18n.L()
 
-		stack := gtk.NewStack()
-		stack.SetTransitionType(gtk.StackTransitionTypeCrossfade)
+		stack := layout.Get[*gtk.Stack](view, "stack")
 
 		refreshDashboard := func() {}
 		refreshDashboardLive := func() {}
@@ -167,61 +171,36 @@ func (a *App) activate(app *adw.Application) {
 		refreshSettingsDependencies := func() { markDirty("spools", "drying", "prints") }
 		refreshModelDependencies := func() { markDirty("dashboard", "printers") }
 
-		dashboardPage, refreshDashboard, refreshDashboardLive := dashboard.NewDashboard(ctx, a.SpoolService, a.PrintService, a.PrinterService)
-		stack.AddTitled(dashboardPage, "dashboard", t.Dashboard)
+		dashboardPage, refreshDashboard, refreshDashboardLive := dashboard.NewDashboard(ctx, a.SpoolService, a.PrintService, a.PrinterService, layout.Scope(view, "dashboard"))
+		stack.Page(dashboardPage).SetTitle(t.Dashboard)
 
-		spoolsPage, refreshSpools, openAddSpoolDialog := spools.NewSpoolsScreen(ctx, parentWindow, a.SpoolService, a.DryingService, a.SettingsService, refreshSpoolDependencies)
-		stack.AddTitled(spoolsPage, "spools", t.Spools)
+		spoolsPage, refreshSpools, openAddSpoolDialog := spools.NewSpoolsScreen(ctx, parentWindow, a.SpoolService, a.DryingService, a.SettingsService, refreshSpoolDependencies, layout.Scope(view, "spools"))
+		stack.Page(spoolsPage).SetTitle(t.Spools)
 
-		printsPage, refreshPrints, refreshPrintsLive, refreshHistoryButton, printsPrinterFilter := prints.NewPrintsScreen(ctx, parentWindow, a.PrintService, a.PrinterService, a.SpoolService, refreshPrintDependencies)
-		stack.AddTitled(printsPage, "prints", t.Prints)
+		printsPage, refreshPrints, refreshPrintsLive, refreshHistoryButton, printsPrinterFilter := prints.NewPrintsScreen(ctx, parentWindow, a.PrintService, a.PrinterService, a.SpoolService, refreshPrintDependencies, layout.Scope(view, "prints"))
+		stack.Page(printsPage).SetTitle(t.Prints)
 
-		modelsPage, refreshModels, addModelButton, refreshModelsButton := models.NewModelsScreen(ctx, parentWindow, a.PrinterService, a.SpoolService, a.SettingsService, refreshModelDependencies)
-		stack.AddTitled(modelsPage, "models", t.Models)
+		modelsPage, refreshModels, addModelButton, refreshModelsButton := models.NewModelsScreen(ctx, parentWindow, a.PrinterService, a.SpoolService, a.SettingsService, refreshModelDependencies, layout.Scope(view, "models"))
+		stack.Page(modelsPage).SetTitle(t.Models)
 
-		dryingPage, refreshDrying, addDryingButton := drying.NewDryingScreen(ctx, parentWindow, a.DryingService, a.SpoolService, refreshDryingDependencies)
-		stack.AddTitled(dryingPage, "drying", t.Drying)
+		dryingPage, refreshDrying, addDryingButton := drying.NewDryingScreen(ctx, parentWindow, a.DryingService, a.SpoolService, refreshDryingDependencies, layout.Scope(view, "drying"))
+		stack.Page(dryingPage).SetTitle(t.Drying)
 
-		printersPage, refreshPrinters, refreshPrintersLive, addPrinterButton := printers.NewPrintersScreen(ctx, parentWindow, a.PrinterService, a.SpoolService, refreshPrinterDependencies)
-		stack.AddTitled(printersPage, "printers", t.Printers)
+		printersPage, refreshPrinters, refreshPrintersLive, addPrinterButton := printers.NewPrintersScreen(ctx, parentWindow, a.PrinterService, a.SpoolService, refreshPrinterDependencies, layout.Scope(view, "printers"))
+		stack.Page(printersPage).SetTitle(t.Printers)
 
-		settingsPage, refreshSettings := settings.NewSettingsScreen(ctx, parentWindow, a.SettingsService, refreshSettingsDependencies, rebuildUI, settings.DatabaseOptions{Manager: a.Database, OnSwitched: app.Quit})
-		stack.AddNamed(settingsPage, "settings")
+		settingsPage, refreshSettings := settings.NewSettingsScreen(ctx, parentWindow, a.SettingsService, refreshSettingsDependencies, rebuildUI, settings.DatabaseOptions{Manager: a.Database, OnSwitched: app.Quit, View: layout.Scope(view, "settings")})
+		_ = settingsPage
 
-		sidebar := gtk.NewStackSidebar()
-		sidebar.SetStack(stack)
-		sidebar.SetSizeRequest(200, -1)
-
-		splitView := gtk.NewBox(gtk.OrientationHorizontal, 0)
-		splitView.Append(sidebar)
-
-		separator := gtk.NewSeparator(gtk.OrientationVertical)
-		splitView.Append(separator)
-
-		stack.SetHExpand(true)
-		stack.SetVExpand(true)
-		splitView.Append(stack)
-
-		headerBar := adw.NewHeaderBar()
-		headerBar.SetShowEndTitleButtons(true)
-		addSpoolButton := gtk.NewButtonFromIconName("list-add-symbolic")
+		addSpoolButton := layout.Get[*gtk.Button](view, "addSpoolButton")
 		addSpoolButton.SetTooltipText(t.AddSpoolBtn)
 		addSpoolButton.ConnectClicked(openAddSpoolDialog)
-		headerBar.PackEnd(newAboutButton(t, window))
-		headerBar.PackEnd(newSettingsButton(t, func() {
+		_ = newAboutButton(t, window, layout.Scope(view, "headerBar_slot_1"))
+		_ = newSettingsButton(t, func() {
 			stack.SetVisibleChildName("settings")
-		}))
-		headerBar.PackEnd(addSpoolButton)
-		headerBar.PackEnd(refreshHistoryButton)
-		headerBar.PackEnd(printsPrinterFilter)
-		headerBar.PackEnd(addModelButton)
-		headerBar.PackEnd(refreshModelsButton)
-		headerBar.PackEnd(addDryingButton)
-		headerBar.PackEnd(addPrinterButton)
+		}, layout.Scope(view, "headerBar_slot_2"))
 
-		toolbarView := adw.NewToolbarView()
-		toolbarView.AddTopBar(headerBar)
-		toolbarView.SetContent(splitView)
+		toolbarView := layout.Get[*adw.ToolbarView](view, "toolbarView")
 
 		window.SetContent(toolbarView)
 		currentContent = toolbarView
@@ -281,36 +260,9 @@ func installAppCSS() {
 		return
 	}
 	provider := gtk.NewCSSProvider()
-	css := `
-.card-list,
-.card-list > row {
-	background: transparent;
-	border: none;
-	box-shadow: none;
-}
-.printer-status-dot {
-	min-width: 12px;
-	min-height: 12px;
-	border-radius: 999px;
-}
-.printer-status-dot.online {
-	background: #2ec27e;
-}
-.printer-status-dot.offline {
-	background: #e01b24;
-}
-.drying-warning {
-	color: #e66100;
-	font-weight: 600;
-}
-`
+	css := layout.CSS("app")
 	if runtime.GOOS == "darwin" {
-		css += `
-window.background.csd,
-window.background.solid-csd {
-	border-radius: 0;
-}
-`
+		css += layout.CSS("macos")
 	}
 	provider.LoadFromString(css)
 	gtk.StyleContextAddProviderForDisplay(display, provider, gtk.STYLE_PROVIDER_PRIORITY_APPLICATION)

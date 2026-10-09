@@ -4,8 +4,8 @@ import (
 	"awesomeProject/internal/domain"
 	"awesomeProject/internal/i18n"
 	"awesomeProject/internal/service"
-	"awesomeProject/internal/ui/screens/shared"
-	"awesomeProject/internal/ui/widgets"
+	"awesomeProject/internal/ui/layout"
+
 	"context"
 	"fmt"
 
@@ -39,32 +39,29 @@ func availableMaterials(ctx context.Context, settingsSvc *service.SettingsServic
 }
 
 func showSpoolFormDialog(t i18n.T, parent *gtk.Window, title string, materials []domain.MaterialDefinition, original *domain.Spool, save func(domain.Spool) error, onSave func()) {
-	dialog := shared.NewModalWindow(parent)
+	view := layout.Load("spool-dialog")
+
+	dialog := layout.Configure[*gtk.Window](view, "dialog", func(w *gtk.Window) {
+		if parent != nil {
+			w.SetTransientFor(parent)
+			w.SetDestroyWithParent(true)
+		}
+	})
 	dialog.SetTitle(title)
-	dialog.SetDefaultSize(480, -1)
 
-	box := widgets.NewDialogContent(16)
-	form := newSpoolForm(t, materials, original)
-	box.Append(form.Widget())
+	form := newSpoolForm(t, materials, original, layout.Scope(view, "box_slot_1"))
 
-	errorLabel := gtk.NewLabel("")
-	errorLabel.AddCSSClass("error")
-	errorLabel.SetHAlign(gtk.AlignStart)
-	errorLabel.SetWrap(true)
-	errorLabel.SetVisible(false)
-	box.Append(errorLabel)
+	errorLabel := layout.Get[*gtk.Label](view, "errorLabel")
 
-	actions := widgets.NewActions(8, gtk.AlignEnd)
-	cancelBtn := gtk.NewButtonWithLabel(t.Cancel)
+	cancelBtn := layout.Configure[*gtk.Button](view, "cancelBtn", func(w *gtk.Button) { w.SetLabel(t.Cancel) })
 	cancelBtn.ConnectClicked(dialog.Destroy)
-	actions.Append(cancelBtn)
 
 	actionLabel := t.Save
 	if original == nil {
 		actionLabel = t.AddSpoolBtn
 	}
-	saveBtn := gtk.NewButtonWithLabel(actionLabel)
-	saveBtn.AddCSSClass("suggested-action")
+	saveBtn := layout.Configure[*gtk.Button](view, "saveBtn", func(w *gtk.Button) { w.SetLabel(actionLabel) })
+
 	updateSaveState := func() {
 		saveBtn.SetSensitive(form.Valid(materials))
 	}
@@ -93,10 +90,7 @@ func showSpoolFormDialog(t i18n.T, parent *gtk.Window, title string, materials [
 			onSave()
 		}
 	})
-	actions.Append(saveBtn)
-	box.Append(actions)
 
-	dialog.SetChild(box)
 	dialog.SetVisible(true)
 	form.manufacturerEntry.GrabFocus()
 }

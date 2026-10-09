@@ -1,0 +1,540 @@
+{
+  "settings-button": {
+    "file": "app/main-layout",
+    "prefix": "headerBar_slot_2_",
+    "roots": [
+      "headerBar_slot_2_button"
+    ]
+  },
+  "about-button": {
+    "file": "app/main-layout",
+    "prefix": "headerBar_slot_1_",
+    "roots": [
+      "headerBar_slot_1_button"
+    ]
+  },
+  "about-dialog": {
+    "file": "app/about-dialog",
+    "prefix": "",
+    "roots": [
+      "dialog"
+    ]
+  },
+  "main-window": {
+    "file": "app/main-window",
+    "prefix": "",
+    "roots": [
+      "window"
+    ]
+  },
+  "main-layout": {
+    "file": "app/main-layout",
+    "prefix": "",
+    "roots": [
+      "toolbarView",
+      "prints_object_1087_slot_chooser",
+      "settings_content_slot_3_level_adjustment"
+    ]
+  },
+  "active-printers": {
+    "file": "dashboard/active-printers",
+    "prefix": "",
+    "roots": [
+      "list"
+    ]
+  },
+  "dashboard-active-card": {
+    "file": "dashboard/dashboard-active-card",
+    "prefix": "",
+    "roots": [
+      "card"
+    ]
+  },
+  "dashboard-state-card": {
+    "file": "dashboard/dashboard-state-card",
+    "prefix": "",
+    "roots": [
+      "card"
+    ]
+  },
+  "dashboard-warning-separator": {
+    "file": "dashboard/dashboard-warning-separator",
+    "prefix": "",
+    "roots": [
+      "object_191"
+    ]
+  },
+  "dashboard-more-warnings": {
+    "file": "dashboard/dashboard-more-warnings",
+    "prefix": "",
+    "roots": [
+      "object_193",
+      "more"
+    ]
+  },
+  "dashboard-warning-row": {
+    "file": "dashboard/dashboard-warning-row",
+    "prefix": "",
+    "roots": [
+      "row"
+    ]
+  },
+  "dashboard-print-separator": {
+    "file": "dashboard/dashboard-print-separator",
+    "prefix": "",
+    "roots": [
+      "object_225"
+    ]
+  },
+  "dashboard-print-row": {
+    "file": "dashboard/dashboard-print-row",
+    "prefix": "",
+    "roots": [
+      "row"
+    ]
+  },
+  "dashboard-panel": {
+    "file": "dashboard/dashboard-panel",
+    "prefix": "",
+    "roots": [
+      "card"
+    ]
+  },
+  "dashboard-panel-state": {
+    "file": "dashboard/dashboard-panel-state",
+    "prefix": "",
+    "roots": [
+      "row"
+    ]
+  },
+  "dashboard-metrics": {
+    "file": "dashboard/dashboard-metrics",
+    "prefix": "",
+    "roots": [
+      "grid"
+    ]
+  },
+  "dashboard-metric-card": {
+    "file": "dashboard/dashboard-metrics",
+    "prefix": "total_prints_",
+    "roots": [
+      "total_prints_card"
+    ]
+  },
+  "dashboard-metric-caption": {
+    "file": "dashboard/dashboard-metrics",
+    "prefix": "total_prints_",
+    "roots": [
+      "total_prints_detail"
+    ]
+  },
+  "dashboard-screen": {
+    "file": "app/main-layout",
+    "prefix": "dashboard_",
+    "roots": [
+      "dashboard_box",
+      "dashboard_activeSlot"
+    ]
+  },
+  "drying-form": {
+    "file": "drying/drying-dialog",
+    "prefix": "box_slot_1_",
+    "roots": [
+      "box_slot_1_form_root"
+    ]
+  },
+  "drying-dialog": {
+    "file": "drying/drying-dialog",
+    "prefix": "",
+    "roots": [
+      "dialog"
+    ]
+  },
+  "drying-history-card": {
+    "file": "drying/drying-history-card",
+    "prefix": "",
+    "roots": [
+      "card"
+    ]
+  },
+  "drying-recommendations": {
+    "file": "app/main-layout",
+    "prefix": "drying_box_slot_3_",
+    "roots": [
+      "drying_box_slot_3_scrolled"
+    ]
+  },
+  "drying-recommendation-card": {
+    "file": "drying/drying-recommendation-card",
+    "prefix": "",
+    "roots": [
+      "card"
+    ]
+  },
+  "drying-screen": {
+    "file": "app/main-layout",
+    "prefix": "drying_",
+    "roots": [
+      "drying_box",
+      "drying_addDryingButton"
+    ]
+  },
+  "gcode-file-dialog": {
+    "file": "models/gcode-file-dialog",
+    "prefix": "",
+    "roots": [
+      "dialog",
+      "filter"
+    ]
+  },
+  "model-list": {
+    "file": "app/main-layout",
+    "prefix": "models_object_634_slot_",
+    "roots": [
+      "models_object_634_slot_view"
+    ]
+  },
+  "model-row": {
+    "file": "models/model-row",
+    "prefix": "",
+    "roots": [
+      "card"
+    ]
+  },
+  "models-screen": {
+    "file": "app/main-layout",
+    "prefix": "models_",
+    "roots": [
+      "models_box",
+      "models_addModelBtn",
+      "models_refreshModelsBtn"
+    ]
+  },
+  "print-launch-dialog": {
+    "file": "models/print-launch-dialog",
+    "prefix": "",
+    "roots": [
+      "dialog"
+    ]
+  },
+  "model-upload-dialog": {
+    "file": "models/model-upload-dialog",
+    "prefix": "",
+    "roots": [
+      "dialog"
+    ]
+  },
+  "printer-card": {
+    "file": "printers/printer-card",
+    "prefix": "",
+    "roots": [
+      "card"
+    ]
+  },
+  "printer-dialog": {
+    "file": "printers/printer-dialog",
+    "prefix": "",
+    "roots": [
+      "dialog"
+    ]
+  },
+  "printer-form": {
+    "file": "printers/printer-dialog",
+    "prefix": "box_slot_1_",
+    "roots": [
+      "box_slot_1_form_root"
+    ]
+  },
+  "printers-screen": {
+    "file": "app/main-layout",
+    "prefix": "printers_",
+    "roots": [
+      "printers_box",
+      "printers_addPrinterButton"
+    ]
+  },
+  "print-list": {
+    "file": "app/main-layout",
+    "prefix": "prints_object_1087_slot_",
+    "roots": [
+      "prints_object_1087_slot_chooser",
+      "prints_object_1087_slot_view"
+    ]
+  },
+  "print-row": {
+    "file": "prints/print-row",
+    "prefix": "",
+    "roots": [
+      "card"
+    ]
+  },
+  "prints-screen": {
+    "file": "app/main-layout",
+    "prefix": "prints_",
+    "roots": [
+      "prints_box",
+      "prints_printerCombo",
+      "prints_syncHistoryBtn",
+      "prints_object_1087_slot_chooser"
+    ]
+  },
+  "active-print-list": {
+    "file": "app/main-layout",
+    "prefix": "prints_box_slot_3_",
+    "roots": [
+      "prints_box_slot_3_list"
+    ]
+  },
+  "active-print-card": {
+    "file": "prints/active-print-card",
+    "prefix": "",
+    "roots": [
+      "card"
+    ]
+  },
+  "database-settings": {
+    "file": "app/main-layout",
+    "prefix": "settings_database_section_",
+    "roots": [
+      "settings_database_section_section"
+    ]
+  },
+  "database-entry": {
+    "file": "app/main-layout",
+    "prefix": "settings_database_section_postgresGroup_slot_1_",
+    "roots": [
+      "settings_database_section_postgresGroup_slot_1_entry"
+    ]
+  },
+  "settings-screen": {
+    "file": "app/main-layout",
+    "prefix": "settings_",
+    "roots": [
+      "settings_box",
+      "settings_content_slot_3_level_adjustment"
+    ]
+  },
+  "language-settings": {
+    "file": "app/main-layout",
+    "prefix": "settings_content_slot_1_",
+    "roots": [
+      "settings_content_slot_1_section"
+    ]
+  },
+  "print-settings": {
+    "file": "app/main-layout",
+    "prefix": "settings_content_slot_3_",
+    "roots": [
+      "settings_content_slot_3_section",
+      "settings_content_slot_3_level_adjustment"
+    ]
+  },
+  "material-settings": {
+    "file": "app/main-layout",
+    "prefix": "settings_content_slot_4_",
+    "roots": [
+      "settings_content_slot_4_section"
+    ]
+  },
+  "material-row": {
+    "file": "settings/material-row",
+    "prefix": "",
+    "roots": [
+      "row"
+    ]
+  },
+  "material-dialog": {
+    "file": "settings/material-dialog",
+    "prefix": "",
+    "roots": [
+      "dialog"
+    ]
+  },
+  "material-entry": {
+    "file": "settings/material-dialog",
+    "prefix": "materialGroup_slot_1_",
+    "roots": [
+      "materialGroup_slot_1_entry"
+    ]
+  },
+  "currency-settings": {
+    "file": "app/main-layout",
+    "prefix": "settings_content_slot_2_",
+    "roots": [
+      "settings_content_slot_2_section"
+    ]
+  },
+  "modal-window": {
+    "file": "shared/dialogs/modal-window",
+    "prefix": "",
+    "roots": [
+      "dialog"
+    ]
+  },
+  "spool-card": {
+    "file": "spools/spool-card",
+    "prefix": "",
+    "roots": [
+      "card"
+    ]
+  },
+  "spool-action": {
+    "file": "spools/spool-card",
+    "prefix": "actions_slot_1_",
+    "roots": [
+      "actions_slot_1_button"
+    ]
+  },
+  "spool-dialog": {
+    "file": "spools/spool-dialog",
+    "prefix": "",
+    "roots": [
+      "dialog",
+      "box_slot_1_color_picker_dialog",
+      "box_slot_1_color_picker_root"
+    ]
+  },
+  "spool-drying-status": {
+    "file": "spools/spool-card",
+    "prefix": "card_slot_4_",
+    "roots": [
+      "card_slot_4_section"
+    ]
+  },
+  "drying-caption": {
+    "file": "spools/spool-card",
+    "prefix": "card_slot_4_section_slot_2_",
+    "roots": [
+      "card_slot_4_section_slot_2_label"
+    ]
+  },
+  "dry-spool-dialog": {
+    "file": "spools/dry-spool-dialog",
+    "prefix": "",
+    "roots": [
+      "dialog"
+    ]
+  },
+  "spool-filters": {
+    "file": "app/main-layout",
+    "prefix": "spools_box_slot_2_",
+    "roots": [
+      "spools_box_slot_2_f_root"
+    ]
+  },
+  "spool-filter-group": {
+    "file": "app/main-layout",
+    "prefix": "spools_box_slot_2_manufacturer_",
+    "roots": [
+      "spools_box_slot_2_manufacturer_group"
+    ]
+  },
+  "spools-screen": {
+    "file": "app/main-layout",
+    "prefix": "spools_",
+    "roots": [
+      "spools_box"
+    ]
+  },
+  "spools-error": {
+    "file": "spools/spools-error",
+    "prefix": "",
+    "roots": [
+      "label"
+    ]
+  },
+  "spools-filter-error": {
+    "file": "spools/spools-filter-error",
+    "prefix": "",
+    "roots": [
+      "object_1611"
+    ]
+  },
+  "color-picker": {
+    "file": "shared/widgets/color-picker",
+    "prefix": "",
+    "roots": [
+      "dialog",
+      "root"
+    ]
+  },
+  "screen-shell": {
+    "file": "shared/containers/screen-shell",
+    "prefix": "",
+    "roots": [
+      "box"
+    ]
+  },
+  "screen-title": {
+    "file": "shared/labels/screen-title",
+    "prefix": "",
+    "roots": [
+      "label"
+    ]
+  },
+  "section-title": {
+    "file": "shared/labels/section-title",
+    "prefix": "",
+    "roots": [
+      "label"
+    ]
+  },
+  "message-label": {
+    "file": "shared/labels/message-label",
+    "prefix": "",
+    "roots": [
+      "label"
+    ]
+  },
+  "scrolled-container": {
+    "file": "shared/containers/scrolled-container",
+    "prefix": "",
+    "roots": [
+      "scrolled"
+    ]
+  },
+  "dialog-content": {
+    "file": "shared/containers/dialog-content",
+    "prefix": "",
+    "roots": [
+      "box"
+    ]
+  },
+  "dialog-actions": {
+    "file": "shared/containers/dialog-actions",
+    "prefix": "",
+    "roots": [
+      "box"
+    ]
+  },
+  "filament-level": {
+    "file": "spools/spool-card",
+    "prefix": "card_slot_2_",
+    "roots": [
+      "card_slot_2_area"
+    ]
+  },
+  "printer-status": {
+    "file": "printers/printer-card",
+    "prefix": "content_slot_1_",
+    "roots": [
+      "content_slot_1_row"
+    ]
+  },
+  "spool-preview": {
+    "file": "spools/spool-card",
+    "prefix": "content_slot_1_",
+    "roots": [
+      "content_slot_1_area"
+    ]
+  },
+  "spool-form": {
+    "file": "spools/spool-dialog",
+    "prefix": "box_slot_1_",
+    "roots": [
+      "box_slot_1_spool_form",
+      "box_slot_1_color_picker_root",
+      "box_slot_1_color_picker_dialog"
+    ]
+  }
+}

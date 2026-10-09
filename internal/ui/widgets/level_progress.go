@@ -1,6 +1,7 @@
 package widgets
 
 import (
+	"awesomeProject/internal/ui/layout"
 	"github.com/diamondburned/gotk4/pkg/cairo"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 )
@@ -12,14 +13,14 @@ const (
 
 // NewLevelProgress создаёт индикатор уровня, цвет которого плавно меняется
 // от красного через жёлтый к зелёному.
-func NewLevelProgress(percent float64, tooltip string) *gtk.DrawingArea {
+func NewLevelProgress(percent float64, tooltip string, views ...*layout.View) *gtk.DrawingArea {
+	view := layout.Use("filament-level", views...)
+
 	fraction := min(max(percent/100, 0), 1)
 	red, green, blue := levelColor(fraction)
 
-	area := gtk.NewDrawingArea()
-	area.SetContentWidth(levelProgressWidth)
-	area.SetContentHeight(levelProgressHeight)
-	area.SetHExpand(true)
+	area := layout.Get[*gtk.DrawingArea](view, "area")
+
 	area.SetTooltipText(tooltip)
 	area.SetDrawFunc(func(_ *gtk.DrawingArea, cr *cairo.Context, width, height int) {
 		barWidth := float64(width)

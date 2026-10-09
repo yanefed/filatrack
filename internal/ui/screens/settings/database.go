@@ -1,6 +1,7 @@
 package settings
 
 import (
+	"awesomeProject/internal/ui/layout"
 	"context"
 	"fmt"
 	"net/url"
@@ -8,28 +9,27 @@ import (
 	"awesomeProject/internal/config"
 	"awesomeProject/internal/i18n"
 	"awesomeProject/internal/ui/screens/shared"
-	"awesomeProject/internal/ui/widgets"
 
 	"github.com/diamondburned/gotk4-adwaita/pkg/adw"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 )
 
-func newDatabaseSection(ctx context.Context, parent *gtk.Window, options DatabaseOptions) *gtk.Box {
+func newDatabaseSection(ctx context.Context, parent *gtk.Window, options DatabaseOptions, views ...*layout.View) *gtk.Box {
+	view := layout.Use("database-settings", views...)
+
 	t := i18n.L()
-	section := gtk.NewBox(gtk.OrientationVertical, 6)
-	section.Append(widgets.NewSectionTitle(t.DatabaseLabel))
+	section := layout.Get[*gtk.Box](view, "section")
+	_ = layout.Configure[*gtk.Label](view, "object_1165", func(w *gtk.Label) { w.SetLabel(t.DatabaseLabel) })
 	current := options.Manager.Selection()
 	drivers := []string{config.DriverSQLite, config.DriverPostgres}
-	choice := gtk.NewDropDown(gtk.NewStringList([]string{"SQLite", "PostgreSQL"}), nil)
+	choice := layout.Configure[*gtk.DropDown](view, "choice", func(w *gtk.DropDown) { w.SetModel(gtk.NewStringList([]string{"SQLite", "PostgreSQL"})) })
 	if current.Driver == config.DriverPostgres {
 		choice.SetSelected(1)
 	}
-	section.Append(choice)
 
-	path := adw.NewEntryRow()
+	path := layout.Get[*adw.EntryRow](view, "path")
 	path.SetTitle(t.DatabaseSQLitePath)
 	path.SetText(current.SQLitePath)
-	section.Append(path)
 
 	connection, err := config.PostgresConnectionFromURL(current.PostgresURL)
 	if err != nil {
@@ -38,21 +38,15 @@ func newDatabaseSection(ctx context.Context, parent *gtk.Window, options Databas
 	if connection.Port == "" {
 		connection.Port = "5432"
 	}
-	postgresGroup := adw.NewPreferencesGroup()
-	host := databaseEntry(t.DatabaseHost, connection.Host)
-	port := databaseEntry(t.DatabasePort, connection.Port)
+	postgresGroup := layout.Get[*adw.PreferencesGroup](view, "postgresGroup")
+	host := databaseEntry(t.DatabaseHost, connection.Host, layout.Scope(view, "postgresGroup_slot_1"))
+	port := databaseEntry(t.DatabasePort, connection.Port, layout.Scope(view, "postgresGroup_slot_2"))
 	port.SetInputPurpose(gtk.InputPurposeNumber)
-	name := databaseEntry(t.DatabaseName, connection.Database)
-	user := databaseEntry(t.DatabaseUser, connection.Username)
-	password := adw.NewPasswordEntryRow()
+	name := databaseEntry(t.DatabaseName, connection.Database, layout.Scope(view, "postgresGroup_slot_3"))
+	user := databaseEntry(t.DatabaseUser, connection.Username, layout.Scope(view, "postgresGroup_slot_4"))
+	password := layout.Get[*adw.PasswordEntryRow](view, "password")
 	password.SetTitle(t.DatabasePassword)
 	password.SetText(connection.Password)
-	postgresGroup.Add(host)
-	postgresGroup.Add(port)
-	postgresGroup.Add(name)
-	postgresGroup.Add(user)
-	postgresGroup.Add(password)
-	section.Append(postgresGroup)
 
 	updateSensitivity := func() {
 		postgres := choice.Selected() == 1
@@ -62,17 +56,13 @@ func newDatabaseSection(ctx context.Context, parent *gtk.Window, options Databas
 	choice.NotifyProperty("selected", updateSensitivity)
 	updateSensitivity()
 
-	migrate := gtk.NewCheckButtonWithLabel(t.DatabaseMigrate)
-	section.Append(migrate)
-	help := gtk.NewLabel(t.DatabaseHelp)
-	help.SetWrap(true)
-	help.SetHAlign(gtk.AlignStart)
-	help.AddCSSClass("dim-label")
-	section.Append(help)
-	message := widgets.NewMessageLabel()
-	section.Append(message)
-	apply := gtk.NewButtonWithLabel(t.DatabaseApply)
-	apply.SetHAlign(gtk.AlignStart)
+	migrate := layout.Configure[*gtk.CheckButton](view, "migrate", func(w *gtk.CheckButton) { w.SetLabel(t.DatabaseMigrate) })
+	_ = layout.Configure[*gtk.Label](view, "help", func(w *gtk.Label) { w.SetLabel(t.DatabaseHelp) })
+
+	message := layout.Get[*gtk.Label](view, "message")
+
+	apply := layout.Configure[*gtk.Button](view, "apply", func(w *gtk.Button) { w.SetLabel(t.DatabaseApply) })
+
 	apply.ConnectClicked(func() {
 		index := choice.Selected()
 		if int(index) >= len(drivers) {
@@ -112,12 +102,14 @@ func newDatabaseSection(ctx context.Context, parent *gtk.Window, options Databas
 			}
 		})
 	})
-	section.Append(apply)
+
 	return section
 }
 
-func databaseEntry(title, text string) *adw.EntryRow {
-	entry := adw.NewEntryRow()
+func databaseEntry(title, text string, views ...*layout.View) *adw.EntryRow {
+	view := layout.Use("database-entry", views...)
+
+	entry := layout.Get[*adw.EntryRow](view, "entry")
 	entry.SetTitle(title)
 	entry.SetText(text)
 	return entry

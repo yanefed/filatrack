@@ -4,6 +4,7 @@ import (
 	"awesomeProject/internal/domain"
 	"awesomeProject/internal/i18n"
 	"awesomeProject/internal/service"
+	"awesomeProject/internal/ui/layout"
 	"awesomeProject/internal/ui/screens/shared"
 	"awesomeProject/internal/ui/widgets"
 	"context"
@@ -15,31 +16,27 @@ import (
 const printsRenderLimit = 250
 
 // NewPrintsScreen создаёт экран истории печатей.
-func NewPrintsScreen(ctx context.Context, parent *gtk.Window, printSvc *service.PrintService, printerSvc *service.PrinterService, spoolSvc *service.SpoolService, onChanged func()) (*gtk.Box, func(), func(), *gtk.Button, *gtk.DropDown) {
-	t := i18n.L()
-	box := widgets.NewScreen(t.Prints)
+func NewPrintsScreen(ctx context.Context, parent *gtk.Window, printSvc *service.PrintService, printerSvc *service.PrinterService, spoolSvc *service.SpoolService, onChanged func(), views ...*layout.View) (*gtk.Box, func(), func(), *gtk.Button, *gtk.DropDown) {
+	view := layout.Use("prints-screen", views...)
 
-	messageLabel := widgets.NewMessageLabel()
-	box.Append(messageLabel)
+	t := i18n.L()
+	box := layout.Configure[*gtk.Box](view, "box", func(w *gtk.Box) { layout.Get[*gtk.Label](view, "box_title").SetLabel(t.Prints) })
+
+	messageLabel := layout.Get[*gtk.Label](view, "messageLabel")
 
 	var printers []domain.Printer
-	printerCombo := gtk.NewDropDown(gtk.NewStringList([]string{t.NoPrinters}), nil)
-	printerCombo.SetSizeRequest(180, -1)
+	printerCombo := layout.Configure[*gtk.DropDown](view, "printerCombo", func(w *gtk.DropDown) { w.SetModel(gtk.NewStringList([]string{t.NoPrinters})) })
+
 	printerCombo.SetTooltipText(t.Printers)
 
-	activeList := newPrintsListBox()
-	box.Append(activeList)
+	activeList := newPrintsListBox(layout.Scope(view, "box_slot_3"))
+
 	var activePrinterIDs []string
 	var activeStatuses []*widgets.PrinterStatusWidget
 
-	emptyLabel := gtk.NewLabel(t.NoPrintRecords)
-	emptyLabel.AddCSSClass("dim-label")
-	emptyLabel.SetVisible(false)
-	box.Append(emptyLabel)
+	emptyLabel := layout.Configure[*gtk.Label](view, "emptyLabel", func(w *gtk.Label) { w.SetLabel(t.NoPrintRecords) })
 
-	listView, updatePrintsList := newVirtualPrintsList(t, ctx, printSvc, messageLabel)
-
-	box.Append(widgets.NewScrolled(listView))
+	_, updatePrintsList := newVirtualPrintsList(t, ctx, printSvc, messageLabel, layout.Scope(view, "object_1087_slot"))
 
 	activePrintCount := 0
 
@@ -169,7 +166,7 @@ func NewPrintsScreen(ctx context.Context, parent *gtk.Window, printSvc *service.
 		}
 	})
 
-	syncHistoryBtn := gtk.NewButtonFromIconName("view-refresh-symbolic")
+	syncHistoryBtn := layout.Get[*gtk.Button](view, "syncHistoryBtn")
 	syncHistoryBtn.SetTooltipText(t.RefreshHistory)
 	syncHistoryBtn.ConnectClicked(func() {
 		if len(printers) == 0 {
@@ -207,26 +204,21 @@ func NewPrintsScreen(ctx context.Context, parent *gtk.Window, printSvc *service.
 	return box, refreshScreen, refreshLivePrints, syncHistoryBtn, printerCombo
 }
 
-func newPrintsListBox() *gtk.ListBox {
-	list := gtk.NewListBox()
-	list.AddCSSClass("card-list")
-	list.SetSelectionMode(gtk.SelectionNone)
+func newPrintsListBox(views ...*layout.View) *gtk.ListBox {
+	view := layout.Use("active-print-list", views...)
+
+	list := layout.Get[*gtk.ListBox](view, "list")
+
 	return list
 }
 
 func newActivePrintCard(t i18n.T, printer domain.Printer) (*gtk.Box, *widgets.PrinterStatusWidget) {
-	card := gtk.NewBox(gtk.OrientationVertical, 0)
-	card.AddCSSClass("card")
-	card.SetMarginTop(4)
-	card.SetMarginBottom(4)
-	card.SetMarginStart(4)
-	card.SetMarginEnd(4)
-	status := widgets.NewPrinterStatus(t, printer)
-	status.SetMarginTop(10)
-	status.SetMarginBottom(10)
-	status.SetMarginStart(12)
-	status.SetMarginEnd(12)
-	card.Append(status)
+	view := layout.Load("active-print-card")
+
+	card := layout.Get[*gtk.Box](view, "card")
+
+	status := widgets.NewPrinterStatus(t, printer, layout.Scope(view, "card_slot_1"))
+
 	return card, status
 }
 

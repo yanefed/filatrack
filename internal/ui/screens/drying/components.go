@@ -3,6 +3,7 @@ package drying
 import (
 	"awesomeProject/internal/domain"
 	"awesomeProject/internal/i18n"
+	"awesomeProject/internal/ui/layout"
 	"fmt"
 	"strconv"
 	"strings"
@@ -18,20 +19,20 @@ type dryingForm struct {
 	durationEntry *adw.EntryRow
 }
 
-func newDryingForm(t i18n.T) *dryingForm {
-	form := &dryingForm{root: adw.NewPreferencesGroup()}
-	form.spoolDropdown = adw.NewComboRow()
+func newDryingForm(t i18n.T, views ...*layout.View) *dryingForm {
+	view := layout.Use("drying-form", views...)
+
+	form := &dryingForm{root: layout.Get[*adw.PreferencesGroup](view, "form_root")}
+	form.spoolDropdown = layout.Get[*adw.ComboRow](view, "form_spoolDropdown")
 	form.spoolDropdown.SetTitle(t.SpoolColon)
 	form.spoolDropdown.SetModel(gtk.NewStringList([]string{t.NoSpoolsAvail}))
-	form.root.Add(form.spoolDropdown)
-	form.tempEntry = adw.NewEntryRow()
+
+	form.tempEntry = layout.Get[*adw.EntryRow](view, "form_tempEntry")
 	form.tempEntry.SetTitle(t.TemperatureC)
-	form.tempEntry.SetInputPurpose(gtk.InputPurposeNumber)
-	form.root.Add(form.tempEntry)
-	form.durationEntry = adw.NewEntryRow()
+
+	form.durationEntry = layout.Get[*adw.EntryRow](view, "form_durationEntry")
 	form.durationEntry.SetTitle(t.DurationHours)
-	form.durationEntry.SetInputPurpose(gtk.InputPurposeNumber)
-	form.root.Add(form.durationEntry)
+
 	return form
 }
 
