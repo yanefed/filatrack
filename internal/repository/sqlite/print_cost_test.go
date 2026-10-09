@@ -9,6 +9,73 @@ import (
 	"github.com/pressly/goose/v3"
 )
 
+func TestPrintStatsCost(t *testing.T) {
+	db := setupTestDB(t)
+	ctx := t.Context()
+	prints := NewPrintJobRepo(db)
+	spools := NewSpoolRepo(db)
+	stats, err := prints.GetStats(ctx, repository.StatsFilter{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if stats.TotalCost != 0 || stats.CostCurrency != "RUB" || stats.UnpricedCount != 0 || stats.EstimatedCostCount != 0 {
+		t.Fatalf("empty stats: %+v", stats)
+	}
+	if err := NewSettingsRepo(db).SetSetting(ctx, "currency", "EUR"); err != nil {
+		t.Fatal(err)
+	}
+	now := time.Now().UTC().Truncate(time.Second)
+	priced := &domain.Spool{Manufacturer: "Test", Material: domain.MaterialPLA, Color: "White", TotalWeightG: 1000, Price: 2000, CreatedAt: now, UpdatedAt: now}
+	free := &domain.Spool{Manufacturer: "Test", Material: domain.MaterialPLA, Color: "White", TotalWeightG: 1000, CreatedAt: now, UpdatedAt: now}
+	zeroWeight := &domain.Spool{Manufacturer: "Test", Material: domain.MaterialPLA, Color: "White", Price: 100, CreatedAt: now, UpdatedAt: now}
+	for _, spool := range []*domain.Spool{priced, free, zeroWeight} {
+		if err := spools.Create(ctx, spool); err != nil {
+			t.Fatal(err)
+		}
+	}
+	jobs := []*domain.PrintJob{
+		{SpoolID: priced.ID, Status: domain.PrintStatusSuccess, ActualWeightG: 25, UsageMeasured: true, PrintedAt: now},
+		{SpoolID: priced.ID, Status: domain.PrintStatusFailed, ActualWeightG: 4, PrintedAt: now},
+		{SpoolID: priced.ID, Status: domain.PrintStatusCancelled, ActualWeightG: 3, UsageMeasured: true, PrintedAt: now.Add(-48 * time.Hour)},
+		{SpoolID: priced.ID, Status: domain.PrintStatusSuccess, ActualWeightG: 0.002, UsageMeasured: true, PrintedAt: now},
+		{SpoolID: priced.ID, Status: domain.PrintStatusSuccess, ActualWeightG: 0.002, UsageMeasured: true, PrintedAt: now},
+		{Status: domain.PrintStatusSuccess, ActualWeightG: 50, PrintedAt: now},
+		{SpoolID: free.ID, Status: domain.PrintStatusSuccess, ActualWeightG: 50, PrintedAt: now},
+		{SpoolID: zeroWeight.ID, Status: domain.PrintStatusSuccess, ActualWeightG: 50, PrintedAt: now},
+	}
+	for _, job := range jobs {
+		job.GcodeFilename = "part.gcode"
+		job.CreatedAt = now
+		if err := prints.Create(ctx, job); err != nil {
+			t.Fatal(err)
+		}
+	}
+	check := func(filter repository.StatsFilter, wantCost float64, wantPrints, wantUnpriced, wantEstimated int) {
+		t.Helper()
+		stats, err := prints.GetStats(ctx, filter)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if stats.TotalCost != wantCost || stats.CostCurrency != "EUR" || stats.TotalPrints != wantPrints || stats.UnpricedCount != wantUnpriced || stats.EstimatedCostCount != wantEstimated {
+			t.Fatalf("stats: %+v; want cost %v, prints %d, unpriced %d, estimated %d", stats, wantCost, wantPrints, wantUnpriced, wantEstimated)
+		}
+	}
+	check(repository.StatsFilter{}, 64, 8, 3, 1)
+	from, to := now.Add(-time.Hour), now.Add(time.Hour)
+	check(repository.StatsFilter{From: &from, To: &to}, 58, 7, 3, 1)
+	// Archived spools still contribute, and changing their price updates history costs.
+	priced.Price = 3000
+	priced.Archived = true
+	if err := spools.Update(ctx, priced); err != nil {
+		t.Fatal(err)
+	}
+	check(repository.StatsFilter{}, 96.02, 8, 3, 1)
+	if err := prints.UpdateSpool(ctx, jobs[1].ID, ""); err != nil {
+		t.Fatal(err)
+	}
+	check(repository.StatsFilter{}, 84.02, 8, 4, 0)
+}
+
 func TestPrintCostUsesCurrentSpoolPrice(t *testing.T) {
 	db := setupTestDB(t)
 	ctx := t.Context()

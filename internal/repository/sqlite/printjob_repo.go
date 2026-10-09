@@ -171,16 +171,21 @@ func (r *PrintJobRepo) GetStats(ctx context.Context, filter repository.StatsFilt
 		COALESCE(SUM(CASE WHEN status='failed' THEN 1 ELSE 0 END), 0),
 		COALESCE(SUM(CASE WHEN status='cancelled' THEN 1 ELSE 0 END), 0),
 		COALESCE(SUM(actual_weight_g), 0),
-		COALESCE(AVG(actual_weight_g), 0)
-	FROM print_jobs WHERE 1=1`
+		COALESCE(AVG(actual_weight_g), 0),
+		COALESCE(SUM(CASE WHEN s.price > 0 AND s.total_weight_g > 0
+			THEN ROUND(CAST(p.actual_weight_g * (s.price / s.total_weight_g) AS NUMERIC), 2) ELSE 0 END), 0),
+		COALESCE((SELECT value FROM app_settings WHERE key = 'currency'), 'RUB'),
+		COALESCE(SUM(CASE WHEN s.price > 0 AND s.total_weight_g > 0 THEN 0 ELSE 1 END), 0),
+		COALESCE(SUM(CASE WHEN s.price > 0 AND s.total_weight_g > 0 AND p.usage_measured = 0 THEN 1 ELSE 0 END), 0)
+	FROM print_jobs p LEFT JOIN spools s ON s.id = p.spool_id WHERE 1=1`
 	var args []any
 
 	if filter.From != nil {
-		query += " AND printed_at >= ?"
+		query += " AND p.printed_at >= ?"
 		args = append(args, *filter.From)
 	}
 	if filter.To != nil {
-		query += " AND printed_at <= ?"
+		query += " AND p.printed_at <= ?"
 		args = append(args, *filter.To)
 	}
 
@@ -188,6 +193,7 @@ func (r *PrintJobRepo) GetStats(ctx context.Context, filter repository.StatsFilt
 	err := r.db.conn.QueryRowContext(ctx, query, args...).Scan(
 		&stats.TotalPrints, &stats.SuccessCount, &stats.FailedCount,
 		&stats.CancelledCount, &stats.TotalWeightG, &stats.AvgWeightG,
+		&stats.TotalCost, &stats.CostCurrency, &stats.UnpricedCount, &stats.EstimatedCostCount,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("getting print stats: %w", err)

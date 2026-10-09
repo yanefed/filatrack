@@ -19,7 +19,17 @@ func newMetricsGrid(t i18n.T, data dashboardData) *gtk.FlowBox {
 	successDetail := t.StatsUnavailable
 	totalUsed := "—"
 	averageUsed := t.StatsUnavailable
+	totalCost := "—"
+	costDetail := t.StatsUnavailable
 	if data.stats != nil {
+		totalCost = fmt.Sprintf("%.2f %s", data.stats.TotalCost, data.stats.CostCurrency)
+		if data.stats.EstimatedCostCount > 0 {
+			totalCost = "≈" + totalCost
+		}
+		costDetail = t.PlasticCost
+		if data.stats.UnpricedCount > 0 {
+			costDetail += " · " + fmt.Sprintf(t.UnpricedPrintsFmt, data.stats.UnpricedCount)
+		}
 		totalPrints = fmt.Sprintf("%d", data.stats.TotalPrints)
 		rate := 0.0
 		if data.stats.TotalPrints > 0 {
@@ -34,14 +44,16 @@ func newMetricsGrid(t i18n.T, data dashboardData) *gtk.FlowBox {
 	cards := []*gtk.Box{
 		newMetricCard("printer-symbolic", "accent", t.TotalPrints, totalPrints, ""),
 		newMetricCard("object-select-symbolic", "success", t.SuccessRate, successRate, successDetail),
-		newMetricCard("media-record-symbolic", "warning", t.TotalUsed, totalUsed, averageUsed),
 		newMetricCard("view-grid-symbolic", "accent", t.Spools, fmt.Sprintf("%d", len(data.spools)), fmt.Sprintf(t.RemainingFilamentFmt, formatFilamentWeight(data.totalRemainingG()))),
+		newMetricCard("media-record-symbolic", "warning", t.TotalUsed, totalUsed, averageUsed),
+		newMetricCard("document-properties-symbolic", "accent", t.TotalCost, totalCost, costDetail),
 	}
 	grid := gtk.NewFlowBox()
 	grid.SetSelectionMode(gtk.SelectionNone)
 	grid.SetHomogeneous(true)
-	grid.SetMinChildrenPerLine(1)
-	grid.SetMaxChildrenPerLine(4)
+	grid.SetHExpand(true)
+	grid.SetMinChildrenPerLine(3)
+	grid.SetMaxChildrenPerLine(3)
 	grid.SetColumnSpacing(metricGridSpacing)
 	grid.SetRowSpacing(metricGridSpacing)
 	for _, card := range cards {
@@ -71,12 +83,16 @@ func newMetricCard(iconName, colorClass, title, value, subtitle string) *gtk.Box
 	label.SetHAlign(gtk.AlignStart)
 	label.SetHExpand(true)
 	label.SetEllipsize(pango.EllipsizeEnd)
+	label.SetTooltipText(title)
 	header.Append(label)
 	card.Append(header)
 
 	valueLabel := gtk.NewLabel(value)
 	valueLabel.AddCSSClass("title-1")
-	valueLabel.SetHAlign(gtk.AlignStart)
+	valueLabel.SetHAlign(gtk.AlignFill)
+	valueLabel.SetXAlign(0)
+	valueLabel.SetEllipsize(pango.EllipsizeEnd)
+	valueLabel.SetTooltipText(value)
 	valueLabel.SetMarginStart(12)
 	valueLabel.SetMarginEnd(12)
 	card.Append(valueLabel)
@@ -87,6 +103,7 @@ func newMetricCard(iconName, colorClass, title, value, subtitle string) *gtk.Box
 		detail.AddCSSClass("dim-label")
 		detail.SetHAlign(gtk.AlignStart)
 		detail.SetEllipsize(pango.EllipsizeEnd)
+		detail.SetTooltipText(subtitle)
 		detail.SetMarginBottom(10)
 		detail.SetMarginStart(12)
 		detail.SetMarginEnd(12)

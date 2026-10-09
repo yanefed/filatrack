@@ -75,12 +75,16 @@ type StatsFilter struct {
 }
 
 type PrintStats struct {
-	TotalPrints    int
-	SuccessCount   int
-	FailedCount    int
-	CancelledCount int
-	TotalWeightG   float64
-	AvgWeightG     float64
+	TotalCost          float64
+	CostCurrency       string
+	UnpricedCount      int
+	EstimatedCostCount int
+	TotalPrints        int
+	SuccessCount       int
+	FailedCount        int
+	CancelledCount     int
+	TotalWeightG       float64
+	AvgWeightG         float64
 }
 
 type DryingSessionRepository interface {

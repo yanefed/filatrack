@@ -23,6 +23,9 @@ type T struct {
 	// Dashboard
 	TotalPrints          string
 	SuccessRate          string
+	TotalCost            string
+	PlasticCost          string
+	UnpricedPrintsFmt    string
 	TotalUsed            string
 	AvgPerPrint          string
 	NoDryingWarnings     string
