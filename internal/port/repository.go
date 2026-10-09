@@ -1,9 +1,8 @@
 package port
 
 import (
-	"context"
-
 	"awesomeProject/internal/domain"
+	"context"
 )
 
 type SpoolRepository interface {
@@ -47,6 +46,24 @@ type PrinterModelRepository interface {
 type PreviewImageRepository interface {
 	Put(ctx context.Context, data []byte) (string, error)
 	Get(ctx context.Context, hash string) ([]byte, error)
+}
+
+type StatsFilter struct {
+	From *time.Time
+	To   *time.Time
+}
+
+type PrintStats struct {
+	TotalCost          float64
+	CostCurrency       string
+	UnpricedCount      int
+	EstimatedCostCount int
+	TotalPrints        int
+	SuccessCount       int
+	FailedCount        int
+	CancelledCount     int
+	TotalWeightG       float64
+	AvgWeightG         float64
 }
 
 type DryingSessionRepository interface {
