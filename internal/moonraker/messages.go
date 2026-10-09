@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"time"
 
-	"awesomeProject/internal/domain"
+	"github.com/yanefed/filatrack/internal/domain"
 
 	api "github.com/yanefed/moonraker"
 )

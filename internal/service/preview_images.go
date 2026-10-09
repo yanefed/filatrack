@@ -1,12 +1,12 @@
 package service
 
 import (
-	"awesomeProject/internal/domain"
-	"awesomeProject/internal/port"
-	"awesomeProject/internal/preview"
 	"context"
 	"errors"
 	"fmt"
+	"github.com/yanefed/filatrack/internal/domain"
+	"github.com/yanefed/filatrack/internal/port"
+	"github.com/yanefed/filatrack/internal/preview"
 	"log/slog"
 	"os"
 	"path/filepath"

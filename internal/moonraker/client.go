@@ -3,7 +3,7 @@ package moonraker
 import (
 	"context"
 
-	"awesomeProject/internal/domain"
+	"github.com/yanefed/filatrack/internal/domain"
 
 	"github.com/gorilla/websocket"
 	api "github.com/yanefed/moonraker"

@@ -1,11 +1,11 @@
 package service
 
 import (
-	"awesomeProject/internal/domain"
-	"awesomeProject/internal/i18n"
-	"awesomeProject/internal/port"
 	"context"
 	"fmt"
+	"github.com/yanefed/filatrack/internal/domain"
+	"github.com/yanefed/filatrack/internal/i18n"
+	"github.com/yanefed/filatrack/internal/port"
 	"strconv"
 	"strings"
 )

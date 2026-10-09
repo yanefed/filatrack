@@ -1,8 +1,8 @@
 package service
 
 import (
-	"awesomeProject/internal/preview"
 	"context"
+	"github.com/yanefed/filatrack/internal/preview"
 	"os"
 	"path/filepath"
 	"testing"

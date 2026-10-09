@@ -1,9 +1,9 @@
 package main
 
 import (
-	"awesomeProject/internal/domain"
-	"awesomeProject/internal/gcode"
 	"fmt"
+	"github.com/yanefed/filatrack/internal/domain"
+	"github.com/yanefed/filatrack/internal/gcode"
 	"io"
 	"os"
 	"time"

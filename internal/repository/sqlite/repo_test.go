@@ -1,7 +1,7 @@
 package sqlite
 
 import (
-	"awesomeProject/internal/domain"
+	"github.com/yanefed/filatrack/internal/domain"
 	"testing"
 	"time"
 

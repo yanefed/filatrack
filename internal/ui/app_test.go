@@ -1,7 +1,7 @@
 package ui
 
 import (
-	"awesomeProject/internal/service"
+	"github.com/yanefed/filatrack/internal/service"
 	"runtime"
 	"strings"
 	"testing"

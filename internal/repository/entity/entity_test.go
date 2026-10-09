@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"awesomeProject/internal/domain"
+	"github.com/yanefed/filatrack/internal/domain"
 )
 
 func TestSpoolRoundTrip(t *testing.T) {

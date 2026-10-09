@@ -3,7 +3,7 @@ package moonraker
 import (
 	"time"
 
-	"awesomeProject/internal/domain"
+	"github.com/yanefed/filatrack/internal/domain"
 )
 
 type Processor struct {

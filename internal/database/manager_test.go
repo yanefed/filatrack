@@ -7,8 +7,8 @@ import (
 	"path/filepath"
 	"testing"
 
-	"awesomeProject/internal/config"
-	"awesomeProject/internal/repository/transfer"
+	"github.com/yanefed/filatrack/internal/config"
+	"github.com/yanefed/filatrack/internal/repository/transfer"
 	_ "modernc.org/sqlite"
 )
 

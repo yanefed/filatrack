@@ -1,9 +1,9 @@
 package service_test
 
 import (
-	"awesomeProject/internal/domain"
-	"awesomeProject/internal/repository/sqlite"
-	"awesomeProject/internal/service"
+	"github.com/yanefed/filatrack/internal/domain"
+	"github.com/yanefed/filatrack/internal/repository/sqlite"
+	"github.com/yanefed/filatrack/internal/service"
 	"reflect"
 	"testing"
 

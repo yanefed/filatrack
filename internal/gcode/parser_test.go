@@ -1,7 +1,7 @@
 package gcode
 
 import (
-	"awesomeProject/internal/domain"
+	"github.com/yanefed/filatrack/internal/domain"
 	"math"
 	"strings"
 	"testing"

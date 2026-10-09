@@ -1,12 +1,12 @@
 package postgres
 
 import (
-	"awesomeProject/internal/port"
-	"awesomeProject/internal/preview"
 	"context"
 	"database/sql"
 	"errors"
 	"fmt"
+	"github.com/yanefed/filatrack/internal/port"
+	"github.com/yanefed/filatrack/internal/preview"
 )
 
 type PreviewImageRepo struct{ db *DB }

@@ -1,14 +1,14 @@
 package postgres
 
 import (
-	"awesomeProject/internal/domain"
-	"awesomeProject/internal/port"
-	"awesomeProject/internal/repository/dbutil"
 	"context"
 	"fmt"
+	"github.com/yanefed/filatrack/internal/domain"
+	"github.com/yanefed/filatrack/internal/port"
+	"github.com/yanefed/filatrack/internal/repository/dbutil"
 	"time"
 
-	"awesomeProject/internal/repository/entity"
+	"github.com/yanefed/filatrack/internal/repository/entity"
 )
 
 type PrinterModelRepo struct {

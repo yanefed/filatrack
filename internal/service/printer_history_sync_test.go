@@ -1,11 +1,11 @@
 package service
 
 import (
-	"awesomeProject/internal/domain"
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/yanefed/filatrack/internal/domain"
 	"testing"
 	"time"
 )

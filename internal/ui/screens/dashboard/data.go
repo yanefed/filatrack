@@ -1,11 +1,11 @@
 package dashboard
 
 import (
-	"awesomeProject/internal/domain"
-	"awesomeProject/internal/service"
 	"context"
 	"errors"
 	"fmt"
+	"github.com/yanefed/filatrack/internal/domain"
+	"github.com/yanefed/filatrack/internal/service"
 )
 
 const recentPrintLimit = 4

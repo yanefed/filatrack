@@ -6,8 +6,8 @@ import (
 	"path/filepath"
 	"time"
 
-	"awesomeProject/internal/domain"
-	"awesomeProject/internal/port"
+	"github.com/yanefed/filatrack/internal/domain"
+	"github.com/yanefed/filatrack/internal/port"
 
 	api "github.com/yanefed/moonraker"
 )

@@ -1,11 +1,11 @@
 package shared
 
 import (
-	"awesomeProject/internal/domain"
-	"awesomeProject/internal/i18n"
-	"awesomeProject/internal/service"
 	"context"
 	"fmt"
+	"github.com/yanefed/filatrack/internal/domain"
+	"github.com/yanefed/filatrack/internal/i18n"
+	"github.com/yanefed/filatrack/internal/service"
 )
 
 func ActiveSpools(ctx context.Context, spoolSvc *service.SpoolService) []domain.Spool {

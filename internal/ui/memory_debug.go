@@ -7,8 +7,8 @@ import (
 	"strconv"
 	"strings"
 
-	"awesomeProject/internal/ui/widgets"
 	"github.com/diamondburned/gotk4/pkg/glib/v2"
+	"github.com/yanefed/filatrack/internal/ui/widgets"
 )
 
 // startMemoryDiagnostics logs Go heap and process RSS when explicitly enabled.

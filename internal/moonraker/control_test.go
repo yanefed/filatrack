@@ -1,8 +1,8 @@
 package moonraker
 
 import (
-	"awesomeProject/internal/domain"
 	"fmt"
+	"github.com/yanefed/filatrack/internal/domain"
 	"io"
 	"mime/multipart"
 	"net/http"

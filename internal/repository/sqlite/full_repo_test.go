@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"awesomeProject/internal/domain"
+	"github.com/yanefed/filatrack/internal/domain"
 )
 
 func testSpool(id string, createdAt time.Time) *domain.Spool {

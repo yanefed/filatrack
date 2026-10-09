@@ -1,8 +1,8 @@
 package widgets
 
 import (
-	"awesomeProject/internal/ui/colors"
-	"awesomeProject/internal/ui/layout"
+	"github.com/yanefed/filatrack/internal/ui/colors"
+	"github.com/yanefed/filatrack/internal/ui/layout"
 	"math"
 
 	"github.com/diamondburned/gotk4/pkg/cairo"

@@ -7,11 +7,11 @@ import (
 	"testing"
 	"time"
 
-	"awesomeProject/internal/domain"
-	"awesomeProject/internal/gcode"
-	"awesomeProject/internal/i18n"
-	"awesomeProject/internal/repository/sqlite"
-	"awesomeProject/internal/service"
+	"github.com/yanefed/filatrack/internal/domain"
+	"github.com/yanefed/filatrack/internal/gcode"
+	"github.com/yanefed/filatrack/internal/i18n"
+	"github.com/yanefed/filatrack/internal/repository/sqlite"
+	"github.com/yanefed/filatrack/internal/service"
 
 	_ "modernc.org/sqlite"
 )

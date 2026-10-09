@@ -13,7 +13,7 @@ import (
 
 // Check production imports so test fixtures can still use real adapters.
 func TestLayerDependencies(t *testing.T) {
-	const internalPrefix = "awesomeProject/internal/"
+	const internalPrefix = "github.com/yanefed/filatrack/internal/"
 	for _, layer := range []string{"domain", "port", "service", "ui"} {
 		t.Run(layer, func(t *testing.T) {
 			root := filepath.Join("..", layer)

@@ -4,7 +4,7 @@ import (
 	"database/sql"
 	"time"
 
-	"awesomeProject/internal/domain"
+	"github.com/yanefed/filatrack/internal/domain"
 )
 
 type Scanner interface {

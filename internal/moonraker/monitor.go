@@ -1,11 +1,11 @@
 package moonraker
 
 import (
-	"awesomeProject/internal/domain"
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/yanefed/filatrack/internal/domain"
 	api "github.com/yanefed/moonraker"
 	"time"
 )

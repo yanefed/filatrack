@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"time"
 
-	"awesomeProject/internal/domain"
-	"awesomeProject/internal/port"
+	"github.com/yanefed/filatrack/internal/domain"
+	"github.com/yanefed/filatrack/internal/port"
 )
 
 type DryingService struct {

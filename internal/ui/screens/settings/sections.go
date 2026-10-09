@@ -1,14 +1,14 @@
 package settings
 
 import (
-	"awesomeProject/internal/domain"
-	"awesomeProject/internal/i18n"
-	"awesomeProject/internal/service"
-	"awesomeProject/internal/ui/layout"
+	"github.com/yanefed/filatrack/internal/domain"
+	"github.com/yanefed/filatrack/internal/i18n"
+	"github.com/yanefed/filatrack/internal/service"
+	"github.com/yanefed/filatrack/internal/ui/layout"
 
-	"awesomeProject/internal/ui/widgets"
 	"context"
 	"fmt"
+	"github.com/yanefed/filatrack/internal/ui/widgets"
 	"strconv"
 	"strings"
 

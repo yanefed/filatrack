@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	"awesomeProject/internal/domain"
+	"github.com/yanefed/filatrack/internal/domain"
 )
 
 func TestProcessorRecordsCompletedPrint(t *testing.T) {

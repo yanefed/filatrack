@@ -1,7 +1,7 @@
 package dashboard
 
 import (
-	"awesomeProject/internal/domain"
+	"github.com/yanefed/filatrack/internal/domain"
 	"testing"
 )
 

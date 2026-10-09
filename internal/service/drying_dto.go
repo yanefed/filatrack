@@ -3,7 +3,7 @@ package service
 import (
 	"time"
 
-	"awesomeProject/internal/domain"
+	"github.com/yanefed/filatrack/internal/domain"
 )
 
 // DryingStatus описывает актуальность сушки конкретной катушки.

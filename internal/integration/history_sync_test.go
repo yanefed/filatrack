@@ -1,10 +1,10 @@
 package integration_test
 
 import (
-	"awesomeProject/internal/domain"
-	"awesomeProject/internal/moonraker"
-	"awesomeProject/internal/repository/sqlite"
 	"encoding/json"
+	"github.com/yanefed/filatrack/internal/domain"
+	"github.com/yanefed/filatrack/internal/moonraker"
+	"github.com/yanefed/filatrack/internal/repository/sqlite"
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"

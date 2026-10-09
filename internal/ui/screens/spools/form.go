@@ -1,11 +1,11 @@
 package spools
 
 import (
-	"awesomeProject/internal/domain"
-	"awesomeProject/internal/i18n"
-	"awesomeProject/internal/ui/layout"
-	"awesomeProject/internal/ui/widgets"
 	"fmt"
+	"github.com/yanefed/filatrack/internal/domain"
+	"github.com/yanefed/filatrack/internal/i18n"
+	"github.com/yanefed/filatrack/internal/ui/layout"
+	"github.com/yanefed/filatrack/internal/ui/widgets"
 	"strconv"
 	"strings"
 

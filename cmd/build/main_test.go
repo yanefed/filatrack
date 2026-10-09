@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"awesomeProject/packaging/metadata"
+	"github.com/yanefed/filatrack/packaging/metadata"
 )
 
 func TestRenderedMetadataUsesCanonicalValues(t *testing.T) {

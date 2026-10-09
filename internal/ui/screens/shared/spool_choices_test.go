@@ -1,7 +1,7 @@
 package shared
 
 import (
-	"awesomeProject/internal/domain"
+	"github.com/yanefed/filatrack/internal/domain"
 	"runtime"
 	"testing"
 

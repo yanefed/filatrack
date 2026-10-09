@@ -1,6 +1,6 @@
 package widgets
 
-import "awesomeProject/internal/ui/layout"
+import "github.com/yanefed/filatrack/internal/ui/layout"
 import "github.com/diamondburned/gotk4/pkg/gtk/v4"
 
 const (

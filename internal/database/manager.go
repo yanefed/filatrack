@@ -1,19 +1,19 @@
 package database
 
 import (
-	"awesomeProject/internal/port"
 	"context"
 	"database/sql"
 	"errors"
 	"fmt"
+	"github.com/yanefed/filatrack/internal/port"
 	"log/slog"
 	"os"
 	"path/filepath"
 
-	"awesomeProject/internal/config"
-	"awesomeProject/internal/repository/postgres"
-	"awesomeProject/internal/repository/sqlite"
-	"awesomeProject/internal/repository/transfer"
+	"github.com/yanefed/filatrack/internal/config"
+	"github.com/yanefed/filatrack/internal/repository/postgres"
+	"github.com/yanefed/filatrack/internal/repository/sqlite"
+	"github.com/yanefed/filatrack/internal/repository/transfer"
 )
 
 type backend struct {

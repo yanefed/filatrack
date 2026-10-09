@@ -11,9 +11,9 @@ import (
 	"testing"
 	"time"
 
-	"awesomeProject/internal/domain"
-	"awesomeProject/internal/moonraker"
-	"awesomeProject/internal/port"
+	"github.com/yanefed/filatrack/internal/domain"
+	"github.com/yanefed/filatrack/internal/moonraker"
+	"github.com/yanefed/filatrack/internal/port"
 )
 
 type historyReplayConn struct{ messages []json.RawMessage }

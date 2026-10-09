@@ -1,10 +1,10 @@
 package spools
 
 import (
-	"awesomeProject/internal/domain"
-	"awesomeProject/internal/i18n"
-	"awesomeProject/internal/service"
-	"awesomeProject/internal/ui/layout"
+	"github.com/yanefed/filatrack/internal/domain"
+	"github.com/yanefed/filatrack/internal/i18n"
+	"github.com/yanefed/filatrack/internal/service"
+	"github.com/yanefed/filatrack/internal/ui/layout"
 
 	"github.com/diamondburned/gotk4-adwaita/pkg/adw"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"

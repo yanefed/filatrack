@@ -1,10 +1,10 @@
 package gcode
 
 import (
-	"awesomeProject/internal/domain"
 	"bufio"
 	"errors"
 	"fmt"
+	"github.com/yanefed/filatrack/internal/domain"
 	"io"
 	"os"
 	"path/filepath"

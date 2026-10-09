@@ -9,9 +9,9 @@ import (
 	"strings"
 	"testing"
 
-	"awesomeProject/internal/config"
-	"awesomeProject/internal/i18n"
-	"awesomeProject/internal/repository/sqlite"
+	"github.com/yanefed/filatrack/internal/config"
+	"github.com/yanefed/filatrack/internal/i18n"
+	"github.com/yanefed/filatrack/internal/repository/sqlite"
 
 	"go.uber.org/fx"
 )

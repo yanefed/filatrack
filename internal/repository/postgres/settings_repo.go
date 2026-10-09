@@ -1,14 +1,14 @@
 package postgres
 
 import (
-	"awesomeProject/internal/domain"
-	"awesomeProject/internal/port"
-	"awesomeProject/internal/repository/dbutil"
-	"awesomeProject/internal/repository/entity"
 	"context"
 	"database/sql"
 	"errors"
 	"fmt"
+	"github.com/yanefed/filatrack/internal/domain"
+	"github.com/yanefed/filatrack/internal/port"
+	"github.com/yanefed/filatrack/internal/repository/dbutil"
+	"github.com/yanefed/filatrack/internal/repository/entity"
 )
 
 type SettingsRepo struct {

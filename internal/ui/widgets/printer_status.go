@@ -1,10 +1,10 @@
 package widgets
 
 import (
-	"awesomeProject/internal/domain"
-	"awesomeProject/internal/i18n"
-	"awesomeProject/internal/ui/layout"
 	"fmt"
+	"github.com/yanefed/filatrack/internal/domain"
+	"github.com/yanefed/filatrack/internal/i18n"
+	"github.com/yanefed/filatrack/internal/ui/layout"
 
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 )

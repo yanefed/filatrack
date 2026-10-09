@@ -1,10 +1,10 @@
 package ui
 
 import (
-	"awesomeProject/internal/i18n"
-	"awesomeProject/internal/ui/layout"
-	"awesomeProject/packaging/metadata"
 	"fmt"
+	"github.com/yanefed/filatrack/internal/i18n"
+	"github.com/yanefed/filatrack/internal/ui/layout"
+	"github.com/yanefed/filatrack/packaging/metadata"
 
 	"github.com/diamondburned/gotk4-adwaita/pkg/adw"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"

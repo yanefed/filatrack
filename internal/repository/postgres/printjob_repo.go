@@ -1,17 +1,17 @@
 package postgres
 
 import (
-	"awesomeProject/internal/domain"
-	"awesomeProject/internal/port"
-	"awesomeProject/internal/repository/dbutil"
 	"context"
 	"database/sql"
 	"errors"
 	"fmt"
+	"github.com/yanefed/filatrack/internal/domain"
+	"github.com/yanefed/filatrack/internal/port"
+	"github.com/yanefed/filatrack/internal/repository/dbutil"
 	"strings"
 	"time"
 
-	"awesomeProject/internal/repository/entity"
+	"github.com/yanefed/filatrack/internal/repository/entity"
 
 	"github.com/google/uuid"
 )

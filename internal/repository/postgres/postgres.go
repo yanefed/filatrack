@@ -1,12 +1,12 @@
 package postgres
 
 import (
-	"awesomeProject/internal/port"
 	"context"
 	"database/sql"
 	"embed"
 	"errors"
 	"fmt"
+	"github.com/yanefed/filatrack/internal/port"
 	"log/slog"
 	"strings"
 	"time"

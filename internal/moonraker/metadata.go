@@ -6,9 +6,9 @@ import (
 	"net/http"
 	"time"
 
-	"awesomeProject/internal/domain"
-	"awesomeProject/internal/port"
-	"awesomeProject/internal/preview"
+	"github.com/yanefed/filatrack/internal/domain"
+	"github.com/yanefed/filatrack/internal/port"
+	"github.com/yanefed/filatrack/internal/preview"
 
 	api "github.com/yanefed/moonraker"
 )

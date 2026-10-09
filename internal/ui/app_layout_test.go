@@ -1,8 +1,8 @@
 package ui
 
 import (
-	"awesomeProject/internal/repository/sqlite"
-	"awesomeProject/internal/service"
+	"github.com/yanefed/filatrack/internal/repository/sqlite"
+	"github.com/yanefed/filatrack/internal/service"
 	"runtime"
 	"testing"
 

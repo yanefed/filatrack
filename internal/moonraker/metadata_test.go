@@ -1,9 +1,9 @@
 package moonraker
 
 import (
-	"awesomeProject/internal/domain"
 	"context"
 	"fmt"
+	"github.com/yanefed/filatrack/internal/domain"
 	"net/http"
 	"net/http/httptest"
 	"os"

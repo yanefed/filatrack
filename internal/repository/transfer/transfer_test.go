@@ -9,9 +9,9 @@ import (
 	"testing"
 	"time"
 
-	"awesomeProject/internal/domain"
-	"awesomeProject/internal/repository/postgres"
-	"awesomeProject/internal/repository/sqlite"
+	"github.com/yanefed/filatrack/internal/domain"
+	"github.com/yanefed/filatrack/internal/repository/postgres"
+	"github.com/yanefed/filatrack/internal/repository/sqlite"
 	_ "modernc.org/sqlite"
 )
 

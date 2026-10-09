@@ -1,14 +1,14 @@
 package settings
 
 import (
-	"awesomeProject/internal/ui/layout"
 	"context"
 	"fmt"
+	"github.com/yanefed/filatrack/internal/ui/layout"
 	"net/url"
 
-	"awesomeProject/internal/config"
-	"awesomeProject/internal/i18n"
-	"awesomeProject/internal/ui/screens/shared"
+	"github.com/yanefed/filatrack/internal/config"
+	"github.com/yanefed/filatrack/internal/i18n"
+	"github.com/yanefed/filatrack/internal/ui/screens/shared"
 
 	"github.com/diamondburned/gotk4-adwaita/pkg/adw"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"

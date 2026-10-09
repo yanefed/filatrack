@@ -8,7 +8,7 @@ import (
 	"os/exec"
 	"path/filepath"
 
-	"awesomeProject/packaging/metadata"
+	"github.com/yanefed/filatrack/packaging/metadata"
 )
 
 // configureBundleEnvironment makes the native binary self-sufficient when it

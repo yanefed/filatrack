@@ -1,4 +1,4 @@
-module awesomeProject
+module github.com/yanefed/filatrack
 
 go 1.27.1
 

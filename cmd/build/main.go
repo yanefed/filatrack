@@ -10,7 +10,7 @@ import (
 	"runtime"
 	"strings"
 
-	"awesomeProject/packaging/metadata"
+	"github.com/yanefed/filatrack/packaging/metadata"
 )
 
 func main() {

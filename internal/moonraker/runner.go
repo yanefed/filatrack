@@ -1,8 +1,8 @@
 package moonraker
 
 import (
-	"awesomeProject/internal/domain"
 	"context"
+	"github.com/yanefed/filatrack/internal/domain"
 	"log/slog"
 	"sync"
 	"time"

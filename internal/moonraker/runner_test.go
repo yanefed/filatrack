@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"awesomeProject/internal/domain"
+	"github.com/yanefed/filatrack/internal/domain"
 )
 
 type fakePrinterLister struct {

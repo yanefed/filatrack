@@ -1,8 +1,8 @@
 package port
 
 import (
-	"awesomeProject/internal/domain"
 	"context"
+	"github.com/yanefed/filatrack/internal/domain"
 )
 
 type SpoolRepository interface {

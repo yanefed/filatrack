@@ -6,7 +6,7 @@ import (
 	"context"
 	"time"
 
-	"awesomeProject/internal/domain"
+	"github.com/yanefed/filatrack/internal/domain"
 )
 
 // ConnectionChecker проверяет доступность принтера.

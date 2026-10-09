@@ -1,9 +1,9 @@
 package widgets
 
 import (
-	"awesomeProject/internal/ui/layout"
 	"github.com/diamondburned/gotk4/pkg/cairo"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
+	"github.com/yanefed/filatrack/internal/ui/layout"
 )
 
 const (

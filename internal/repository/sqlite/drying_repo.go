@@ -1,15 +1,15 @@
 package sqlite
 
 import (
-	"awesomeProject/internal/domain"
-	"awesomeProject/internal/port"
 	"context"
 	"database/sql"
 	"errors"
 	"fmt"
+	"github.com/yanefed/filatrack/internal/domain"
+	"github.com/yanefed/filatrack/internal/port"
 	"log/slog"
 
-	"awesomeProject/internal/repository/entity"
+	"github.com/yanefed/filatrack/internal/repository/entity"
 
 	"github.com/google/uuid"
 )
