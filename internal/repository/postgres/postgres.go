@@ -46,11 +46,15 @@ func (db *DB) Close() error  { return db.conn.Close() }
 var migrations embed.FS
 
 func (db *DB) Migrate() error {
+	return db.MigrateContext(context.Background())
+}
+
+func (db *DB) MigrateContext(ctx context.Context) error {
 	goose.SetBaseFS(migrations)
 	if err := goose.SetDialect("postgres"); err != nil {
 		return err
 	}
-	if err := goose.Up(db.conn, "migrations"); err != nil {
+	if err := goose.UpContext(ctx, db.conn, "migrations"); err != nil {
 		return fmt.Errorf("running PostgreSQL migrations: %w", err)
 	}
 	return nil

@@ -93,27 +93,31 @@ type T struct {
 	DrySpool              string
 
 	// Settings
-	LanguageLabel      string
-	Print              string
-	MaterialSettings   string
-	AddMaterial        string
-	MaterialName       string
-	Days               string
-	Hours              string
-	Edit               string
-	Delete             string
-	Close              string
-	DatabaseLabel      string
-	DatabaseURL        string
-	DatabaseHost       string
-	DatabasePort       string
-	DatabaseName       string
-	DatabaseUser       string
-	DatabasePassword   string
-	DatabaseSQLitePath string
-	DatabaseMigrate    string
-	DatabaseApply      string
-	DatabaseHelp       string
+	LanguageLabel          string
+	Print                  string
+	MaterialSettings       string
+	AddMaterial            string
+	MaterialName           string
+	Days                   string
+	Hours                  string
+	Edit                   string
+	Delete                 string
+	Close                  string
+	DatabaseLabel          string
+	DatabaseURL            string
+	DatabaseHost           string
+	DatabasePort           string
+	DatabaseName           string
+	DatabaseUser           string
+	DatabasePassword       string
+	DatabaseSQLitePath     string
+	DatabaseMigrate        string
+	DatabaseApply          string
+	DatabaseHelp           string
+	DatabaseOfflineFmt     string
+	DatabaseRetry          string
+	DatabaseRetrying       string
+	DatabaseRetryFailedFmt string
 
 	// Printers
 	Printers           string

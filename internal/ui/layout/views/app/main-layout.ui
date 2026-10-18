@@ -56,6 +56,11 @@
         </child>
       </object>
     </child>
+    <child type="top">
+      <object class="AdwBanner" id="offlineBanner">
+        <property name="revealed">false</property>
+      </object>
+    </child>
     <child>
       <object class="GtkBox" id="splitView">
         <property name="orientation">horizontal</property>

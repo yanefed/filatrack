@@ -105,6 +105,35 @@ func TestMainLayoutNavigationAndToolbar(t *testing.T) {
 	}
 }
 
+func TestOfflineBannerIsBelowHeader(t *testing.T) {
+	data, err := views.ReadFile("views/app/main-layout.ui")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var layout struct {
+		Object struct {
+			Children []struct {
+				Type   string `xml:"type,attr"`
+				Object struct {
+					ID string `xml:"id,attr"`
+				} `xml:"object"`
+			} `xml:"child"`
+		} `xml:"object"`
+	}
+	if err := xml.Unmarshal(data, &layout); err != nil {
+		t.Fatal(err)
+	}
+	var topBars []string
+	for _, child := range layout.Object.Children {
+		if child.Type == "top" {
+			topBars = append(topBars, child.Object.ID)
+		}
+	}
+	if len(topBars) != 2 || topBars[0] != "headerBar" || topBars[1] != "offlineBanner" {
+		t.Fatalf("toolbar order = %v; expected header followed by offline banner", topBars)
+	}
+}
+
 // Visit all nested source directories, not just files at the views root.
 func viewFiles(t *testing.T) []string {
 	t.Helper()

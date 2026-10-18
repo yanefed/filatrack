@@ -27,13 +27,23 @@ var tables = []table{
 // database. It never changes the source and commits the destination only after
 // every table has been copied successfully.
 func Copy(ctx context.Context, source, target *sql.DB, targetDriver string) error {
+	return copyDatabase(ctx, source, target, targetDriver, false)
+}
+
+// ReplaceSQLite atomically refreshes a local snapshot. A failed refresh leaves
+// the previous snapshot intact, including its completion marker.
+func ReplaceSQLite(ctx context.Context, source, target *sql.DB) error {
+	return copyDatabase(ctx, source, target, "sqlite", true)
+}
+
+func copyDatabase(ctx context.Context, source, target *sql.DB, targetDriver string, replace bool) error {
 	if source == target {
 		return fmt.Errorf("source and target databases are identical")
 	}
 	if targetDriver != "sqlite" && targetDriver != "postgres" {
 		return fmt.Errorf("unsupported target driver %q", targetDriver)
 	}
-	src, err := source.BeginTx(ctx, &sql.TxOptions{ReadOnly: true})
+	src, err := source.BeginTx(ctx, &sql.TxOptions{ReadOnly: true, Isolation: sql.LevelRepeatableRead})
 	if err != nil {
 		return fmt.Errorf("starting source snapshot: %w", err)
 	}
@@ -48,17 +58,34 @@ func Copy(ctx context.Context, source, target *sql.DB, targetDriver string) erro
 			return fmt.Errorf("locking target tables: %w", err)
 		}
 	}
-	if err := checkEmpty(ctx, dst); err != nil {
-		return err
-	}
-	for _, name := range []string{"materials", "app_settings"} {
-		if _, err := dst.ExecContext(ctx, "DELETE FROM "+name); err != nil {
-			return fmt.Errorf("clearing default %s: %w", name, err)
+	if replace {
+		// Delete dependent rows first so foreign key enforcement stays enabled.
+		for i := len(tables) - 1; i >= 0; i-- {
+			if _, err := dst.ExecContext(ctx, "DELETE FROM "+tables[i].name); err != nil {
+				return fmt.Errorf("clearing snapshot %s: %w", tables[i].name, err)
+			}
+		}
+	} else {
+		if err := checkEmpty(ctx, dst); err != nil {
+			return err
+		}
+		for _, name := range []string{"materials", "app_settings"} {
+			if _, err := dst.ExecContext(ctx, "DELETE FROM "+name); err != nil {
+				return fmt.Errorf("clearing default %s: %w", name, err)
+			}
 		}
 	}
 	for _, tab := range tables {
 		if err := copyTable(ctx, src, dst, tab, targetDriver); err != nil {
 			return fmt.Errorf("copying %s: %w", tab.name, err)
+		}
+	}
+	if replace {
+		if _, err := dst.ExecContext(ctx, "CREATE TABLE IF NOT EXISTS snapshot_state (id INTEGER PRIMARY KEY CHECK (id=1), updated_at TEXT NOT NULL)"); err != nil {
+			return err
+		}
+		if _, err := dst.ExecContext(ctx, "INSERT OR REPLACE INTO snapshot_state (id, updated_at) VALUES (1, strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))"); err != nil {
+			return err
 		}
 	}
 	if err := dst.Commit(); err != nil {

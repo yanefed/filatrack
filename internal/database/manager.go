@@ -5,10 +5,13 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	"github.com/yanefed/filatrack/internal/port"
 	"log/slog"
 	"os"
 	"path/filepath"
+	"sync"
+	"time"
+
+	"github.com/yanefed/filatrack/internal/port"
 
 	"github.com/yanefed/filatrack/internal/config"
 	"github.com/yanefed/filatrack/internal/repository/postgres"
@@ -32,12 +35,22 @@ type Manager struct {
 	config         *config.Config
 	selection      config.DatabaseSelection
 	active         *backend
+	repositories   *backend
 	logger         *slog.Logger
 	stopActivity   func() error
 	resumeActivity func(context.Context) error
+	writeMu        sync.Mutex
+	stateMu        sync.RWMutex
+	activityMu     sync.Mutex
+	cache          *sqlite.DB
+	readOnly       bool
+	closed         bool
+	cacheUpdatedAt time.Time
 }
 
 func (m *Manager) SetActivityControl(stop func() error, resume func(context.Context) error) {
+	m.activityMu.Lock()
+	defer m.activityMu.Unlock()
 	m.stopActivity, m.resumeActivity = stop, resume
 }
 
@@ -58,12 +71,25 @@ func New(ctx context.Context, cfg *config.Config, logger *slog.Logger) (*Manager
 	m := &Manager{config: cfg, selection: selection, logger: logger}
 	m.active, err = m.open(ctx, selection)
 	if err != nil {
-		return nil, err
+		if selection.Driver != config.DriverPostgres {
+			return nil, err
+		}
+		if cacheErr := m.openOffline(ctx); cacheErr != nil {
+			return nil, errors.Join(err, fmt.Errorf("opening offline cache: %w", cacheErr))
+		}
+		logger.Warn("PostgreSQL unavailable; using read-only local cache", "error", err, "cached_at", m.cacheUpdatedAt)
+	} else if selection.Driver == config.DriverPostgres {
+		// Cache failures must not turn a committed primary write into an error.
+		// A later successful write will retry initialization and refresh.
+		m.refreshCache()
+	}
+	if selection.Driver == config.DriverPostgres {
+		m.wrapRepositories()
 	}
 	return m, nil
 }
 
-func (m *Manager) open(ctx context.Context, selection config.DatabaseSelection) (*backend, error) {
+func (m *Manager) open(ctx context.Context, selection config.DatabaseSelection) (result *backend, err error) {
 	switch selection.Driver {
 	case config.DriverSQLite:
 		path := selection.SQLitePath
@@ -73,31 +99,37 @@ func (m *Manager) open(ctx context.Context, selection config.DatabaseSelection) 
 		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 			return nil, err
 		}
-		db, err := sqlite.New(path)
+		var db *sqlite.DB
+		db, err = sqlite.New(path)
 		if err != nil {
 			return nil, err
 		}
-		if err := db.Migrate(); err != nil {
-			if closeErr := db.Close(); closeErr != nil {
-				err = errors.Join(err, fmt.Errorf("closing SQLite database after migration failure: %w", closeErr))
+		defer func() {
+			if err != nil {
+				if closeErr := db.Close(); closeErr != nil {
+					err = errors.Join(err, fmt.Errorf("closing SQLite database: %w", closeErr))
+				}
 			}
+		}()
+		if err := db.Migrate(); err != nil {
 			return nil, err
 		}
-		return &backend{
-			conn: db.Conn(), close: db.Close, spools: sqlite.NewSpoolRepo(db), prints: sqlite.NewPrintJobRepo(db),
-			dryings: sqlite.NewDryingRepoWithLogger(db, m.logger), settings: sqlite.NewSettingsRepo(db),
-			printers: sqlite.NewPrinterRepo(db), models: sqlite.NewPrinterModelRepo(db),
-			previewImages: sqlite.NewPreviewImageRepo(db),
-		}, nil
+		// The returned backend owns db and exposes its Close method.
+		return m.sqliteBackend(db), nil
 	case config.DriverPostgres:
-		db, err := postgres.New(ctx, selection.PostgresURL)
+		var db *postgres.DB
+		db, err = postgres.New(ctx, selection.PostgresURL)
 		if err != nil {
 			return nil, err
 		}
-		if err := db.Migrate(); err != nil {
-			if closeErr := db.Close(); closeErr != nil {
-				err = errors.Join(err, fmt.Errorf("closing PostgreSQL database after migration failure: %w", closeErr))
+		defer func() {
+			if err != nil {
+				if closeErr := db.Close(); closeErr != nil {
+					err = errors.Join(err, fmt.Errorf("closing PostgreSQL database: %w", closeErr))
+				}
 			}
+		}()
+		if err := db.MigrateContext(ctx); err != nil {
 			return nil, err
 		}
 		return &backend{
@@ -109,21 +141,65 @@ func (m *Manager) open(ctx context.Context, selection config.DatabaseSelection) 
 	}
 }
 
-func (m *Manager) Close() error                          { return m.active.close() }
+func (m *Manager) Close() error {
+	// Serialize shutdown with activity resumed by an asynchronous reconnect.
+	// Stop workers before taking writeMu so their pending writes can finish.
+	m.activityMu.Lock()
+	defer m.activityMu.Unlock()
+	var stopErr error
+	if m.stopActivity != nil {
+		stopErr = m.stopActivity()
+	}
+	m.writeMu.Lock()
+	defer m.writeMu.Unlock()
+	m.stateMu.Lock()
+	defer m.stateMu.Unlock()
+	if m.closed {
+		return stopErr
+	}
+	m.closed = true
+	err := errors.Join(stopErr, m.active.close())
+	if m.cache != nil {
+		err = errors.Join(err, m.cache.Close())
+	}
+	return err
+}
+
+func (m *Manager) ReadOnly() bool {
+	m.stateMu.RLock()
+	defer m.stateMu.RUnlock()
+	return m.readOnly
+}
+func (m *Manager) CacheUpdatedAt() time.Time {
+	m.stateMu.RLock()
+	defer m.stateMu.RUnlock()
+	return m.cacheUpdatedAt
+}
+
+func (m *Manager) repositoryBackend() *backend {
+	if m.repositories != nil {
+		return m.repositories
+	}
+	return m.active
+}
+
 func (m *Manager) Selection() config.DatabaseSelection   { return m.selection }
-func (m *Manager) Spools() port.SpoolRepository          { return m.active.spools }
-func (m *Manager) Prints() port.PrintJobRepository       { return m.active.prints }
-func (m *Manager) Dryings() port.DryingSessionRepository { return m.active.dryings }
-func (m *Manager) Settings() port.SettingsRepository     { return m.active.settings }
-func (m *Manager) Printers() port.PrinterRepository      { return m.active.printers }
-func (m *Manager) Models() port.PrinterModelRepository   { return m.active.models }
+func (m *Manager) Spools() port.SpoolRepository          { return m.repositoryBackend().spools }
+func (m *Manager) Prints() port.PrintJobRepository       { return m.repositoryBackend().prints }
+func (m *Manager) Dryings() port.DryingSessionRepository { return m.repositoryBackend().dryings }
+func (m *Manager) Settings() port.SettingsRepository     { return m.repositoryBackend().settings }
+func (m *Manager) Printers() port.PrinterRepository      { return m.repositoryBackend().printers }
+func (m *Manager) Models() port.PrinterModelRepository   { return m.repositoryBackend().models }
 func (m *Manager) PreviewImages() port.PreviewImageRepository {
-	return m.active.previewImages
+	return m.repositoryBackend().previewImages
 }
 
 // Switch changes the database used on the next launch. The caller should end
 // the current application session after success so no later writes hit source.
 func (m *Manager) Switch(ctx context.Context, next config.DatabaseSelection, migrate bool) (result error) {
+	if m.ReadOnly() {
+		return ErrReadOnly
+	}
 	if err := next.Validate(); err != nil {
 		return err
 	}

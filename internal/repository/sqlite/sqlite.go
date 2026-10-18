@@ -4,11 +4,34 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"net/url"
+	"path/filepath"
 	"strings"
 	"time"
 )
 
 type DB struct{ conn *sql.DB }
+
+// OpenReadOnly opens an existing database without migrations or writable
+// connections. mode=ro also applies when database/sql replaces a connection.
+func OpenReadOnly(ctx context.Context, path string) (*DB, error) {
+	absolute, err := filepath.Abs(path)
+	if err != nil {
+		return nil, err
+	}
+	u := url.URL{Scheme: "file", Path: absolute, RawQuery: "mode=ro"}
+	conn, err := sql.Open("sqlite", u.String())
+	if err != nil {
+		return nil, err
+	}
+	conn.SetMaxOpenConns(1)
+	conn.SetMaxIdleConns(1)
+	if err := conn.PingContext(ctx); err != nil {
+		_ = conn.Close()
+		return nil, err
+	}
+	return &DB{conn: conn}, nil
+}
 
 func New(dbPath string) (*DB, error) {
 	conn, err := sql.Open("sqlite", dbPath)

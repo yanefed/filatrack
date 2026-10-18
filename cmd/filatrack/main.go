@@ -3,6 +3,11 @@ package main
 import (
 	"context"
 	"fmt"
+	"log/slog"
+	"os"
+	"path/filepath"
+	"time"
+
 	"github.com/yanefed/filatrack/internal/config"
 	"github.com/yanefed/filatrack/internal/database"
 	"github.com/yanefed/filatrack/internal/i18n"
@@ -11,10 +16,6 @@ import (
 	"github.com/yanefed/filatrack/internal/repository/sqlite"
 	"github.com/yanefed/filatrack/internal/service"
 	"github.com/yanefed/filatrack/internal/ui"
-	"log/slog"
-	"os"
-	"path/filepath"
-	"time"
 
 	"go.uber.org/fx"
 	_ "modernc.org/sqlite"
@@ -142,10 +143,10 @@ func startPrinterMonitors(lifecycle fx.Lifecycle, cfg *config.Config, printerSvc
 	db.SetActivityControl(runner.Stop, runner.Start)
 	lifecycle.Append(fx.Hook{
 		OnStart: func(ctx context.Context) error {
+			if db.ReadOnly() {
+				return nil
+			}
 			return runner.Start(ctx)
-		},
-		OnStop: func(ctx context.Context) error {
-			return runner.Stop()
 		},
 	})
 }
@@ -154,8 +155,11 @@ func configurePrinterConnectionChecker(printerSvc *service.PrinterService) {
 	printerSvc.SetConnectionChecker(moonraker.HTTPMetadataFetcher{})
 }
 
-func configurePrinterJobClient(cfg *config.Config, printerSvc *service.PrinterService) {
-	printerSvc.SetJobClient(moonraker.HTTPControlClient{CacheDir: filepath.Join(cfg.DataDir, "cache", "gcode-previews")})
+func configurePrinterJobClient(cfg *config.Config, printerSvc *service.PrinterService, db *database.Manager) {
+	printerSvc.SetJobClient(databaseAwareJobClient{
+		CacheDir: filepath.Join(cfg.DataDir, "cache", "gcode-previews"),
+		database: db,
+	})
 }
 
 func configurePrinterModelCache(printerSvc *service.PrinterService, models port.PrinterModelRepository) {

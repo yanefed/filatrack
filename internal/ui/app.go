@@ -2,6 +2,12 @@ package ui
 
 import (
 	"context"
+	"fmt"
+	"log/slog"
+	"os"
+	"runtime"
+	"time"
+
 	"github.com/yanefed/filatrack/internal/database"
 	"github.com/yanefed/filatrack/internal/i18n"
 	"github.com/yanefed/filatrack/internal/service"
@@ -12,11 +18,9 @@ import (
 	"github.com/yanefed/filatrack/internal/ui/screens/printers"
 	"github.com/yanefed/filatrack/internal/ui/screens/prints"
 	"github.com/yanefed/filatrack/internal/ui/screens/settings"
+	"github.com/yanefed/filatrack/internal/ui/screens/shared"
 	"github.com/yanefed/filatrack/internal/ui/screens/spools"
 	"github.com/yanefed/filatrack/packaging/metadata"
-	"log/slog"
-	"os"
-	"runtime"
 
 	"github.com/diamondburned/gotk4-adwaita/pkg/adw"
 	coreglib "github.com/diamondburned/gotk4/pkg/core/glib"
@@ -79,6 +83,7 @@ func (a *App) activate(app *adw.Application) {
 	var currentContent *adw.ToolbarView
 	var currentStack *gtk.Stack
 	var visibleChildHandle coreglib.SignalHandle
+	reconnecting := false
 	var rebuildUI func()
 	rebuildUI = func() {
 		view := layout.Load("main-layout")
@@ -98,6 +103,42 @@ func (a *App) activate(app *adw.Application) {
 		}
 
 		t := i18n.L()
+		readOnly := a.Database != nil && a.Database.ReadOnly()
+		banner := layout.Get[*adw.Banner](view, "offlineBanner")
+		banner.SetRevealed(readOnly)
+		if readOnly {
+			cachedAt := a.Database.CacheUpdatedAt().Local().Format("02.01.2006 15:04:05")
+			banner.SetTitle(fmt.Sprintf(t.DatabaseOfflineFmt, cachedAt))
+			banner.SetButtonLabel(t.DatabaseRetry)
+			banner.SetSensitive(!reconnecting)
+			banner.ConnectButtonClicked(func() {
+				if reconnecting {
+					return
+				}
+				reconnecting = true
+				banner.SetSensitive(false)
+				banner.SetButtonLabel(t.DatabaseRetrying)
+				var reconnectErr error
+				shared.RunAsyncUI(func() {
+					retryCtx, cancel := context.WithTimeout(ctx, 15*time.Second)
+					defer cancel()
+					reconnectErr = a.Database.Reconnect(retryCtx)
+				}, func() {
+					reconnecting = false
+					if ctx.Err() != nil {
+						return
+					}
+					if reconnectErr != nil {
+						slog.Warn("reconnecting database", "error", reconnectErr)
+						banner.SetTitle(fmt.Sprintf(t.DatabaseRetryFailedFmt, cachedAt))
+						banner.SetButtonLabel(t.DatabaseRetry)
+						banner.SetSensitive(true)
+						return
+					}
+					rebuildUI()
+				})
+			})
+		}
 
 		stack := layout.Get[*gtk.Stack](view, "stack")
 
@@ -190,7 +231,7 @@ func (a *App) activate(app *adw.Application) {
 		stack.Page(printersPage).SetTitle(t.Printers)
 
 		settingsPage, refreshSettings := settings.NewSettingsScreen(ctx, parentWindow, a.SettingsService, refreshSettingsDependencies, rebuildUI, settings.DatabaseOptions{Manager: a.Database, OnSwitched: app.Quit, View: layout.Scope(view, "settings")})
-		_ = settingsPage
+		settingsPage.SetSensitive(!readOnly)
 
 		addSpoolButton := layout.Get[*gtk.Button](view, "addSpoolButton")
 		addSpoolButton.SetTooltipText(t.AddSpoolBtn)
@@ -201,6 +242,9 @@ func (a *App) activate(app *adw.Application) {
 		}, layout.Scope(view, "headerBar_slot_2"))
 
 		toolbarView := layout.Get[*adw.ToolbarView](view, "toolbarView")
+		for _, button := range []*gtk.Button{addSpoolButton, refreshHistoryButton, addModelButton, refreshModelsButton, addDryingButton, addPrinterButton} {
+			button.SetSensitive(!readOnly)
+		}
 
 		window.SetContent(toolbarView)
 		currentContent = toolbarView
