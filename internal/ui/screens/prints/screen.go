@@ -3,14 +3,14 @@ package prints
 import (
 	"context"
 	"fmt"
+
+	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 	"github.com/yanefed/filatrack/internal/domain"
 	"github.com/yanefed/filatrack/internal/i18n"
 	"github.com/yanefed/filatrack/internal/service"
 	"github.com/yanefed/filatrack/internal/ui/layout"
 	"github.com/yanefed/filatrack/internal/ui/screens/shared"
 	"github.com/yanefed/filatrack/internal/ui/widgets"
-
-	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 )
 
 const printsRenderLimit = 250
@@ -113,7 +113,8 @@ func NewPrintsScreen(ctx context.Context, parent *gtk.Window, printSvc *service.
 			emptyLabel.SetVisible(false)
 			return
 		}
-		currentSpools := shared.ActiveSpools(ctx, spoolSvc)
+		// Все катушки, включая архивированные: записи истории могут ссылаться на них.
+		currentSpools := shared.AllSpools(ctx, spoolSvc)
 		activePrintCount = renderActivePrints()
 		updatePrintsList(jobs, currentSpools)
 		emptyLabel.SetVisible(activePrintCount == 0 && len(jobs) == 0)
