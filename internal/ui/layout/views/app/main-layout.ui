@@ -45,6 +45,25 @@
           </object>
         </child>
         <child type="end">
+          <object class="GtkMenuButton" id="models_modelOptionsBtn">
+            <property name="icon-name">open-menu-symbolic</property>
+            <property name="popover">
+              <object class="GtkPopover" id="models_modelOptionsPopover">
+                <property name="child">
+                  <object class="GtkBox">
+                    <property name="orientation">vertical</property>
+                    <child>
+                      <object class="GtkButton" id="models_refreshAllMetadataBtn">
+                        <style><class name="flat"/></style>
+                      </object>
+                    </child>
+                  </object>
+                </property>
+              </object>
+            </property>
+          </object>
+        </child>
+        <child type="end">
           <object class="GtkButton" id="drying_addDryingButton">
             <property name="icon-name">list-add-symbolic</property>
           </object>

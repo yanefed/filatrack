@@ -233,6 +233,11 @@ func ScanDryingSession(scanner Scanner) (DryingSession, error) {
 }
 
 type PrinterModel struct {
+	MetadataReady    bool
+	GcodeParsed      bool
+	SourceURL        string
+	FilamentWeightG  float64
+	FilamentLengthMM float64
 	PrinterID        string
 	Path             string
 	Filename         string
@@ -248,6 +253,8 @@ type PrinterModel struct {
 
 func PrinterModelFromDomain(model domain.PrinterModelFile) PrinterModel {
 	return PrinterModel{
+		MetadataReady: model.MetadataReady, GcodeParsed: model.GcodeParsed, SourceURL: model.SourceURL,
+		FilamentWeightG: model.FilamentWeightG, FilamentLengthMM: model.FilamentLengthMM,
 		PrinterID: model.PrinterID, Path: model.Path, Filename: model.Filename,
 		ModifiedAt: NullTime(model.ModifiedAt), SizeBytes: model.SizeBytes,
 		EstimatedWeightG: model.EstimatedWeightG,
@@ -258,6 +265,8 @@ func PrinterModelFromDomain(model domain.PrinterModelFile) PrinterModel {
 
 func (model PrinterModel) Domain() domain.PrinterModelFile {
 	result := domain.PrinterModelFile{
+		MetadataReady: model.MetadataReady, GcodeParsed: model.GcodeParsed, SourceURL: model.SourceURL,
+		FilamentWeightG: model.FilamentWeightG, FilamentLengthMM: model.FilamentLengthMM,
 		PrinterID: model.PrinterID, Path: model.Path, Filename: model.Filename,
 		SizeBytes: model.SizeBytes, EstimatedWeightG: model.EstimatedWeightG,
 		PrintDuration: time.Duration(model.PrintDurationSec) * time.Second,
@@ -276,6 +285,7 @@ func ScanPrinterModel(scanner Scanner) (PrinterModel, error) {
 		&model.PrinterID, &model.Path, &model.Filename, &model.ModifiedAt,
 		&model.SizeBytes, &model.EstimatedWeightG, &model.PrintDurationSec,
 		&model.Slicer, &model.PreviewImagePath, &model.CachedAt, &model.PreviewImageHash,
+		&model.MetadataReady, &model.GcodeParsed, &model.SourceURL, &model.FilamentWeightG, &model.FilamentLengthMM,
 	)
 	return model, err
 }

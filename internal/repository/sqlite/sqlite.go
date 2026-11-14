@@ -10,7 +10,10 @@ import (
 	"time"
 )
 
-type DB struct{ conn *sql.DB }
+type DB struct {
+	conn     *sql.DB
+	readOnly bool
+}
 
 // OpenReadOnly opens an existing database without migrations or writable
 // connections. mode=ro also applies when database/sql replaces a connection.
@@ -30,7 +33,7 @@ func OpenReadOnly(ctx context.Context, path string) (*DB, error) {
 		_ = conn.Close()
 		return nil, err
 	}
-	return &DB{conn: conn}, nil
+	return &DB{conn: conn, readOnly: true}, nil
 }
 
 func New(dbPath string) (*DB, error) {

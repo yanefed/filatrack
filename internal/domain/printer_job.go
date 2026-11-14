@@ -39,6 +39,12 @@ type PrinterHistoryJob struct {
 }
 
 type PrinterModelFile struct {
+	// MetadataReady distinguishes successfully checked files from retryable failures.
+	MetadataReady    bool
+	GcodeParsed      bool
+	SourceURL        string
+	FilamentWeightG  float64
+	FilamentLengthMM float64
 	PrinterID        string
 	Path             string
 	Filename         string

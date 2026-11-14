@@ -129,4 +129,9 @@ var langBg = T{
 	LowFilamentSetting:     "Позволи стартиране при предупреждение за малко филамент",
 	LowFilamentLevel:       "Ниско ниво на филамента (г)",
 	AboutProgram:           "За програмата",
+
+	RefreshAllModelMetadata: "Презареди всички метаданни",
+	RefreshingModels:        "Обновяване на моделите…",
+	PartialModelRefresh:     "Обновяването завърши с %d грешки.",
+	ModelRefreshOptions:     "Опции за обновяване на моделите",
 }

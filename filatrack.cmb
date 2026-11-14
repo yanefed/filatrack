@@ -4,7 +4,7 @@
 <cambalache-project version="1.0.0" target_tk="gtk-4.0" depends="libadwaita-1">
   <css priority="600" is_global="1" filename="internal/ui/layout/styles/app.css" sha256="071d034c2c1b94b841822c3257b6f40ba15d92370ce4fa731905c4a5b6b3e164"/>
   <css priority="600" is_global="0" filename="internal/ui/layout/styles/macos.css" sha256="47cb3547062331871c70398a785e4abf510ba6e933e5da2a7528879cc6cfb693"/>
-  <ui filename="internal/ui/layout/views/app/main-layout.ui" sha256="76cb69a60a529f33ff45b0e93c4855f83b1ee9b64231b047287818ed3dcbaa88"/>
+  <ui filename="internal/ui/layout/views/app/main-layout.ui" sha256="be489ea29ccdbce69c894055e0d41ad591e3f191d7f7004f1cd6fcbf887edbb3"/>
   <ui filename="internal/ui/layout/views/app/about-dialog.ui" sha256="978b941a18962846325c14f2bdd71207b2b8bd3878e8439f47970b34432cb829"/>
   <ui filename="internal/ui/layout/views/prints/active-print-card.ui" sha256="dd3d2799c89b8d4b8e3f8b2b5e68cc98d17a6a3e4d8f3b570c57205910a0a545"/>
   <ui filename="internal/ui/layout/views/dashboard/active-printers.ui" sha256="0e0edccdd6a455d1e1f07d078196cb2ba470ac0ca07487c278284eb488a6af3f"/>

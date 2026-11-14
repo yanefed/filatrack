@@ -221,7 +221,7 @@ func (a *App) activate(app *adw.Application) {
 		printsPage, refreshPrints, refreshPrintsLive, refreshHistoryButton, printsPrinterFilter := prints.NewPrintsScreen(ctx, parentWindow, a.PrintService, a.PrinterService, a.SpoolService, refreshPrintDependencies, layout.Scope(view, "prints"))
 		stack.Page(printsPage).SetTitle(t.Prints)
 
-		modelsPage, refreshModels, addModelButton, refreshModelsButton := models.NewModelsScreen(ctx, parentWindow, a.PrinterService, a.SpoolService, a.SettingsService, refreshModelDependencies, layout.Scope(view, "models"))
+		modelsPage, refreshModels, addModelButton, refreshModelsButton, modelOptionsButton := models.NewModelsScreen(ctx, parentWindow, a.PrinterService, a.SpoolService, a.SettingsService, refreshModelDependencies, layout.Scope(view, "models"))
 		stack.Page(modelsPage).SetTitle(t.Models)
 
 		dryingPage, refreshDrying, addDryingButton := drying.NewDryingScreen(ctx, parentWindow, a.DryingService, a.SpoolService, refreshDryingDependencies, layout.Scope(view, "drying"))
@@ -246,6 +246,8 @@ func (a *App) activate(app *adw.Application) {
 			button.SetSensitive(!readOnly)
 		}
 
+		modelOptionsButton.SetSensitive(!readOnly)
+
 		window.SetContent(toolbarView)
 		currentContent = toolbarView
 		currentStack = stack
@@ -256,6 +258,7 @@ func (a *App) activate(app *adw.Application) {
 			printsPrinterFilter.SetVisible(stackShowsPage(stack, printsPage))
 			addModelButton.SetVisible(stackShowsPage(stack, modelsPage))
 			refreshModelsButton.SetVisible(stackShowsPage(stack, modelsPage))
+			modelOptionsButton.SetVisible(stackShowsPage(stack, modelsPage))
 			addDryingButton.SetVisible(stackShowsPage(stack, dryingPage))
 			addPrinterButton.SetVisible(stackShowsPage(stack, printersPage))
 		}

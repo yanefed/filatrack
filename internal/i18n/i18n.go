@@ -155,6 +155,12 @@ type T struct {
 	LowFilamentSetting string
 	LowFilamentLevel   string
 
+	// Model catalog synchronization
+	RefreshAllModelMetadata string
+	RefreshingModels        string
+	PartialModelRefresh     string
+	ModelRefreshOptions     string
+
 	// About
 	AboutProgram string
 }

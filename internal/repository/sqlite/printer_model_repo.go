@@ -34,8 +34,8 @@ func (r *PrinterModelRepo) SaveForPrinter(ctx context.Context, printerID string,
 	stmt, err := tx.PrepareContext(ctx, `
 		INSERT INTO printer_models (
 			printer_id, path, filename, modified_at, size_bytes, estimated_weight_g,
-			print_duration_sec, slicer, preview_image_path, cached_at, preview_image_hash
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+			print_duration_sec, slicer, preview_image_path, cached_at, preview_image_hash, metadata_ready, gcode_parsed, source_url, filament_weight_g, filament_length_mm
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
 	if err != nil {
 		return fmt.Errorf("preparing printer model insert: %w", err)
 	}
@@ -51,6 +51,7 @@ func (r *PrinterModelRepo) SaveForPrinter(ctx context.Context, printerID string,
 			persisted.PrinterID, persisted.Path, persisted.Filename, persisted.ModifiedAt, persisted.SizeBytes,
 			persisted.EstimatedWeightG, persisted.PrintDurationSec, persisted.Slicer,
 			persisted.PreviewImagePath, persisted.CachedAt, persisted.PreviewImageHash,
+			persisted.MetadataReady, persisted.GcodeParsed, persisted.SourceURL, persisted.FilamentWeightG, persisted.FilamentLengthMM,
 		); err != nil {
 			return fmt.Errorf("inserting printer model %s: %w", model.Path, err)
 		}
@@ -63,7 +64,19 @@ func (r *PrinterModelRepo) SaveForPrinter(ctx context.Context, printerID string,
 }
 
 func (r *PrinterModelRepo) List(ctx context.Context, printerID *string) (result []domain.PrinterModelFile, err error) {
-	query := `SELECT printer_id, path, filename, modified_at, size_bytes, estimated_weight_g, print_duration_sec, slicer, preview_image_path, cached_at, preview_image_hash FROM printer_models`
+	metadataColumns := "metadata_ready, gcode_parsed, source_url, filament_weight_g, filament_length_mm"
+	if r.db.readOnly {
+		// Offline snapshots are immutable and may predate metadata caching.
+		// Writable databases always run migrations before repositories are used.
+		var columns int
+		if err := r.db.conn.QueryRowContext(ctx, `SELECT COUNT(*) FROM pragma_table_info('printer_models') WHERE name='metadata_ready'`).Scan(&columns); err != nil {
+			return nil, fmt.Errorf("reading snapshot model schema: %w", err)
+		}
+		if columns == 0 {
+			metadataColumns = "FALSE, FALSE, '', 0, 0"
+		}
+	}
+	query := `SELECT printer_id, path, filename, modified_at, size_bytes, estimated_weight_g, print_duration_sec, slicer, preview_image_path, cached_at, preview_image_hash, ` + metadataColumns + ` FROM printer_models`
 	var args []any
 	if printerID != nil {
 		query += ` WHERE printer_id = ?`

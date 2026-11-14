@@ -129,4 +129,9 @@ var langRu = T{
 	LowFilamentSetting:     "Разрешить печать при малом остатке филамента",
 	LowFilamentLevel:       "Низкий уровень филамента (г)",
 	AboutProgram:           "О программе",
+
+	RefreshAllModelMetadata: "Перечитать все метаданные",
+	RefreshingModels:        "Обновление моделей…",
+	PartialModelRefresh:     "Обновление завершено с ошибками: %d.",
+	ModelRefreshOptions:     "Параметры обновления моделей",
 }

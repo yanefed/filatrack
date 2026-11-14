@@ -44,7 +44,7 @@ func TestSQLitePostgresRoundTrip(t *testing.T) {
 		`INSERT INTO printers (id, name, kind, moonraker_url) VALUES ('p1', 'Printer', 'moonraker', 'http://localhost')`,
 		`INSERT INTO print_jobs (id, spool_id, printer_id, gcode_filename, status, estimated_weight_g, actual_weight_g) VALUES ('j1', 's1', 'p1', 'part.gcode', 'success', 10, 9)`,
 		`INSERT INTO drying_sessions (id, spool_id, temperature_c, duration_hours) VALUES ('d1', 's1', 45, 4)`,
-		`INSERT INTO printer_models (printer_id, path) VALUES ('p1', 'part.gcode')`,
+		`INSERT INTO printer_models (printer_id, path, metadata_ready, gcode_parsed, source_url, filament_weight_g, filament_length_mm) VALUES ('p1', 'part.gcode', TRUE, TRUE, 'http://localhost', 10, 3000)`,
 		`UPDATE app_settings SET value = 'ru' WHERE key = 'language'`,
 	}
 	for _, stmt := range statements {
@@ -87,7 +87,7 @@ func TestSQLitePostgresRoundTrip(t *testing.T) {
 		t.Fatalf("PostgreSQL drying = %+v, %v", dryings, err)
 	}
 	models, err := pg.PrinterModels().List(ctx, nil)
-	if err != nil || len(models) != 1 {
+	if err != nil || len(models) != 1 || !models[0].MetadataReady || !models[0].GcodeParsed || models[0].SourceURL != "http://localhost" || models[0].FilamentWeightG != 10 || models[0].FilamentLengthMM != 3000 {
 		t.Fatalf("PostgreSQL models = %+v, %v", models, err)
 	}
 	if language, err := pg.Settings().GetSetting(ctx, "language"); err != nil || language != "ru" {
@@ -102,7 +102,7 @@ func TestSQLitePostgresRoundTrip(t *testing.T) {
 	if err := pg.Prints().UpdateUsage(ctx, "j1", 11, 10, 100, 100, true); err != nil {
 		t.Fatal(err)
 	}
-	if err := pg.PrinterModels().SaveForPrinter(ctx, "p1", []domain.PrinterModelFile{{Path: "part.gcode"}}); err != nil {
+	if err := pg.PrinterModels().SaveForPrinter(ctx, "p1", models); err != nil {
 		t.Fatal(err)
 	}
 	dst := newSQLite(t)
@@ -210,5 +210,28 @@ func TestCopyRollsBackWhenAnInsertedRowViolatesForeignKey(t *testing.T) {
 	}
 	if err := dst.Conn().QueryRow(`SELECT COUNT(*) FROM materials`).Scan(&count); err != nil || count != 7 {
 		t.Fatalf("target retained %d materials after failure: %v", count, err)
+	}
+}
+
+func TestModelMetadataSurvivesSQLiteSnapshot(t *testing.T) {
+	src, dst := newSQLite(t), newSQLite(t)
+	ctx := t.Context()
+	if err := sqlite.NewPrinterRepo(src).Create(ctx, &domain.Printer{ID: "p", Name: "Printer", Kind: domain.PrinterKindMoonraker, MoonrakerURL: "http://printer"}); err != nil {
+		t.Fatal(err)
+	}
+	original := domain.PrinterModelFile{Path: "part.gcode", MetadataReady: true, GcodeParsed: true, SourceURL: "http://printer", FilamentWeightG: 12, FilamentLengthMM: 4000}
+	if err := sqlite.NewPrinterModelRepo(src).SaveForPrinter(ctx, "p", []domain.PrinterModelFile{original}); err != nil {
+		t.Fatal(err)
+	}
+	if err := ReplaceSQLite(ctx, src.Conn(), dst.Conn()); err != nil {
+		t.Fatal(err)
+	}
+	models, err := sqlite.NewPrinterModelRepo(dst).List(ctx, nil)
+	if err != nil || len(models) != 1 {
+		t.Fatalf("snapshot: %+v %v", models, err)
+	}
+	got := models[0]
+	if !got.MetadataReady || !got.GcodeParsed || got.SourceURL != original.SourceURL || got.FilamentWeightG != 12 || got.FilamentLengthMM != 4000 {
+		t.Fatalf("lost metadata: %+v", got)
 	}
 }

@@ -13,7 +13,7 @@ import (
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 )
 
-func NewModelsScreen(ctx context.Context, parent *gtk.Window, printerSvc *service.PrinterService, spoolSvc *service.SpoolService, settingsSvc *service.SettingsService, onChanged func(), views ...*layout.View) (*gtk.Box, func(), *gtk.Button, *gtk.Button) {
+func NewModelsScreen(ctx context.Context, parent *gtk.Window, printerSvc *service.PrinterService, spoolSvc *service.SpoolService, settingsSvc *service.SettingsService, onChanged func(), views ...*layout.View) (*gtk.Box, func(), *gtk.Button, *gtk.Button, *gtk.MenuButton) {
 	view := layout.Use("models-screen", views...)
 
 	t := i18n.L()
@@ -57,28 +57,57 @@ func NewModelsScreen(ctx context.Context, parent *gtk.Window, printerSvc *servic
 		spools = loaded
 	}
 
-	refreshModels := func() {
-		updateModelsList(nil, printers, spools)
-		emptyLabel.SetLabel("Loading…")
-		emptyLabel.SetVisible(true)
+	optionsBtn := layout.Get[*gtk.MenuButton](view, "modelOptionsBtn")
+	optionsBtn.SetTooltipText(t.ModelRefreshOptions)
+	forceBtn := layout.Get[*gtk.Button](view, "refreshAllMetadataBtn")
+	forceBtn.SetLabel(t.RefreshAllModelMetadata)
+	popover := layout.Get[*gtk.Popover](view, "modelOptionsPopover")
+	var currentModels []domain.PrinterModelFile
+	var generation uint64
+	refreshing, reloadAfterRefresh := false, false
+	var loadCached func()
+	showModels := func(models []domain.PrinterModelFile) {
+		currentModels = models
+		emptyLabel.SetLabel(t.NoPrinterModels)
+		emptyLabel.SetVisible(len(models) == 0)
+		updateModelsList(models, printers, spools)
+	}
+	refreshCatalog := func(mode service.ModelRefreshMode) {
+		if refreshing {
+			return
+		}
+		refreshing = true
+		generation++ // Ignore any cache read started before this refresh.
 		refreshModelsBtn.SetSensitive(false)
-
-		var models []domain.PrinterModelFile
+		optionsBtn.SetSensitive(false)
+		messageLabel.SetLabel(t.RefreshingModels)
+		messageLabel.SetVisible(true)
+		var result service.ModelRefreshResult
 		var err error
 		shared.RunAsyncUI(func() {
-			models, err = printerSvc.RefreshAllModels(ctx)
+			result, err = printerSvc.RefreshModelCatalog(ctx, mode)
 		}, func() {
+			refreshing = false
 			refreshModelsBtn.SetSensitive(true)
+			optionsBtn.SetSensitive(true)
 			if err != nil {
-				emptyLabel.SetLabel(fmt.Sprintf("%s: %v", t.ErrorPrefix, err))
-				emptyLabel.SetVisible(true)
-				return
+				messageLabel.SetLabel(fmt.Sprintf("%s: %v", t.ErrorPrefix, err))
+				messageLabel.SetVisible(true)
+			} else {
+				showModels(result.Models)
+				messageLabel.SetVisible(len(result.Failures) > 0)
+				if len(result.Failures) > 0 {
+					messageLabel.SetLabel(fmt.Sprintf(t.PartialModelRefresh, len(result.Failures)) + "\n" + result.Failures[0].Error())
+				}
 			}
-			emptyLabel.SetLabel(t.NoPrinterModels)
-			emptyLabel.SetVisible(len(models) == 0)
-			updateModelsList(models, printers, spools)
+			if reloadAfterRefresh {
+				reloadAfterRefresh = false
+				loadCached()
+			}
 		})
 	}
+	refreshModels := func() { refreshCatalog(service.ModelRefreshChanges) }
+	forceBtn.ConnectClicked(func() { popover.Popdown(); refreshCatalog(service.ModelRefreshFull) })
 
 	addModelBtn.ConnectClicked(func() {
 		showModelUploadDialog(t, ctx, parent, printerSvc, settingsSvc, printers, spools, messageLabel, func() {
@@ -91,29 +120,35 @@ func NewModelsScreen(ctx context.Context, parent *gtk.Window, printerSvc *servic
 
 	refreshModelsBtn.ConnectClicked(refreshModels)
 
+	loadCached = func() {
+		generation++
+		started := generation
+		var models []domain.PrinterModelFile
+		var err error
+		shared.RunAsyncUI(func() { models, err = printerSvc.ListAllModels(ctx) }, func() {
+			if started != generation {
+				return
+			}
+			if err != nil {
+				messageLabel.SetLabel(fmt.Sprintf("%s: %v", t.ErrorPrefix, err))
+				messageLabel.SetVisible(true)
+				return
+			}
+			showModels(models)
+		})
+	}
 	refreshScreen := func() {
 		refreshPrinterChoices()
 		refreshSpoolChoices()
-		updateModelsList(nil, printers, spools)
-		emptyLabel.SetLabel("Loading…")
-		emptyLabel.SetVisible(true)
-		var models []domain.PrinterModelFile
-		var err error
-		shared.RunAsyncUI(func() {
-			models, err = printerSvc.ListAllModels(ctx)
-		}, func() {
-			if err != nil {
-				emptyLabel.SetLabel(fmt.Sprintf("%s: %v", t.ErrorPrefix, err))
-				emptyLabel.SetVisible(true)
-				return
-			}
-			emptyLabel.SetLabel(t.NoPrinterModels)
-			emptyLabel.SetVisible(len(models) == 0)
-			updateModelsList(models, printers, spools)
-		})
+		updateModelsList(currentModels, printers, spools)
+		if refreshing {
+			reloadAfterRefresh = true
+			return
+		}
+		loadCached()
 	}
 	refreshScreen()
-	return box, refreshScreen, addModelBtn, refreshModelsBtn
+	return box, refreshScreen, addModelBtn, refreshModelsBtn, optionsBtn
 }
 
 func showPrintLaunchDialog(t i18n.T, ctx context.Context, parent *gtk.Window, printerSvc *service.PrinterService, settingsSvc *service.SettingsService, printers []domain.Printer, spools []domain.Spool, defaultPrinterID string, launch func(domain.PrintLaunchRequest) (*domain.PrintLaunchResult, error), messageLabel *gtk.Label, onSuccess func()) {

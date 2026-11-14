@@ -20,7 +20,7 @@ var tables = []table{
 	{"preview_images", "hash,image_data,created_at"},
 	{"print_jobs", "id,spool_id,printer_id,external_print_id,gcode_filename,model_name,status,completion_percent,estimated_weight_g,actual_weight_g,estimated_length_mm,print_duration_sec,nozzle_temp_c,bed_temp_c,slicer,preview_image_path,notes,printed_at,created_at,usage_measured,preview_image_hash"},
 	{"drying_sessions", "id,spool_id,temperature_c,duration_hours,dried_at,created_at"},
-	{"printer_models", "printer_id,path,filename,modified_at,size_bytes,estimated_weight_g,print_duration_sec,slicer,preview_image_path,cached_at,preview_image_hash"},
+	{"printer_models", "printer_id,path,filename,modified_at,size_bytes,estimated_weight_g,print_duration_sec,slicer,preview_image_path,cached_at,preview_image_hash,metadata_ready,gcode_parsed,source_url,filament_weight_g,filament_length_mm"},
 }
 
 // Copy copies a complete application database into a freshly initialized

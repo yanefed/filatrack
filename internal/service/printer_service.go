@@ -39,6 +39,7 @@ func NewPrinterService(
 	}
 	logger = logger.With("service", "printer")
 	catalog := &printerModels{
+		printerSlots: make(chan struct{}, 2), metadataSlots: make(chan struct{}, metadataSyncConcurrency),
 		logger: logger, printers: printers, spools: spools,
 		models: options.Models, previews: options.Previews, jobClient: options.JobClient,
 	}

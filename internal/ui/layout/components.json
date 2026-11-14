@@ -207,7 +207,8 @@
     "roots": [
       "models_box",
       "models_addModelBtn",
-      "models_refreshModelsBtn"
+      "models_refreshModelsBtn",
+      "models_modelOptionsBtn"
     ]
   },
   "print-launch-dialog": {

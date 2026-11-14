@@ -129,4 +129,9 @@ var langEn = T{
 	LowFilamentSetting:     "Allow starting prints with low-filament warning",
 	LowFilamentLevel:       "Low filament level (g)",
 	AboutProgram:           "About",
+
+	RefreshAllModelMetadata: "Reload all metadata",
+	RefreshingModels:        "Updating models…",
+	PartialModelRefresh:     "Updated with %d issue(s).",
+	ModelRefreshOptions:     "Model refresh options",
 }
