@@ -343,8 +343,14 @@ codesign --verify --deep --strict "$APP"
 
 if [[ "$CREATE_DMG" -eq 1 ]]; then
   DMG="$DIST_DIR/$APP_NAME-$VERSION-macos-$ARCH.dmg"
+  DMG_CONTENTS="$(mktemp -d "$DIST_DIR/.dmg-contents.XXXXXX")"
+  trap 'rm -rf -- "$DMG_CONTENTS"' EXIT
+  cp -R "$APP" "$DMG_CONTENTS/$APP_NAME.app"
+  ln -s /Applications "$DMG_CONTENTS/Applications"
   rm -f -- "$DMG"
-  hdiutil create -volname "$APP_NAME" -srcfolder "$APP" -ov -format UDZO "$DMG"
+  hdiutil create -volname "$APP_NAME" -srcfolder "$DMG_CONTENTS" -ov -format UDZO "$DMG"
+  rm -rf -- "$DMG_CONTENTS"
+  trap - EXIT
   echo "Built $DMG"
 fi
 
