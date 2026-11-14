@@ -38,7 +38,12 @@ func showAddDryingDialog(ctx context.Context, parent *gtk.Window, dryingSvc *ser
 	form.SetSpools(t, spools, "")
 
 	applyRecommendation := func() {
-		form.SetRecommendation(dryingProfileForSpool(ctx, dryingSvc, spools, form.spoolDropdown.Selected()))
+		profile, err := dryingProfileForSpool(ctx, dryingSvc, spools, form.spoolDropdown.Selected())
+		if err != nil {
+			errorLabel.SetLabel(fmt.Sprintf("%s: %v", t.ErrorPrefix, err))
+			errorLabel.SetVisible(true)
+		}
+		form.SetRecommendation(profile)
 	}
 	form.spoolDropdown.NotifyProperty("selected", applyRecommendation)
 	applyRecommendation()
@@ -74,9 +79,9 @@ func showAddDryingDialog(ctx context.Context, parent *gtk.Window, dryingSvc *ser
 	dialog.SetVisible(true)
 }
 
-func dryingProfileForSpool(ctx context.Context, dryingSvc *service.DryingService, spools []domain.Spool, selected uint) *domain.DryingProfile {
+func dryingProfileForSpool(ctx context.Context, dryingSvc *service.DryingService, spools []domain.Spool, selected uint) (*domain.DryingProfile, error) {
 	if int(selected) >= len(spools) {
-		return nil
+		return nil, nil
 	}
 	return dryingSvc.GetRecommendation(ctx, spools[selected].Material)
 }

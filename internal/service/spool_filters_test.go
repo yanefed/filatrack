@@ -1,11 +1,12 @@
 package service_test
 
 import (
+	"reflect"
+	"testing"
+
 	"github.com/yanefed/filatrack/internal/domain"
 	"github.com/yanefed/filatrack/internal/repository/sqlite"
 	"github.com/yanefed/filatrack/internal/service"
-	"reflect"
-	"testing"
 
 	_ "modernc.org/sqlite"
 )

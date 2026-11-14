@@ -3,9 +3,6 @@ package service
 import (
 	"context"
 	"errors"
-	"github.com/yanefed/filatrack/internal/domain"
-	"github.com/yanefed/filatrack/internal/i18n"
-	"github.com/yanefed/filatrack/internal/port"
 	"math"
 	"os"
 	"path/filepath"
@@ -14,6 +11,10 @@ import (
 	"sync/atomic"
 	"testing"
 	"time"
+
+	"github.com/yanefed/filatrack/internal/domain"
+	"github.com/yanefed/filatrack/internal/i18n"
+	"github.com/yanefed/filatrack/internal/port"
 )
 
 type spoolRepoStub struct {
@@ -177,8 +178,13 @@ func newTestPrinterService(
 	printers port.PrinterRepository,
 	spools port.SpoolRepository,
 	prints port.PrintJobRepository,
+	options ...PrinterOptions,
 ) *PrinterService {
-	return NewPrinterService(printers, spools, prints, &settingsRepoStub{setting: "50"})
+	var opts PrinterOptions
+	if len(options) > 0 {
+		opts = options[0]
+	}
+	return NewPrinterService(printers, spools, prints, &settingsRepoStub{setting: "50"}, opts)
 }
 
 func (r *settingsRepoStub) GetDryingProfileForMaterial(_ context.Context, material domain.Material) (*domain.DryingProfile, error) {
@@ -537,7 +543,7 @@ func TestPrintServiceListAndStats(t *testing.T) {
 		listErr:  wantErr,
 		statsErr: wantErr,
 	}
-	service := NewPrintService(prints, &spoolRepoStub{})
+	service := NewPrintService(prints, &spoolRepoStub{}, nil)
 
 	if jobs, err := service.List(t.Context(), domain.PrintJobFilter{}); len(jobs) != 1 || !errors.Is(err, wantErr) {
 		t.Fatalf("List() = (%+v, %v)", jobs, err)
@@ -555,7 +561,7 @@ func TestPrintServiceChangeSpool(t *testing.T) {
 	spool := &domain.Spool{ID: "spool-2", DiameterMM: 1.75, DensityGCM3: 1.24}
 	spools := &spoolRepoStub{spool: spool}
 	prints := &printRepoStub{created: &domain.PrintJob{ID: "job-1"}}
-	service := NewPrintService(prints, spools)
+	service := NewPrintService(prints, spools, nil)
 
 	if err := service.ChangeSpool(t.Context(), "job-1", spool.ID); err != nil {
 		t.Fatalf("ChangeSpool: %v", err)
@@ -639,8 +645,7 @@ func TestPrinterServiceCreateAssignStatusAndList(t *testing.T) {
 
 func TestPrinterServiceCheckMoonrakerConnection(t *testing.T) {
 	checker := &checkerStub{}
-	service := newTestPrinterService(&printerRepoStub{}, &spoolRepoStub{}, &printRepoStub{})
-	service.SetConnectionChecker(checker)
+	service := newTestPrinterService(&printerRepoStub{}, &spoolRepoStub{}, &printRepoStub{}, PrinterOptions{Checker: checker})
 
 	printer := &domain.Printer{MoonrakerURL: "http://printer.local/"}
 	if err := service.CheckMoonrakerConnection(t.Context(), printer); err != nil {
@@ -662,8 +667,7 @@ func TestPrinterServiceCheckMoonrakerConnection(t *testing.T) {
 func TestPrinterServiceUpdateMoonrakerPrinter(t *testing.T) {
 	printers := &printerRepoStub{}
 	checker := &checkerStub{}
-	service := newTestPrinterService(printers, &spoolRepoStub{}, &printRepoStub{})
-	service.SetConnectionChecker(checker)
+	service := newTestPrinterService(printers, &spoolRepoStub{}, &printRepoStub{}, PrinterOptions{Checker: checker})
 
 	printer := &domain.Printer{
 		ID:            "printer-1",
@@ -753,8 +757,7 @@ func TestPrinterServiceListCombinedHistoryMarksLocalJobs(t *testing.T) {
 		{PrinterID: "printer-1", ExternalPrintID: "remote-1", GcodeFilename: "one.gcode"},
 		{PrinterID: "printer-1", ExternalPrintID: "remote-2", GcodeFilename: "two.gcode"},
 	}}
-	service := newTestPrinterService(printers, &spoolRepoStub{}, prints)
-	service.SetJobClient(client)
+	service := newTestPrinterService(printers, &spoolRepoStub{}, prints, PrinterOptions{JobClient: client})
 
 	history, err := service.ListCombinedHistory(t.Context(), "printer-1", 50)
 	if err != nil {
@@ -782,8 +785,7 @@ func TestPrinterServiceAssignHistoryJobSpoolCreatesPrintJob(t *testing.T) {
 		PreviewImagePath: "/tmp/benchy.png",
 		EndedAt:          time.Unix(1000, 0),
 	}}}
-	service := newTestPrinterService(printers, spools, prints)
-	service.SetJobClient(client)
+	service := newTestPrinterService(printers, spools, prints, PrinterOptions{JobClient: client})
 
 	job, err := service.AssignHistoryJobSpool(t.Context(), "printer-1", "remote-1", "spool-1")
 	if err != nil {
@@ -805,8 +807,7 @@ func TestPrinterServiceAssignHistoryJobSpoolRecalculatesExistingUsage(t *testing
 	client := &printerJobClientStub{history: []domain.PrinterHistoryJob{{
 		PrinterID: "printer-1", ExternalPrintID: "remote-1", GcodeFilename: "benchy.gcode",
 	}}}
-	service := newTestPrinterService(printers, &spoolRepoStub{spool: spool}, prints)
-	service.SetJobClient(client)
+	service := newTestPrinterService(printers, &spoolRepoStub{spool: spool}, prints, PrinterOptions{JobClient: client})
 
 	job, err := service.AssignHistoryJobSpool(t.Context(), "printer-1", "remote-1", spool.ID)
 	if err != nil {
@@ -829,8 +830,7 @@ func TestPrinterServiceListModelsEnrichesMetadata(t *testing.T) {
 		models:   []domain.PrinterModelFile{{PrinterID: "printer-1", Path: "folder/cube.gcode", Filename: "cube.gcode"}},
 		metadata: &domain.GcodeMetadata{Filename: "folder/cube.gcode", FilamentWeightG: 12.5, PrintDuration: time.Minute, Slicer: "OrcaSlicer", PreviewImagePath: "/tmp/cube.png"},
 	}
-	service := newTestPrinterService(printers, &spoolRepoStub{}, &printRepoStub{})
-	service.SetJobClient(client)
+	service := newTestPrinterService(printers, &spoolRepoStub{}, &printRepoStub{}, PrinterOptions{JobClient: client})
 
 	models, err := service.ListModels(t.Context(), "printer-1")
 	if err != nil {
@@ -850,9 +850,7 @@ func TestPrinterServiceRefreshModelsSavesCache(t *testing.T) {
 	cache := &printerModelRepoStub{
 		list: []domain.PrinterModelFile{{PrinterID: "printer-1", Path: "folder/cube.gcode", Filename: "cube.gcode", EstimatedWeightG: 12.5, PreviewImagePath: "/tmp/cube.png"}},
 	}
-	service := newTestPrinterService(printers, &spoolRepoStub{}, &printRepoStub{})
-	service.SetJobClient(client)
-	service.SetModelCache(cache)
+	service := newTestPrinterService(printers, &spoolRepoStub{}, &printRepoStub{}, PrinterOptions{JobClient: client, Models: cache})
 
 	models, err := service.RefreshModels(t.Context(), "printer-1")
 	if err != nil {
@@ -881,8 +879,7 @@ func TestPrinterServiceRefreshModelsFetchesMetadataWithBoundedConcurrency(t *tes
 		time.Sleep(20 * time.Millisecond)
 		return &domain.GcodeMetadata{FilamentWeightG: 1}, nil
 	}
-	service := newTestPrinterService(printers, &spoolRepoStub{}, &printRepoStub{})
-	service.SetJobClient(client)
+	service := newTestPrinterService(printers, &spoolRepoStub{}, &printRepoStub{}, PrinterOptions{JobClient: client})
 
 	models, err := service.RefreshModels(t.Context(), "printer-1")
 	if err != nil {
@@ -903,8 +900,7 @@ func TestPrinterServiceRefreshModelsCalculatesWeightFromLength(t *testing.T) {
 		models:   []domain.PrinterModelFile{{PrinterID: "printer-1", Path: "from-app.gcode", Filename: "from-app.gcode"}},
 		metadata: &domain.GcodeMetadata{Filename: "from-app.gcode", FilamentLengthMM: 6931.39},
 	}
-	service := newTestPrinterService(printers, spools, &printRepoStub{})
-	service.SetJobClient(client)
+	service := newTestPrinterService(printers, spools, &printRepoStub{}, PrinterOptions{JobClient: client})
 
 	models, err := service.RefreshModels(t.Context(), "printer-1")
 	if err != nil {
@@ -927,8 +923,7 @@ func TestPrinterServiceRefreshModelsParsesDownloadedFileWhenMoonrakerHasNoFilame
 			"; filament used [g] = 58.10\n" +
 			"; estimated printing time (normal mode) = 1h 43m 7s\n"),
 	}
-	service := newTestPrinterService(printers, &spoolRepoStub{}, &printRepoStub{})
-	service.SetJobClient(client)
+	service := newTestPrinterService(printers, &spoolRepoStub{}, &printRepoStub{}, PrinterOptions{JobClient: client})
 
 	models, err := service.RefreshModels(t.Context(), "printer-1")
 	if err != nil {
@@ -942,9 +937,7 @@ func TestPrinterServiceRefreshModelsParsesDownloadedFileWhenMoonrakerHasNoFilame
 func TestPrinterServiceListModelsReadsCache(t *testing.T) {
 	cache := &printerModelRepoStub{list: []domain.PrinterModelFile{{PrinterID: "printer-1", Path: "cached.gcode"}}}
 	client := &printerJobClientStub{modelsErr: errors.New("remote must not be called")}
-	service := newTestPrinterService(&printerRepoStub{}, &spoolRepoStub{}, &printRepoStub{})
-	service.SetJobClient(client)
-	service.SetModelCache(cache)
+	service := newTestPrinterService(&printerRepoStub{}, &spoolRepoStub{}, &printRepoStub{}, PrinterOptions{JobClient: client, Models: cache})
 
 	models, err := service.ListModels(t.Context(), "printer-1")
 	if err != nil {
@@ -969,8 +962,7 @@ func TestPrinterServiceSyncPrinterHistoryBackfillsWithoutSpool(t *testing.T) {
 			EstimatedWeightG: 15,
 			EndedAt:          time.Unix(1000, 0),
 		}}}
-	service := newTestPrinterService(printers, spools, prints)
-	service.SetJobClient(client)
+	service := newTestPrinterService(printers, spools, prints, PrinterOptions{JobClient: client})
 
 	created, err := service.SyncPrinterHistory(t.Context(), "printer-1", 50)
 	if err != nil {
@@ -1003,8 +995,7 @@ func TestPrinterServiceSyncPrinterHistoryFetchesMetadataWithBoundedConcurrency(t
 		time.Sleep(20 * time.Millisecond)
 		return &domain.GcodeMetadata{FilamentWeightG: 1}, nil
 	}
-	service := newTestPrinterService(printers, &spoolRepoStub{}, prints)
-	service.SetJobClient(client)
+	service := newTestPrinterService(printers, &spoolRepoStub{}, prints, PrinterOptions{JobClient: client})
 
 	created, err := service.SyncPrinterHistory(t.Context(), "printer-1", 50)
 	if err != nil {
@@ -1045,8 +1036,7 @@ func TestPrinterServiceSyncPrinterHistoryUsesActiveSpoolForNewJobs(t *testing.T)
 		EstimatedWeightG: 15,
 		EndedAt:          boundary.Add(time.Minute),
 	}}}
-	service := newTestPrinterService(printers, spools, prints)
-	service.SetJobClient(client)
+	service := newTestPrinterService(printers, spools, prints, PrinterOptions{JobClient: client})
 
 	created, err := service.SyncPrinterHistory(t.Context(), "printer-1", 50)
 	if err != nil {
@@ -1078,8 +1068,7 @@ func TestPrinterServiceSyncPrinterHistoryUsesFilamentUsedForCancelledJobs(t *tes
 		EstimatedWeightG: 20,
 		EndedAt:          boundary.Add(time.Minute),
 	}}}
-	service := newTestPrinterService(printers, spools, prints)
-	service.SetJobClient(client)
+	service := newTestPrinterService(printers, spools, prints, PrinterOptions{JobClient: client})
 
 	created, err := service.SyncPrinterHistory(t.Context(), "printer-1", 50)
 	if err != nil {
@@ -1117,8 +1106,7 @@ func TestPrinterServiceSyncPrinterHistoryUpdatesExistingZeroUsage(t *testing.T) 
 		EstimatedWeightG: 20,
 		EndedAt:          time.Unix(1000, 0),
 	}}}
-	service := newTestPrinterService(printers, spools, prints)
-	service.SetJobClient(client)
+	service := newTestPrinterService(printers, spools, prints, PrinterOptions{JobClient: client})
 
 	created, err := service.SyncPrinterHistory(t.Context(), "printer-1", 50)
 	if err != nil {
@@ -1145,8 +1133,7 @@ func TestPrinterServiceSyncPrinterHistoryImportsHistoryPages(t *testing.T) {
 			},
 		},
 	}
-	service := newTestPrinterService(printers, &spoolRepoStub{}, prints)
-	service.SetJobClient(client)
+	service := newTestPrinterService(printers, &spoolRepoStub{}, prints, PrinterOptions{JobClient: client})
 
 	created, err := service.SyncPrinterHistory(t.Context(), "printer-1", 0)
 	if err != nil {
@@ -1179,8 +1166,7 @@ func TestPrinterServiceSyncPrinterHistorySkipsLiveMonitorDuplicate(t *testing.T)
 		EstimatedWeightG: 15,
 		EndedAt:          endedAt.Add(20 * time.Second),
 	}}}
-	service := newTestPrinterService(printers, spools, prints)
-	service.SetJobClient(client)
+	service := newTestPrinterService(printers, spools, prints, PrinterOptions{JobClient: client})
 
 	created, err := service.SyncPrinterHistory(t.Context(), "printer-1", 50)
 	if err != nil {
@@ -1209,8 +1195,7 @@ func TestPrinterServicePrintModelTransfersBetweenPrinters(t *testing.T) {
 	}
 	spools := &spoolRepoStub{spool: &domain.Spool{ID: "spool-1", TotalWeightG: 100, DiameterMM: 1.75, DensityGCM3: 1.24}, used: 10}
 	client := &printerJobClientStub{metadata: &domain.GcodeMetadata{Filename: "cube.gcode", FilamentWeightG: 20}, uploadedPath: "cube.gcode"}
-	service := newTestPrinterService(printers, spools, &printRepoStub{})
-	service.SetJobClient(client)
+	service := newTestPrinterService(printers, spools, &printRepoStub{}, PrinterOptions{JobClient: client})
 
 	result, err := service.PrintModel(t.Context(), domain.PrintLaunchRequest{SourcePrinterID: "source", PrinterID: "target", GcodeFilename: "cube.gcode"})
 	if err != nil {
@@ -1241,8 +1226,7 @@ func TestPrinterServicePrintModelKeepsFolderAndAvoidsExistingName(t *testing.T) 
 			{Path: "models/part (2).gcode"},
 		},
 	}
-	service := newTestPrinterService(printers, &spoolRepoStub{spool: &domain.Spool{ID: "spool-1", TotalWeightG: 100}}, &printRepoStub{})
-	service.SetJobClient(client)
+	service := newTestPrinterService(printers, &spoolRepoStub{spool: &domain.Spool{ID: "spool-1", TotalWeightG: 100}}, &printRepoStub{}, PrinterOptions{JobClient: client})
 	result, err := service.PrintModel(t.Context(), domain.PrintLaunchRequest{SourcePrinterID: "source", PrinterID: "target", GcodeFilename: "models/part.gcode"})
 	if err != nil {
 		t.Fatal(err)
@@ -1271,8 +1255,7 @@ func TestPrinterServiceConcurrentTransfersDoNotReuseName(t *testing.T) {
 		secondListed:         make(chan struct{}),
 		release:              make(chan struct{}),
 	}
-	service := newTestPrinterService(printers, &spoolRepoStub{spool: &domain.Spool{ID: "spool-1", TotalWeightG: 100}}, &printRepoStub{})
-	service.SetJobClient(client)
+	service := newTestPrinterService(printers, &spoolRepoStub{spool: &domain.Spool{ID: "spool-1", TotalWeightG: 100}}, &printRepoStub{}, PrinterOptions{JobClient: client})
 	request := domain.PrintLaunchRequest{SourcePrinterID: "source", PrinterID: "target", GcodeFilename: "part.gcode"}
 	results := make(chan error, 2)
 	go func() { _, err := service.PrintModel(t.Context(), request); results <- err }()
@@ -1304,8 +1287,7 @@ func TestPrinterServiceStartPrinterFileChecksFilament(t *testing.T) {
 	spools := &spoolRepoStub{spool: &domain.Spool{ID: "spool-1", TotalWeightG: 100, DiameterMM: 1.75, DensityGCM3: 1.24}, used: 60}
 	client := &printerJobClientStub{metadata: &domain.GcodeMetadata{Filename: "big.gcode", FilamentWeightG: 50}}
 	settings := &settingsRepoStub{setting: "50"}
-	service := NewPrinterService(printers, spools, &printRepoStub{}, settings)
-	service.SetJobClient(client)
+	service := NewPrinterService(printers, spools, &printRepoStub{}, settings, PrinterOptions{JobClient: client})
 
 	result, err := service.StartPrinterFile(t.Context(), domain.PrintLaunchRequest{PrinterID: "printer-1", GcodeFilename: "big.gcode"})
 	if err != nil {
@@ -1353,8 +1335,7 @@ func TestPrinterServiceUploadLocalFileWithoutStarting(t *testing.T) {
 	}
 	printers := &printerRepoStub{printer: &domain.Printer{ID: "printer-1"}}
 	client := &printerJobClientStub{uploadedPath: "upload-only.gcode"}
-	service := newTestPrinterService(printers, &spoolRepoStub{}, &printRepoStub{})
-	service.SetJobClient(client)
+	service := newTestPrinterService(printers, &spoolRepoStub{}, &printRepoStub{}, PrinterOptions{JobClient: client})
 
 	result, err := service.UploadLocalFile(t.Context(), domain.PrintLaunchRequest{PrinterID: "printer-1", LocalPath: path}, false)
 	if err != nil {
@@ -1405,17 +1386,18 @@ func TestDryingServiceListAndRecommendations(t *testing.T) {
 	if sessions, err := service.ListForSpool(t.Context(), "spool"); len(sessions) != 1 || !errors.Is(err, wantErr) {
 		t.Fatalf("ListForSpool() = (%+v, %v)", sessions, err)
 	}
-	if got := service.GetRecommendation(t.Context(), domain.MaterialPLA); got == nil || got.TemperatureC != 99 {
+	if got, err := service.GetRecommendation(t.Context(), domain.MaterialPLA); err != nil || got == nil || got.TemperatureC != 99 {
 		t.Fatalf("custom recommendation = %+v", got)
 	}
 	settings.profilesErr = errors.New("settings failed")
-	if got := service.GetRecommendation(t.Context(), domain.MaterialPETG); got != nil {
+	if got, err := service.GetRecommendation(t.Context(), domain.MaterialPETG); got != nil || !errors.Is(err, settings.profilesErr) {
 		t.Fatalf("recommendation on repository error = %+v", got)
 	}
-	if got := service.GetRecommendation(t.Context(), "Custom"); got != nil {
+	settings.profilesErr = nil
+	if got, err := service.GetRecommendation(t.Context(), "Custom"); err != nil || got != nil {
 		t.Fatalf("unknown recommendation = %+v, want nil", got)
 	}
-	if got := NewDryingService(dryings, nil).GetRecommendation(t.Context(), domain.MaterialPLA); got != nil {
+	if got, err := NewDryingService(dryings, nil).GetRecommendation(t.Context(), domain.MaterialPLA); err != nil || got != nil {
 		t.Fatalf("recommendation with nil settings = %+v", got)
 	}
 }
@@ -1471,12 +1453,13 @@ func TestSettingsServiceLanguage(t *testing.T) {
 	if err := service.SetLanguage(t.Context(), "de"); err == nil {
 		t.Fatal("expected unsupported language error")
 	}
+	before := i18n.GetLanguage()
 	repo.setSettingErr = errors.New("write failed")
 	if err := service.SetLanguage(t.Context(), i18n.LangBG); !errors.Is(err, repo.setSettingErr) {
 		t.Fatalf("SetLanguage error = %v", err)
 	}
-	if repo.setKey != "language" || repo.setValue != string(i18n.LangBG) || i18n.GetLanguage() != i18n.LangBG {
-		t.Fatalf("language was not applied and persisted: key=%q value=%q current=%q", repo.setKey, repo.setValue, i18n.GetLanguage())
+	if repo.setKey != "language" || repo.setValue != string(i18n.LangBG) || i18n.GetLanguage() != before {
+		t.Fatalf("failed language save: key=%q value=%q current=%q", repo.setKey, repo.setValue, i18n.GetLanguage())
 	}
 }
 
@@ -1589,8 +1572,7 @@ func TestPrinterServiceRecordDuplicateReturnsStoredJob(t *testing.T) {
 func TestPrinterServiceSyncIgnoresConcurrentInsert(t *testing.T) {
 	printers := &printerRepoStub{printer: &domain.Printer{ID: "p"}}
 	prints := &printRepoStub{createErr: domain.ErrPrintJobAlreadyExists}
-	svc := newTestPrinterService(printers, &spoolRepoStub{}, prints)
-	svc.SetJobClient(&printerJobClientStub{history: []domain.PrinterHistoryJob{{ExternalPrintID: "remote", Status: domain.PrinterHistoryStatusCompleted}}})
+	svc := newTestPrinterService(printers, &spoolRepoStub{}, prints, PrinterOptions{JobClient: &printerJobClientStub{history: []domain.PrinterHistoryJob{{ExternalPrintID: "remote", Status: domain.PrinterHistoryStatusCompleted}}}})
 	if n, err := svc.SyncPrinterHistory(t.Context(), "p", 10); n != 0 || err != nil {
 		t.Fatalf("created=%d error=%v", n, err)
 	}
@@ -1600,9 +1582,17 @@ func TestPrinterServiceSyncKeepsDistinctJobsInSameMinute(t *testing.T) {
 	ended := time.Unix(1020, 0)
 	printers := &printerRepoStub{printer: &domain.Printer{ID: "p"}}
 	prints := &printRepoStub{list: []domain.PrintJob{{ID: "first", PrinterID: "p", ExternalPrintID: "remote-1", GcodeFilename: "part.gcode", PrintedAt: ended}}}
-	svc := newTestPrinterService(printers, &spoolRepoStub{}, prints)
-	svc.SetJobClient(&printerJobClientStub{history: []domain.PrinterHistoryJob{{ExternalPrintID: "remote-2", GcodeFilename: "part.gcode", EndedAt: ended.Add(time.Second), Status: domain.PrinterHistoryStatusCompleted}}})
+	svc := newTestPrinterService(printers, &spoolRepoStub{}, prints, PrinterOptions{JobClient: &printerJobClientStub{history: []domain.PrinterHistoryJob{{ExternalPrintID: "remote-2", GcodeFilename: "part.gcode", EndedAt: ended.Add(time.Second), Status: domain.PrinterHistoryStatusCompleted}}}})
 	if n, err := svc.SyncPrinterHistory(t.Context(), "p", 10); n != 1 || err != nil {
 		t.Fatalf("created=%d error=%v", n, err)
 	}
+}
+
+func (r *printRepoStub) UpdatePreviewImageHash(_ context.Context, jobID, hash string) error {
+	for i := range r.list {
+		if r.list[i].ID == jobID {
+			r.list[i].PreviewImageHash = hash
+		}
+	}
+	return r.updateErr
 }

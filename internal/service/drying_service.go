@@ -19,16 +19,20 @@ func NewDryingService(dryings port.DryingSessionRepository, settings port.Settin
 }
 
 func (s *DryingService) Create(ctx context.Context, session *domain.DryingSession) error {
+	if session == nil {
+		return fmt.Errorf("drying session is required")
+	}
 	if session.TemperatureC <= 0 {
 		return fmt.Errorf("temperature must be positive")
 	}
 	if session.DurationHours <= 0 {
 		return fmt.Errorf("duration must be positive")
 	}
+	now := time.Now()
 	if session.DriedAt.IsZero() {
-		session.DriedAt = time.Now()
+		session.DriedAt = now
 	}
-	session.CreatedAt = time.Now()
+	session.CreatedAt = now
 	return s.dryings.Create(ctx, session)
 }
 
@@ -36,14 +40,15 @@ func (s *DryingService) ListForSpool(ctx context.Context, spoolID string) ([]dom
 	return s.dryings.List(ctx, spoolID)
 }
 
-func (s *DryingService) GetRecommendation(ctx context.Context, material domain.Material) *domain.DryingProfile {
-	if s.settings != nil {
-		profile, err := s.settings.GetDryingProfileForMaterial(ctx, material)
-		if err == nil && profile != nil {
-			return profile
-		}
+func (s *DryingService) GetRecommendation(ctx context.Context, material domain.Material) (*domain.DryingProfile, error) {
+	if s.settings == nil {
+		return nil, nil
 	}
-	return nil
+	profile, err := s.settings.GetDryingProfileForMaterial(ctx, material)
+	if err != nil {
+		return nil, fmt.Errorf("getting drying profile: %w", err)
+	}
+	return profile, nil
 }
 
 func (s *DryingService) ListRecommendations(ctx context.Context) ([]domain.DryingProfile, error) {
@@ -64,7 +69,13 @@ func (s *DryingService) ListRecommendations(ctx context.Context) ([]domain.Dryin
 // GetStatus возвращает последнюю сушку и рассчитывает срок следующей по
 // актуальному профилю материала.
 func (s *DryingService) GetStatus(ctx context.Context, spool *domain.Spool) (DryingStatus, error) {
-	profile := s.GetRecommendation(ctx, spool.Material)
+	if spool == nil {
+		return DryingStatus{}, fmt.Errorf("spool is required")
+	}
+	profile, err := s.GetRecommendation(ctx, spool.Material)
+	if err != nil {
+		return DryingStatus{}, err
+	}
 	status := DryingStatus{Profile: profile}
 	last, err := s.dryings.GetLastDrying(ctx, spool.ID)
 	if err != nil {
@@ -82,6 +93,6 @@ func (s *DryingService) GetStatus(ctx context.Context, spool *domain.Spool) (Dry
 	now := time.Now()
 	status.NextDryingAt = domain.NextDryingAt(last.DriedAt, *profile)
 	status.DaysUntilNext = domain.DaysUntilNextDrying(last.DriedAt, *profile, now)
-	status.NeedsDrying = domain.NeedsDrying(last.DriedAt, *profile)
+	status.NeedsDrying = domain.NeedsDryingAt(last.DriedAt, *profile, now)
 	return status, nil
 }

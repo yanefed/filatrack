@@ -14,6 +14,7 @@ import (
 	"github.com/yanefed/filatrack/internal/domain"
 	"github.com/yanefed/filatrack/internal/moonraker"
 	"github.com/yanefed/filatrack/internal/port"
+	"github.com/yanefed/filatrack/internal/service"
 )
 
 type historyReplayConn struct{ messages []json.RawMessage }
@@ -149,7 +150,7 @@ func TestConcurrentHistoryImportsCountOnlyInsertedJobs(t *testing.T) {
 	}
 	results := make(chan result, 2)
 	for _, app := range apps {
-		app.printers.SetJobClient(racingHistoryClient{arrived: arrived, release: release})
+		app.printers = newPrinterService(app.db, service.PrinterOptions{JobClient: racingHistoryClient{arrived: arrived, release: release}})
 		go func() { n, err := app.printers.SyncPrinterHistory(ctx, printer.ID, 10); results <- result{n, err} }()
 	}
 	for range 2 {

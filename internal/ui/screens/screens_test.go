@@ -48,10 +48,10 @@ func TestScreenConstructorsWithRealServices(t *testing.T) {
 	settingsRepo := sqlite.NewSettingsRepo(db)
 	printerRepo := sqlite.NewPrinterRepo(db)
 	spoolSvc := service.NewSpoolService(spoolRepo, dryingRepo, settingsRepo)
-	printSvc := service.NewPrintService(printRepo, spoolRepo)
+	printSvc := service.NewPrintService(printRepo, spoolRepo, nil)
 	dryingSvc := service.NewDryingService(dryingRepo, settingsRepo)
 	settingsSvc := service.NewSettingsService(settingsRepo)
-	printerSvc := service.NewPrinterService(printerRepo, spoolRepo, printRepo, settingsRepo)
+	printerSvc := service.NewPrinterService(printerRepo, spoolRepo, printRepo, settingsRepo, service.PrinterOptions{})
 	ctx := t.Context()
 
 	spool := &domain.Spool{Manufacturer: "UI Test", Material: domain.MaterialPLA, Color: "Black", TotalWeightG: 1000}

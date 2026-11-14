@@ -5,9 +5,10 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/yanefed/filatrack/internal/domain"
 	"testing"
 	"time"
+
+	"github.com/yanefed/filatrack/internal/domain"
 )
 
 type checkpointSettings struct {
@@ -49,7 +50,7 @@ func (c *incrementalHistoryStub) ListHistoryPageSince(_ context.Context, _ domai
 
 func TestHistoryCheckpointPaginationAndResume(t *testing.T) {
 	settings := &checkpointSettings{values: make(map[string]string)}
-	svc := &PrinterService{settings: settings}
+	svc := &printerHistory{settings: settings}
 	printer := domain.Printer{ID: "p", MoonrakerURL: "http://printer"}
 	client := &incrementalHistoryStub{}
 	for i := 250; i > 0; i-- {
@@ -80,7 +81,7 @@ func TestHistoryCheckpointPaginationAndResume(t *testing.T) {
 		t.Fatalf("resume: created=%d error=%v pages=%v", n, err, client.starts)
 	}
 	// Reconstructing the service must retain the boundary stored in settings.
-	svc = &PrinterService{settings: settings}
+	svc = &printerHistory{settings: settings}
 	client.sinces = nil
 	imported = 0
 	if n, err := svc.syncHistoryPages(t.Context(), printer, client, importJobs); err != nil || n != 0 || imported != 1 || client.sinces[0].IsZero() {
@@ -97,7 +98,7 @@ func TestHistoryCheckpointPaginationAndResume(t *testing.T) {
 
 func TestHistoryCheckpointKeepsUnfinishedAndReconciles(t *testing.T) {
 	settings := &checkpointSettings{values: make(map[string]string)}
-	svc := &PrinterService{settings: settings}
+	svc := &printerHistory{settings: settings}
 	printer := domain.Printer{ID: "p", MoonrakerURL: "http://printer"}
 	client := &incrementalHistoryStub{printerJobClientStub: printerJobClientStub{history: []domain.PrinterHistoryJob{
 		{ExternalPrintID: "new", StartedAt: time.Unix(200, 0), Status: domain.PrinterHistoryStatusCompleted},
@@ -154,8 +155,7 @@ func TestHistorySyncQueriesOnlyPageAndRetriesMissingWeight(t *testing.T) {
 				calls++
 				return &domain.GcodeMetadata{FilamentWeightG: 20}, nil
 			}
-			svc := NewPrinterService(&printerRepoStub{printer: &domain.Printer{ID: "p"}}, &spoolRepoStub{}, prints, &settingsRepoStub{})
-			svc.SetJobClient(client)
+			svc := NewPrinterService(&printerRepoStub{printer: &domain.Printer{ID: "p"}}, &spoolRepoStub{}, prints, &settingsRepoStub{}, PrinterOptions{JobClient: client})
 			if n, err := svc.SyncPrinterHistory(t.Context(), "p", 0); err != nil || n != 0 {
 				t.Fatalf("sync: count=%d error=%v", n, err)
 			}

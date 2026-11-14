@@ -38,10 +38,10 @@ func TestApplicationActivatesWithAllDeclarativePages(t *testing.T) {
 	printers := sqlite.NewPrinterRepo(db)
 	controller := NewApp(
 		service.NewSpoolService(spools, dryings, settings),
-		service.NewPrintService(prints, spools),
+		service.NewPrintService(prints, spools, nil),
 		service.NewDryingService(dryings, settings),
 		service.NewSettingsService(settings),
-		service.NewPrinterService(printers, spools, prints, settings),
+		service.NewPrinterService(printers, spools, prints, settings, service.PrinterOptions{}),
 	)
 	application := adw.NewApplication("com.filatrack.LayoutTest", gio.ApplicationNonUnique)
 	if err := application.Register(t.Context()); err != nil {

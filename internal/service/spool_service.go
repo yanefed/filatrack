@@ -3,32 +3,28 @@ package service
 import (
 	"context"
 	"fmt"
-	"github.com/yanefed/filatrack/internal/domain"
-	"github.com/yanefed/filatrack/internal/port"
 	"slices"
 	"time"
+
+	"github.com/yanefed/filatrack/internal/domain"
+	"github.com/yanefed/filatrack/internal/port"
 )
 
 type SpoolService struct {
 	spools   port.SpoolRepository
-	dryings  port.DryingSessionRepository
+	drying   *DryingService
 	settings port.SettingsRepository
 }
 
 func NewSpoolService(spools port.SpoolRepository, dryings port.DryingSessionRepository, settings port.SettingsRepository) *SpoolService {
-	return &SpoolService{spools: spools, dryings: dryings, settings: settings}
+	return &SpoolService{spools: spools, drying: NewDryingService(dryings, settings), settings: settings}
 }
 
 func (s *SpoolService) Create(ctx context.Context, spool *domain.Spool) error {
-	if spool.TotalWeightG <= 0 {
-		return fmt.Errorf("total weight must be positive")
+	if err := s.prepareSpool(ctx, spool); err != nil {
+		return err
 	}
-	if spool.DiameterMM <= 0 {
-		spool.DiameterMM = domain.DefaultDiameter
-	}
-	if spool.DensityGCM3 <= 0 {
-		spool.DensityGCM3 = s.materialDensity(ctx, spool.Material)
-	}
+
 	now := time.Now()
 	spool.CreatedAt = now
 	spool.UpdatedAt = now
@@ -36,18 +32,16 @@ func (s *SpoolService) Create(ctx context.Context, spool *domain.Spool) error {
 }
 
 func (s *SpoolService) Update(ctx context.Context, spool *domain.Spool) error {
+	if spool == nil {
+		return fmt.Errorf("spool is required")
+	}
 	if spool.ID == "" {
 		return fmt.Errorf("spool id is required")
 	}
-	if spool.TotalWeightG <= 0 {
-		return fmt.Errorf("total weight must be positive")
+	if err := s.prepareSpool(ctx, spool); err != nil {
+		return err
 	}
-	if spool.DiameterMM <= 0 {
-		spool.DiameterMM = domain.DefaultDiameter
-	}
-	if spool.DensityGCM3 <= 0 {
-		spool.DensityGCM3 = s.materialDensity(ctx, spool.Material)
-	}
+
 	return s.spools.Update(ctx, spool)
 }
 
@@ -58,7 +52,7 @@ func (s *SpoolService) materialDensity(ctx context.Context, material domain.Mate
 			return definition.DensityGCM3
 		}
 	}
-	return 1.24
+	return domain.DefaultDensity
 }
 
 func (s *SpoolService) Archive(ctx context.Context, id string) error {
@@ -110,24 +104,22 @@ func (s *SpoolService) FilterOptions(ctx context.Context) (SpoolFilterOptions, e
 }
 
 func (s *SpoolService) NeedsDrying(ctx context.Context, spool *domain.Spool) (bool, error) {
-	// Try DB profiles first
-	if s.settings != nil {
-		profile, err := s.settings.GetDryingProfileForMaterial(ctx, spool.Material)
-		if err != nil {
-			return false, fmt.Errorf("getting drying profile: %w", err)
-		}
-		if profile != nil {
-			last, err := s.dryings.GetLastDrying(ctx, spool.ID)
-			if err != nil {
-				return false, err
-			}
-			var lastDried time.Time
-			if last != nil {
-				lastDried = last.DriedAt
-			}
-			return domain.NeedsDrying(lastDried, *profile), nil
-		}
-	}
+	status, err := s.drying.GetStatus(ctx, spool)
+	return status.NeedsDrying, err
+}
 
-	return false, nil
+func (s *SpoolService) prepareSpool(ctx context.Context, spool *domain.Spool) error {
+	if spool == nil {
+		return fmt.Errorf("spool is required")
+	}
+	if spool.TotalWeightG <= 0 {
+		return fmt.Errorf("total weight must be positive")
+	}
+	if spool.DiameterMM <= 0 {
+		spool.DiameterMM = domain.DefaultDiameter
+	}
+	if spool.DensityGCM3 <= 0 {
+		spool.DensityGCM3 = s.materialDensity(ctx, spool.Material)
+	}
+	return nil
 }

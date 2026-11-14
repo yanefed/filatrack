@@ -4,12 +4,13 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/yanefed/filatrack/internal/domain"
-	"github.com/yanefed/filatrack/internal/port"
-	"github.com/yanefed/filatrack/internal/preview"
 	"log/slog"
 	"os"
 	"path/filepath"
+
+	"github.com/yanefed/filatrack/internal/domain"
+	"github.com/yanefed/filatrack/internal/port"
+	"github.com/yanefed/filatrack/internal/preview"
 )
 
 type PreviewImageStore struct {
@@ -119,6 +120,41 @@ func (s *PreviewImageStore) HydratePrintJobs(ctx context.Context, jobs []domain.
 			return err
 		}
 		jobs[i].PreviewImagePath = path
+	}
+	return nil
+}
+
+func migrateLegacyPrintPreviews(ctx context.Context, previews *PreviewImageStore, prints port.PrintJobRepository, jobs []domain.PrintJob) error {
+	if previews == nil {
+		return nil
+	}
+
+	for i := range jobs {
+		if jobs[i].PreviewImageHash != "" || jobs[i].PreviewImagePath == "" {
+			continue
+		}
+		hash, path, err := previews.ImportLegacy(ctx, jobs[i].PreviewImagePath)
+		if err != nil {
+			return fmt.Errorf("importing legacy print preview image: %w", err)
+		}
+		if hash == "" {
+			continue
+		}
+		if err := prints.UpdatePreviewImageHash(ctx, jobs[i].ID, hash); err != nil {
+			return fmt.Errorf("saving shared print preview reference: %w", err)
+		}
+		jobs[i].PreviewImageHash = hash
+		jobs[i].PreviewImagePath = path
+	}
+	return nil
+}
+
+func preparePrintPreviews(ctx context.Context, previews *PreviewImageStore, prints port.PrintJobRepository, jobs []domain.PrintJob) error {
+	if err := migrateLegacyPrintPreviews(ctx, previews, prints, jobs); err != nil {
+		return err
+	}
+	if err := previews.HydratePrintJobs(ctx, jobs); err != nil {
+		return fmt.Errorf("loading print preview images: %w", err)
 	}
 	return nil
 }

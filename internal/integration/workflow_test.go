@@ -46,8 +46,8 @@ func openApplication(t *testing.T, path string) applicationServices {
 	return applicationServices{
 		db:       db,
 		spools:   service.NewSpoolService(spoolRepo, dryingRepo, settingsRepo),
-		prints:   service.NewPrintService(printRepo, spoolRepo),
-		printers: service.NewPrinterService(printerRepo, spoolRepo, printRepo, settingsRepo),
+		prints:   service.NewPrintService(printRepo, spoolRepo, nil),
+		printers: service.NewPrinterService(printerRepo, spoolRepo, printRepo, settingsRepo, service.PrinterOptions{}),
 		dryings:  service.NewDryingService(dryingRepo, settingsRepo),
 		settings: service.NewSettingsService(settingsRepo),
 	}
@@ -91,7 +91,10 @@ func TestCompleteFilamentTrackingWorkflow(t *testing.T) {
 	if err != nil || !needDrying {
 		t.Fatalf("new spool drying state = (%v, %v), want true", needDrying, err)
 	}
-	recommendation := app.dryings.GetRecommendation(ctx, spool.Material)
+	recommendation, err := app.dryings.GetRecommendation(ctx, spool.Material)
+	if err != nil {
+		t.Fatal(err)
+	}
 	if recommendation == nil || recommendation.TemperatureC != 45 {
 		t.Fatalf("drying recommendation = %+v", recommendation)
 	}
@@ -256,4 +259,8 @@ func TestPrintCostChangesWithAssignedSpool(t *testing.T) {
 	if !known || cost != wantCost || math.Abs(loaded.ActualWeightG-wantWeight) > 1e-9 || loaded.PricePerGram != 3 {
 		t.Fatalf("reassigned cost: %+v", loaded)
 	}
+}
+
+func newPrinterService(db *sqlite.DB, options service.PrinterOptions) *service.PrinterService {
+	return service.NewPrinterService(sqlite.NewPrinterRepo(db), sqlite.NewSpoolRepo(db), sqlite.NewPrintJobRepo(db), sqlite.NewSettingsRepo(db), options)
 }

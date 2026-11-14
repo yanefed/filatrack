@@ -5,6 +5,7 @@ import (
 	"github.com/yanefed/filatrack/internal/domain"
 	"github.com/yanefed/filatrack/internal/moonraker"
 	"github.com/yanefed/filatrack/internal/repository/sqlite"
+	"github.com/yanefed/filatrack/internal/service"
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
@@ -81,7 +82,7 @@ func TestIncrementalHistorySurvivesDatabaseReopen(t *testing.T) {
 	if err := app.printers.CreateMoonrakerPrinter(t.Context(), &printer); err != nil {
 		t.Fatal(err)
 	}
-	app.printers.SetJobClient(moonraker.HTTPControlClient{Client: server.Client()})
+	app.printers = newPrinterService(app.db, service.PrinterOptions{JobClient: moonraker.HTTPControlClient{Client: server.Client()}})
 	if n, err := app.printers.SyncPrinterHistory(t.Context(), printer.ID, 0); err != nil || n != 205 {
 		t.Fatalf("initial import: created=%d error=%v", n, err)
 	}
@@ -92,7 +93,7 @@ func TestIncrementalHistorySurvivesDatabaseReopen(t *testing.T) {
 		t.Fatal(err)
 	}
 	app = openApplication(t, path)
-	app.printers.SetJobClient(moonraker.HTTPControlClient{Client: server.Client()})
+	app.printers = newPrinterService(app.db, service.PrinterOptions{JobClient: moonraker.HTTPControlClient{Client: server.Client()}})
 	historyRequests.Store(0)
 	metadataRequests.Store(0)
 	if n, err := app.printers.SyncPrinterHistory(t.Context(), printer.ID, 0); err != nil || n != 0 {

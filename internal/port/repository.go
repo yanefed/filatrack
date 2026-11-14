@@ -15,6 +15,7 @@ type SpoolRepository interface {
 }
 
 type PrintJobRepository interface {
+	PrintJobPreviewUpdater
 	// Create atomically rejects repeated (printer ID, external job ID) pairs
 	// with domain.ErrPrintJobAlreadyExists; manual jobs have no external ID.
 	Create(ctx context.Context, job *domain.PrintJob) error

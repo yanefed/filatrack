@@ -3,11 +3,12 @@ package service
 import (
 	"context"
 	"fmt"
+	"strconv"
+	"strings"
+
 	"github.com/yanefed/filatrack/internal/domain"
 	"github.com/yanefed/filatrack/internal/i18n"
 	"github.com/yanefed/filatrack/internal/port"
-	"strconv"
-	"strings"
 )
 
 type SettingsService struct {
@@ -37,8 +38,11 @@ func (s *SettingsService) SetLanguage(ctx context.Context, lang i18n.Language) e
 	if !i18n.IsSupportedLanguage(lang) {
 		return fmt.Errorf("unsupported language: %s", lang)
 	}
+	if err := s.settings.SetSetting(ctx, "language", string(lang)); err != nil {
+		return err
+	}
 	i18n.SetLanguage(lang)
-	return s.settings.SetSetting(ctx, "language", string(lang))
+	return nil
 }
 
 func (s *SettingsService) AllowLowFilamentWarning(ctx context.Context) bool {
@@ -58,15 +62,29 @@ func (s *SettingsService) SetAllowLowFilamentWarning(ctx context.Context, enable
 }
 
 func (s *SettingsService) GetLowFilamentLevel(ctx context.Context) int {
-	val, err := s.settings.GetSetting(ctx, lowFilamentLevelSettingKey)
+	level, err := readLowFilamentLevel(ctx, s.settings)
 	if err != nil {
 		return 0
 	}
-	level, err := strconv.Atoi(val)
-	if err != nil || level < 0 {
-		return 0
-	}
 	return level
+}
+
+func readLowFilamentLevel(ctx context.Context, settings port.SettingsRepository) (int, error) {
+	if settings == nil {
+		return 0, fmt.Errorf("settings repository is not configured")
+	}
+	raw, err := settings.GetSetting(ctx, lowFilamentLevelSettingKey)
+	if err != nil {
+		return 0, fmt.Errorf("getting low filament level: %w", err)
+	}
+	level, err := strconv.Atoi(raw)
+	if err != nil {
+		return 0, fmt.Errorf("parsing low filament level %q: %w", raw, err)
+	}
+	if level < 0 {
+		return 0, fmt.Errorf("low filament level must not be negative")
+	}
+	return level, nil
 }
 
 func (s *SettingsService) SetLowFilamentLevel(ctx context.Context, value int) error {
@@ -105,6 +123,9 @@ func (s *SettingsService) CreateMaterial(ctx context.Context, material *domain.M
 }
 
 func (s *SettingsService) UpdateMaterial(ctx context.Context, material *domain.MaterialDefinition) error {
+	if material == nil {
+		return fmt.Errorf("material is required")
+	}
 	if err := material.Validate(); err != nil {
 		return err
 	}

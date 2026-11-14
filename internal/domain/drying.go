@@ -15,10 +15,14 @@ type DryingSession struct {
 }
 
 func NeedsDrying(lastDried time.Time, profile DryingProfile) bool {
+	return NeedsDryingAt(lastDried, profile, time.Now())
+}
+
+func NeedsDryingAt(lastDried time.Time, profile DryingProfile, now time.Time) bool {
 	if lastDried.IsZero() {
 		return true
 	}
-	daysSinceDry := time.Since(lastDried).Hours() / 24
+	daysSinceDry := now.Sub(lastDried).Hours() / 24
 	return daysSinceDry > float64(profile.MaxDaysNoDry)
 }
 

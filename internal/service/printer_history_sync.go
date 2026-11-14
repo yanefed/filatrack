@@ -4,12 +4,13 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"time"
+
 	"github.com/yanefed/filatrack/internal/domain"
 	"github.com/yanefed/filatrack/internal/port"
-	"time"
 )
 
-func (s *PrinterService) syncHistoryPages(ctx context.Context, printer domain.Printer, client port.PrinterHistoryPageClient, importJobs func([]domain.PrinterHistoryJob) (int, error)) (int, error) {
+func (s *printerHistory) syncHistoryPages(ctx context.Context, printer domain.Printer, client port.PrinterHistoryPageClient, importJobs func([]domain.PrinterHistoryJob) (int, error)) (int, error) {
 	const pageLimit = 100
 	key := "printer_history_sync_v2:" + printer.ID
 	now := time.Now()

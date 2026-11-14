@@ -2,10 +2,11 @@ package service
 
 import (
 	"context"
-	"github.com/yanefed/filatrack/internal/preview"
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/yanefed/filatrack/internal/preview"
 )
 
 type memoryPreviewImages struct {

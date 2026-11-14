@@ -57,8 +57,9 @@ func appOptions() []fx.Option {
 			func(m *database.Manager) port.PrinterModelRepository { return m.Models() },
 			service.NewSpoolService,
 			service.NewPrintService,
+			providePreviewImageStore,
+			providePrinterService,
 			service.NewDryingService,
-			service.NewPrinterServiceWithLogger,
 			fx.Annotate(
 				service.NewSettingsService,
 				fx.As(new(languageProvider)),
@@ -66,10 +67,6 @@ func appOptions() []fx.Option {
 			),
 			fx.Annotate(newUIApp, fx.As(new(applicationRunner))),
 		),
-		fx.Invoke(configurePrinterConnectionChecker),
-		fx.Invoke(configurePrinterJobClient),
-		fx.Invoke(configurePrinterModelCache),
-		fx.Invoke(configurePreviewImageStore),
 		fx.Invoke(startPrinterMonitors),
 	}
 }
@@ -151,25 +148,28 @@ func startPrinterMonitors(lifecycle fx.Lifecycle, cfg *config.Config, printerSvc
 	})
 }
 
-func configurePrinterConnectionChecker(printerSvc *service.PrinterService) {
-	printerSvc.SetConnectionChecker(moonraker.HTTPMetadataFetcher{})
+func providePreviewImageStore(cfg *config.Config, db *database.Manager) *service.PreviewImageStore {
+	return service.NewPreviewImageStore(db.PreviewImages(), filepath.Join(cfg.DataDir, "cache", "gcode-previews"))
 }
 
-func configurePrinterJobClient(cfg *config.Config, printerSvc *service.PrinterService, db *database.Manager) {
-	printerSvc.SetJobClient(databaseAwareJobClient{
-		CacheDir: filepath.Join(cfg.DataDir, "cache", "gcode-previews"),
-		database: db,
+func providePrinterService(
+	cfg *config.Config,
+	db *database.Manager,
+	printers port.PrinterRepository,
+	spools port.SpoolRepository,
+	prints port.PrintJobRepository,
+	settings port.SettingsRepository,
+	models port.PrinterModelRepository,
+	previews *service.PreviewImageStore,
+	logger *slog.Logger,
+) *service.PrinterService {
+	return service.NewPrinterService(printers, spools, prints, settings, service.PrinterOptions{
+		Logger:    logger,
+		Checker:   moonraker.HTTPMetadataFetcher{},
+		JobClient: databaseAwareJobClient{CacheDir: filepath.Join(cfg.DataDir, "cache", "gcode-previews"), database: db},
+		Models:    models,
+		Previews:  previews,
 	})
-}
-
-func configurePrinterModelCache(printerSvc *service.PrinterService, models port.PrinterModelRepository) {
-	printerSvc.SetModelCache(models)
-}
-
-func configurePreviewImageStore(cfg *config.Config, db *database.Manager, printSvc *service.PrintService, printerSvc *service.PrinterService) {
-	store := service.NewPreviewImageStore(db.PreviewImages(), filepath.Join(cfg.DataDir, "cache", "gcode-previews"))
-	printSvc.SetPreviewImageStore(store)
-	printerSvc.SetPreviewImageStore(store)
 }
 
 func runApp(app applicationRunner, settingsSvc languageProvider) {

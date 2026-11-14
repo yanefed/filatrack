@@ -4,7 +4,6 @@ import (
 	"context"
 
 	"github.com/yanefed/filatrack/internal/domain"
-	"github.com/yanefed/filatrack/internal/port"
 )
 
 // Stable repository handles route to the active backend under the state lock,
@@ -169,7 +168,7 @@ func (r *cachedPreviewImageRepository) Get(ctx context.Context, hash string) ([]
 
 func (r *cachedPrintJobRepository) UpdatePreviewImageHash(ctx context.Context, jobID, hash string) error {
 	return r.manager.write(func() error {
-		return r.manager.active.prints.(port.PrintJobPreviewUpdater).UpdatePreviewImageHash(ctx, jobID, hash)
+		return r.manager.active.prints.UpdatePreviewImageHash(ctx, jobID, hash)
 	})
 }
 
