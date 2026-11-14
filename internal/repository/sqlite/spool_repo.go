@@ -5,15 +5,14 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	"github.com/yanefed/filatrack/internal/port"
-	"github.com/yanefed/filatrack/internal/repository/dbutil"
 	"strings"
 	"time"
 
-	"github.com/yanefed/filatrack/internal/domain"
-	"github.com/yanefed/filatrack/internal/repository/entity"
-
 	"github.com/google/uuid"
+	"github.com/yanefed/filatrack/internal/domain"
+	"github.com/yanefed/filatrack/internal/port"
+	"github.com/yanefed/filatrack/internal/repository/dbutil"
+	"github.com/yanefed/filatrack/internal/repository/entity"
 )
 
 // SpoolRepo реализует port.SpoolRepository поверх SQLite.
@@ -150,4 +149,23 @@ func (r *SpoolRepo) GetUsedWeight(ctx context.Context, spoolID string) (float64,
 		return 0, fmt.Errorf("getting used weight: %w", err)
 	}
 	return used.Float64, nil
+}
+
+// GetUsedWeights aggregates consumption once for a screenful of spools.
+func (r *SpoolRepo) GetUsedWeights(ctx context.Context) (map[string]float64, error) {
+	rows, err := r.db.conn.QueryContext(ctx, `SELECT spool_id, SUM(actual_weight_g) FROM print_jobs WHERE spool_id IS NOT NULL GROUP BY spool_id`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	weights := make(map[string]float64)
+	for rows.Next() {
+		var id string
+		var weight float64
+		if err := rows.Scan(&id, &weight); err != nil {
+			return nil, err
+		}
+		weights[id] = weight
+	}
+	return weights, rows.Err()
 }

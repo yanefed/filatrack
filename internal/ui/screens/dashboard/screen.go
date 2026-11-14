@@ -3,14 +3,16 @@ package dashboard
 import (
 	"context"
 	"fmt"
+	"reflect"
+	"strings"
+
+	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 	"github.com/yanefed/filatrack/internal/domain"
 	"github.com/yanefed/filatrack/internal/i18n"
 	"github.com/yanefed/filatrack/internal/service"
 	"github.com/yanefed/filatrack/internal/ui/layout"
+	"github.com/yanefed/filatrack/internal/ui/screens/shared"
 	"github.com/yanefed/filatrack/internal/ui/widgets"
-	"strings"
-
-	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 )
 
 // NewDashboard creates the application overview and its lightweight live refresh.
@@ -58,26 +60,46 @@ func NewDashboard(ctx context.Context, spoolSvc *service.SpoolService, printSvc 
 		}
 		activeStatuses = statuses
 	}
+	metricsView := layout.Load("dashboard-metrics")
+	widgets.ReplaceBoxChild(metricsSlot, newMetricsGrid(t, dashboardData{}, metricsView))
+	var previous dashboardData
+	initialized := false
 	render := func(data dashboardData) {
 
-		widgets.ReplaceBoxChild(metricsSlot, newMetricsGrid(t, data))
+		if !initialized || !reflect.DeepEqual(previous.stats, data.stats) || !reflect.DeepEqual(previous.spools, data.spools) {
+			newMetricsGrid(t, data, metricsView)
+		}
 		updateActive(data.activePrinters())
-		widgets.ReplaceBoxChild(recentSlot, newRecentPrintsPanel(t, data.recent))
-		widgets.ReplaceBoxChild(attentionSlot, newAttentionPanel(t, data.dryingWarnings()))
+		if !initialized || !reflect.DeepEqual(previous.recent, data.recent) {
+			widgets.ReplaceBoxChild(recentSlot, newRecentPrintsPanel(t, data.recent))
+		}
+		if !initialized || !reflect.DeepEqual(previous.spools, data.spools) {
+			widgets.ReplaceBoxChild(attentionSlot, newAttentionPanel(t, data.dryingWarnings()))
+		}
 
 		showDashboardErrors(t, messageLabel, data)
+		previous = data
+		initialized = true
 	}
 
+	loader := shared.NewLoader[dashboardData](ctx, box)
+	fullPending := false
 	refreshDashboard := func() {
-		render(loadDashboardData(ctx, spoolSvc, printSvc, printerSvc))
+		fullPending = true
+		loader.Request(func(ctx context.Context) dashboardData { return loadDashboardData(ctx, spoolSvc, printSvc, printerSvc) }, func(data dashboardData) { fullPending = false; render(data) })
 	}
 	refreshDashboardLive := func() {
-		printers, err := printerSvc.List(ctx)
-		if err != nil {
+		if fullPending {
 			return
 		}
-		data := dashboardData{printers: printers}
-		updateActive(data.activePrinters())
+		loader.Poll(func(ctx context.Context) dashboardData {
+			printers, err := printerSvc.List(ctx)
+			return dashboardData{printers: printers, printersErr: err}
+		}, func(data dashboardData) {
+			if data.printersErr == nil {
+				updateActive(data.activePrinters())
+			}
+		})
 	}
 
 	refreshDashboard()

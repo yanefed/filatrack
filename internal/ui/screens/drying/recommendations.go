@@ -3,13 +3,14 @@ package drying
 import (
 	"context"
 	"fmt"
+	"reflect"
 
+	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 	"github.com/yanefed/filatrack/internal/domain"
 	"github.com/yanefed/filatrack/internal/i18n"
 	"github.com/yanefed/filatrack/internal/service"
 	"github.com/yanefed/filatrack/internal/ui/layout"
-
-	"github.com/diamondburned/gotk4/pkg/gtk/v4"
+	"github.com/yanefed/filatrack/internal/ui/screens/shared"
 )
 
 func newRecommendationsView(t i18n.T, ctx context.Context, dryingSvc *service.DryingService, views ...*layout.View) (*gtk.ScrolledWindow, func()) {
@@ -19,18 +20,27 @@ func newRecommendationsView(t i18n.T, ctx context.Context, dryingSvc *service.Dr
 
 	scrolled := layout.Get[*gtk.ScrolledWindow](view, "scrolled")
 
-	refresh := func() {
-		for child := row.FirstChild(); child != nil; child = row.FirstChild() {
-			row.Remove(child)
-		}
-		profiles, err := dryingSvc.ListRecommendations(ctx)
-		if err != nil {
-			return
-		}
-		for _, profile := range profiles {
-			row.Append(newRecommendationCard(t, profile))
-		}
+	var previous []domain.DryingProfile
+	type result struct {
+		profiles []domain.DryingProfile
+		err      error
 	}
+	loader := shared.NewLoader[result](ctx, scrolled)
+	refresh := func() {
+		loader.Request(func(ctx context.Context) result { p, e := dryingSvc.ListRecommendations(ctx); return result{p, e} }, func(data result) {
+			if data.err != nil || reflect.DeepEqual(previous, data.profiles) {
+				return
+			}
+			previous = data.profiles
+			for child := row.FirstChild(); child != nil; child = row.FirstChild() {
+				row.Remove(child)
+			}
+			for _, profile := range data.profiles {
+				row.Append(newRecommendationCard(t, profile))
+			}
+		})
+	}
+
 	refresh()
 	return scrolled, refresh
 }

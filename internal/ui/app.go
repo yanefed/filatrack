@@ -8,6 +8,12 @@ import (
 	"runtime"
 	"time"
 
+	"github.com/diamondburned/gotk4-adwaita/pkg/adw"
+	coreglib "github.com/diamondburned/gotk4/pkg/core/glib"
+	"github.com/diamondburned/gotk4/pkg/gdk/v4"
+	"github.com/diamondburned/gotk4/pkg/gio/v2"
+	"github.com/diamondburned/gotk4/pkg/glib/v2"
+	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 	"github.com/yanefed/filatrack/internal/database"
 	"github.com/yanefed/filatrack/internal/i18n"
 	"github.com/yanefed/filatrack/internal/service"
@@ -21,13 +27,6 @@ import (
 	"github.com/yanefed/filatrack/internal/ui/screens/shared"
 	"github.com/yanefed/filatrack/internal/ui/screens/spools"
 	"github.com/yanefed/filatrack/packaging/metadata"
-
-	"github.com/diamondburned/gotk4-adwaita/pkg/adw"
-	coreglib "github.com/diamondburned/gotk4/pkg/core/glib"
-	"github.com/diamondburned/gotk4/pkg/gdk/v4"
-	"github.com/diamondburned/gotk4/pkg/gio/v2"
-	"github.com/diamondburned/gotk4/pkg/glib/v2"
-	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 )
 
 // App содержит зависимости для GTK-интерфейса.
@@ -84,8 +83,14 @@ func (a *App) activate(app *adw.Application) {
 	var currentStack *gtk.Stack
 	var visibleChildHandle coreglib.SignalHandle
 	reconnecting := false
+	var cancelView context.CancelFunc
 	var rebuildUI func()
 	rebuildUI = func() {
+		if cancelView != nil {
+			cancelView()
+		}
+		viewCtx, viewCancel := context.WithCancel(ctx)
+		cancelView = viewCancel
 		view := layout.Load("main-layout")
 
 		if err := i18n.ConfigureToolkitLanguage(i18n.GetLanguage()); err != nil {
@@ -119,7 +124,7 @@ func (a *App) activate(app *adw.Application) {
 				banner.SetSensitive(false)
 				banner.SetButtonLabel(t.DatabaseRetrying)
 				var reconnectErr error
-				shared.RunAsyncUI(func() {
+				shared.RunAsyncUI(ctx, func() {
 					retryCtx, cancel := context.WithTimeout(ctx, 15*time.Second)
 					defer cancel()
 					reconnectErr = a.Database.Reconnect(retryCtx)
@@ -212,25 +217,25 @@ func (a *App) activate(app *adw.Application) {
 		refreshSettingsDependencies := func() { markDirty("spools", "drying", "prints") }
 		refreshModelDependencies := func() { markDirty("dashboard", "printers") }
 
-		dashboardPage, refreshDashboard, refreshDashboardLive := dashboard.NewDashboard(ctx, a.SpoolService, a.PrintService, a.PrinterService, layout.Scope(view, "dashboard"))
+		dashboardPage, refreshDashboard, refreshDashboardLive := dashboard.NewDashboard(viewCtx, a.SpoolService, a.PrintService, a.PrinterService, layout.Scope(view, "dashboard"))
 		stack.Page(dashboardPage).SetTitle(t.Dashboard)
 
-		spoolsPage, refreshSpools, openAddSpoolDialog := spools.NewSpoolsScreen(ctx, parentWindow, a.SpoolService, a.DryingService, a.SettingsService, refreshSpoolDependencies, layout.Scope(view, "spools"))
+		spoolsPage, refreshSpools, openAddSpoolDialog := spools.NewSpoolsScreen(viewCtx, parentWindow, a.SpoolService, a.DryingService, a.SettingsService, refreshSpoolDependencies, layout.Scope(view, "spools"))
 		stack.Page(spoolsPage).SetTitle(t.Spools)
 
-		printsPage, refreshPrints, refreshPrintsLive, refreshHistoryButton, printsPrinterFilter := prints.NewPrintsScreen(ctx, parentWindow, a.PrintService, a.PrinterService, a.SpoolService, refreshPrintDependencies, layout.Scope(view, "prints"))
+		printsPage, refreshPrints, refreshPrintsLive, refreshHistoryButton, printsPrinterFilter := prints.NewPrintsScreen(viewCtx, parentWindow, a.PrintService, a.PrinterService, a.SpoolService, refreshPrintDependencies, layout.Scope(view, "prints"))
 		stack.Page(printsPage).SetTitle(t.Prints)
 
-		modelsPage, refreshModels, addModelButton, refreshModelsButton, modelOptionsButton := models.NewModelsScreen(ctx, parentWindow, a.PrinterService, a.SpoolService, a.SettingsService, refreshModelDependencies, layout.Scope(view, "models"))
+		modelsPage, refreshModels, addModelButton, refreshModelsButton, modelOptionsButton := models.NewModelsScreen(viewCtx, parentWindow, a.PrinterService, a.SpoolService, a.SettingsService, refreshModelDependencies, layout.Scope(view, "models"))
 		stack.Page(modelsPage).SetTitle(t.Models)
 
-		dryingPage, refreshDrying, addDryingButton := drying.NewDryingScreen(ctx, parentWindow, a.DryingService, a.SpoolService, refreshDryingDependencies, layout.Scope(view, "drying"))
+		dryingPage, refreshDrying, addDryingButton := drying.NewDryingScreen(viewCtx, parentWindow, a.DryingService, a.SpoolService, refreshDryingDependencies, layout.Scope(view, "drying"))
 		stack.Page(dryingPage).SetTitle(t.Drying)
 
-		printersPage, refreshPrinters, refreshPrintersLive, addPrinterButton := printers.NewPrintersScreen(ctx, parentWindow, a.PrinterService, a.SpoolService, refreshPrinterDependencies, layout.Scope(view, "printers"))
+		printersPage, refreshPrinters, refreshPrintersLive, addPrinterButton := printers.NewPrintersScreen(viewCtx, parentWindow, a.PrinterService, a.SpoolService, refreshPrinterDependencies, layout.Scope(view, "printers"))
 		stack.Page(printersPage).SetTitle(t.Printers)
 
-		settingsPage, refreshSettings := settings.NewSettingsScreen(ctx, parentWindow, a.SettingsService, refreshSettingsDependencies, rebuildUI, settings.DatabaseOptions{Manager: a.Database, OnSwitched: app.Quit, View: layout.Scope(view, "settings")})
+		settingsPage, refreshSettings := settings.NewSettingsScreen(viewCtx, parentWindow, a.SettingsService, refreshSettingsDependencies, rebuildUI, settings.DatabaseOptions{Manager: a.Database, OnSwitched: app.Quit, View: layout.Scope(view, "settings")})
 		settingsPage.SetSensitive(!readOnly)
 
 		addSpoolButton := layout.Get[*gtk.Button](view, "addSpoolButton")
@@ -286,6 +291,9 @@ func (a *App) activate(app *adw.Application) {
 	memoryTimer := startMemoryDiagnostics()
 	window.ConnectDestroy(func() {
 		cancel()
+		if cancelView != nil {
+			cancelView()
+		}
 		glib.SourceRemove(refreshTimer)
 		glib.SourceRemove(liveTimer)
 		if memoryTimer != 0 {

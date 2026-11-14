@@ -3,12 +3,12 @@ package drying
 import (
 	"context"
 	"fmt"
+
+	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 	"github.com/yanefed/filatrack/internal/i18n"
 	"github.com/yanefed/filatrack/internal/service"
 	"github.com/yanefed/filatrack/internal/ui/layout"
-	"github.com/yanefed/filatrack/internal/ui/widgets"
-
-	"github.com/diamondburned/gotk4/pkg/gtk/v4"
+	"github.com/yanefed/filatrack/internal/ui/screens/shared"
 )
 
 // NewDryingScreen creates the drying history and recommendation screen.
@@ -24,22 +24,31 @@ func NewDryingScreen(ctx context.Context, parent *gtk.Window, dryingSvc *service
 	_ = layout.Configure[*gtk.Label](view, "object_515", func(w *gtk.Label) { w.SetLabel(t.DryingLog) })
 	emptyLabel := layout.Configure[*gtk.Label](view, "emptyLabel", func(w *gtk.Label) { w.SetLabel(t.NoDryingHistory) })
 
-	historyList := layout.Get[*gtk.ListBox](view, "historyList")
-
+	historyList := layout.Get[*gtk.ListView](view, "historyList")
+	updateHistory := shared.Virtual(historyList, func(item dryingHistoryItem) string { return item.session.ID }, func() (gtk.Widgetter, func(dryingHistoryItem)) {
+		rowView := layout.Load("drying-history-card")
+		return layout.Get[*gtk.Box](rowView, "card"), func(item dryingHistoryItem) { newDryingHistoryCard(t, item, rowView) }
+	})
+	type result struct {
+		items []dryingHistoryItem
+		err   error
+	}
+	loader := shared.NewLoader[result](ctx, box)
 	refreshDrying := func() {
 		refreshRecommendations()
-		widgets.ClearListBox(historyList)
-		items, err := loadDryingHistory(ctx, dryingSvc, spoolSvc)
-		if err != nil {
-			emptyLabel.SetLabel(fmt.Sprintf("%s: %v", t.ErrorPrefix, err))
-			emptyLabel.SetVisible(true)
-			return
-		}
-		emptyLabel.SetLabel(t.NoDryingHistory)
-		emptyLabel.SetVisible(len(items) == 0)
-		for _, item := range items {
-			historyList.Append(newDryingHistoryCard(t, item))
-		}
+		loader.Request(func(ctx context.Context) result {
+			items, err := loadDryingHistory(ctx, dryingSvc, spoolSvc)
+			return result{items, err}
+		}, func(data result) {
+			if data.err != nil {
+				emptyLabel.SetLabel(fmt.Sprintf("%s: %v", t.ErrorPrefix, data.err))
+				emptyLabel.SetVisible(true)
+				return
+			}
+			emptyLabel.SetLabel(t.NoDryingHistory)
+			emptyLabel.SetVisible(len(data.items) == 0)
+			updateHistory(data.items)
+		})
 	}
 
 	addDryingButton := layout.Get[*gtk.Button](view, "addDryingButton")

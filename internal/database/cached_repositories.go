@@ -12,7 +12,7 @@ func (m *Manager) wrapRepositories() {
 	m.repositories = &backend{
 		spools:        &cachedSpoolRepository{manager: m},
 		prints:        &cachedPrintJobRepository{manager: m},
-		dryings:       &cachedDryingSessionRepository{manager: m},
+		dryings:       &cachedDryingRepository{manager: m},
 		settings:      &cachedSettingsRepository{manager: m},
 		printers:      &cachedPrinterRepository{manager: m},
 		models:        &cachedPrinterModelRepository{manager: m},
@@ -74,17 +74,17 @@ func (r *cachedPrintJobRepository) GetStats(ctx context.Context, filter domain.S
 	return readRepository(r.manager, func(b *backend) (*domain.PrintStats, error) { return b.prints.GetStats(ctx, filter) })
 }
 
-type cachedDryingSessionRepository struct{ manager *Manager }
+type cachedDryingRepository struct{ manager *Manager }
 
-func (r *cachedDryingSessionRepository) Create(ctx context.Context, session *domain.DryingSession) error {
+func (r *cachedDryingRepository) Create(ctx context.Context, session *domain.DryingSession) error {
 	return r.manager.write(func() error { return r.manager.active.dryings.Create(ctx, session) })
 }
 
-func (r *cachedDryingSessionRepository) List(ctx context.Context, spoolID string) ([]domain.DryingSession, error) {
+func (r *cachedDryingRepository) List(ctx context.Context, spoolID string) ([]domain.DryingSession, error) {
 	return readRepository(r.manager, func(b *backend) ([]domain.DryingSession, error) { return b.dryings.List(ctx, spoolID) })
 }
 
-func (r *cachedDryingSessionRepository) GetLastDrying(ctx context.Context, spoolID string) (*domain.DryingSession, error) {
+func (r *cachedDryingRepository) GetLastDrying(ctx context.Context, spoolID string) (*domain.DryingSession, error) {
 	return readRepository(r.manager, func(b *backend) (*domain.DryingSession, error) { return b.dryings.GetLastDrying(ctx, spoolID) })
 }
 
@@ -180,4 +180,14 @@ func (r *cachedPreviewImageRepository) Put(ctx context.Context, data []byte) (st
 		return err
 	})
 	return hash, err
+}
+
+func (r *cachedSpoolRepository) GetUsedWeights(ctx context.Context) (map[string]float64, error) {
+	return readRepository(r.manager, func(b *backend) (map[string]float64, error) { return b.spools.GetUsedWeights(ctx) })
+}
+func (r *cachedDryingRepository) Latest(ctx context.Context) (map[string]domain.DryingSession, error) {
+	return readRepository(r.manager, func(b *backend) (map[string]domain.DryingSession, error) { return b.dryings.Latest(ctx) })
+}
+func (r *cachedDryingRepository) ListAll(ctx context.Context) ([]domain.DryingSession, error) {
+	return readRepository(r.manager, func(b *backend) ([]domain.DryingSession, error) { return b.dryings.ListAll(ctx) })
 }

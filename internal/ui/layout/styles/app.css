@@ -19,3 +19,6 @@
 	color: #e66100;
 	font-weight: 600;
 }
+
+.spool-grid { background: transparent; }
+.spool-grid > child { padding: 4px; }

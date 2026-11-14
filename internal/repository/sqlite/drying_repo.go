@@ -5,13 +5,12 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	"github.com/yanefed/filatrack/internal/domain"
-	"github.com/yanefed/filatrack/internal/port"
 	"log/slog"
 
-	"github.com/yanefed/filatrack/internal/repository/entity"
-
 	"github.com/google/uuid"
+	"github.com/yanefed/filatrack/internal/domain"
+	"github.com/yanefed/filatrack/internal/port"
+	"github.com/yanefed/filatrack/internal/repository/entity"
 )
 
 // DryingRepo реализует port.DryingSessionRepository поверх SQLite.
@@ -87,4 +86,40 @@ func (r *DryingRepo) GetLastDrying(ctx context.Context, spoolID string) (*domain
 	}
 	session := persisted.Domain()
 	return &session, nil
+}
+
+func (r *DryingRepo) ListAll(ctx context.Context) ([]domain.DryingSession, error) {
+	rows, err := r.db.conn.QueryContext(ctx, `SELECT id, spool_id, temperature_c, duration_hours, dried_at, created_at FROM drying_sessions ORDER BY dried_at DESC, created_at DESC, id DESC`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var sessions []domain.DryingSession
+	for rows.Next() {
+		item, err := entity.ScanDryingSession(rows)
+		if err != nil {
+			return nil, err
+		}
+		sessions = append(sessions, item.Domain())
+	}
+	return sessions, rows.Err()
+}
+func (r *DryingRepo) Latest(ctx context.Context) (map[string]domain.DryingSession, error) {
+	rows, err := r.db.conn.QueryContext(ctx, `SELECT id, spool_id, temperature_c, duration_hours, dried_at, created_at FROM (
+ SELECT id, spool_id, temperature_c, duration_hours, dried_at, created_at,
+ ROW_NUMBER() OVER(PARTITION BY spool_id ORDER BY dried_at DESC, created_at DESC, id DESC) AS position FROM drying_sessions) AS ranked WHERE position=1`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	latest := make(map[string]domain.DryingSession)
+	for rows.Next() {
+		item, err := entity.ScanDryingSession(rows)
+		if err != nil {
+			return nil, err
+		}
+		session := item.Domain()
+		latest[session.SpoolID] = session
+	}
+	return latest, rows.Err()
 }

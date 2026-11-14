@@ -1,17 +1,16 @@
 package models
 
 import (
-	"github.com/yanefed/filatrack/internal/domain"
-	"github.com/yanefed/filatrack/internal/i18n"
-	"github.com/yanefed/filatrack/internal/service"
-	"github.com/yanefed/filatrack/internal/ui/layout"
-	"github.com/yanefed/filatrack/internal/ui/screens/shared"
-
 	"context"
 	"path/filepath"
 
 	"github.com/diamondburned/gotk4-adwaita/pkg/adw"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
+	"github.com/yanefed/filatrack/internal/domain"
+	"github.com/yanefed/filatrack/internal/i18n"
+	"github.com/yanefed/filatrack/internal/service"
+	"github.com/yanefed/filatrack/internal/ui/layout"
+	"github.com/yanefed/filatrack/internal/ui/screens/shared"
 )
 
 func showModelUploadDialog(t i18n.T, ctx context.Context, parent *gtk.Window, printerSvc *service.PrinterService, settingsSvc *service.SettingsService, printers []domain.Printer, spools []domain.Spool, messageLabel *gtk.Label, onSuccess func()) {
@@ -122,10 +121,9 @@ func showModelUploadDialog(t i18n.T, ctx context.Context, parent *gtk.Window, pr
 			spoolID = selectedDirectSpool(spoolCombo, spools)
 		}
 		req := domain.PrintLaunchRequest{
-			PrinterID:        printerID,
-			SpoolID:          spoolID,
-			LocalPath:        localPath,
-			AllowLowFilament: settingsSvc.AllowLowFilamentWarning(ctx),
+			PrinterID: printerID,
+			SpoolID:   spoolID,
+			LocalPath: localPath,
 		}
 		uploadBtn.SetSensitive(false)
 		chooseBtn.SetSensitive(false)
@@ -133,7 +131,8 @@ func showModelUploadDialog(t i18n.T, ctx context.Context, parent *gtk.Window, pr
 		messageLabel.SetVisible(true)
 		var result *domain.PrintLaunchResult
 		var err error
-		shared.RunAsyncUI(func() {
+		shared.RunAsyncUI(ctx, func() {
+			req.AllowLowFilament = settingsSvc.AllowLowFilamentWarning(ctx)
 			if startPrint && spoolID != "" {
 				for i := range printers {
 					if printers[i].ID == printerID && printers[i].ActiveSpoolID != spoolID {

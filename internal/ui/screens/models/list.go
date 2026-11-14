@@ -3,14 +3,16 @@ package models
 import (
 	"context"
 	"fmt"
+	"reflect"
+
+	coreglib "github.com/diamondburned/gotk4/pkg/core/glib"
+	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 	"github.com/yanefed/filatrack/internal/domain"
 	"github.com/yanefed/filatrack/internal/i18n"
 	"github.com/yanefed/filatrack/internal/service"
 	"github.com/yanefed/filatrack/internal/ui/layout"
+	"github.com/yanefed/filatrack/internal/ui/screens/shared"
 	"github.com/yanefed/filatrack/internal/ui/widgets"
-
-	coreglib "github.com/diamondburned/gotk4/pkg/core/glib"
-	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 )
 
 type modelListState struct {
@@ -21,10 +23,12 @@ type modelListState struct {
 }
 
 type modelRowWidgets struct {
-	item    *gtk.ListItem
-	picture *gtk.Picture
-	name    *gtk.Label
-	details *gtk.Label
+	previous    *domain.PrinterModelFile
+	printerName string
+	item        *gtk.ListItem
+	picture     *gtk.Picture
+	name        *gtk.Label
+	details     *gtk.Label
 }
 
 func newVirtualModelsList(t i18n.T, ctx context.Context, parent *gtk.Window, printerSvc *service.PrinterService, settingsSvc *service.SettingsService, messageLabel *gtk.Label, onChanged func(), views ...*layout.View) (*gtk.ListView, func([]domain.PrinterModelFile, []domain.Printer, []domain.Spool)) {
@@ -75,14 +79,19 @@ func newVirtualModelsList(t i18n.T, ctx context.Context, parent *gtk.Window, pri
 		rows[itemNative] = &modelRowWidgets{item: item, picture: picture, name: name, details: details}
 	})
 
-	factory.ConnectBind(func(object *coreglib.Object) {
-		item := object.Cast().(*gtk.ListItem)
-		row := rows[item.Native()]
-		position := item.Position()
-		if row == nil || int(position) >= len(state.models) {
+	bindRow := func(row *modelRowWidgets) {
+		position := row.item.Position()
+		if int(position) >= len(state.models) {
 			return
 		}
+
 		entry := state.models[position]
+		printerName := state.printerNames[entry.PrinterID]
+		if row.previous != nil && reflect.DeepEqual(*row.previous, entry) && row.printerName == printerName {
+			return
+		}
+		row.previous = &entry
+		row.printerName = printerName
 		name := entry.Filename
 		if name == "" {
 			name = entry.Path
@@ -94,12 +103,18 @@ func newVirtualModelsList(t i18n.T, ctx context.Context, parent *gtk.Window, pri
 		}
 		row.details.SetLabel(details)
 		widgets.SetPreview(row.picture, entry.PreviewImagePath)
+	}
+	factory.ConnectBind(func(object *coreglib.Object) {
+		if row := rows[object.Native()]; row != nil {
+			bindRow(row)
+		}
 	})
+
 	factory.ConnectUnbind(func(object *coreglib.Object) {
 		item := object.Cast().(*gtk.ListItem)
 		if row := rows[item.Native()]; row != nil {
-			row.picture.SetPaintable(nil)
-			row.picture.SetVisible(false)
+			widgets.SetPreview(row.picture, "")
+			row.previous = nil
 		}
 	})
 	factory.ConnectTeardown(func(object *coreglib.Object) {
@@ -114,7 +129,10 @@ func newVirtualModelsList(t i18n.T, ctx context.Context, parent *gtk.Window, pri
 		state.printers = printers
 		state.spools = spools
 		state.printerNames = printerNamesByID(printers)
-		model.Splice(0, model.NItems(), modelKeys(models))
+		shared.SyncStrings(model, modelKeys(models))
+		for _, row := range rows {
+			bindRow(row)
+		}
 	}
 	return listView, update
 }

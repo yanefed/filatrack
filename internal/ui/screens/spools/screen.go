@@ -1,14 +1,16 @@
 package spools
 
 import (
+	"context"
+	"fmt"
+	"slices"
+
+	"github.com/diamondburned/gotk4/pkg/gtk/v4"
+	"github.com/yanefed/filatrack/internal/domain"
 	"github.com/yanefed/filatrack/internal/i18n"
 	"github.com/yanefed/filatrack/internal/service"
 	"github.com/yanefed/filatrack/internal/ui/layout"
-
-	"context"
-	"fmt"
-
-	"github.com/diamondburned/gotk4/pkg/gtk/v4"
+	"github.com/yanefed/filatrack/internal/ui/screens/shared"
 )
 
 // NewSpoolsScreen создаёт экран управления катушками филамента.
@@ -22,73 +24,85 @@ func NewSpoolsScreen(ctx context.Context, parent *gtk.Window, spoolSvc *service.
 
 	emptyLabel := layout.Configure[*gtk.Label](view, "emptyLabel", func(w *gtk.Label) { w.SetLabel(t.NoMatchingSpools) })
 
-	spoolGrid := layout.Get[*gtk.FlowBox](view, "spoolGrid")
-
+	spoolGrid := layout.Get[*gtk.GridView](view, "spoolGrid")
+	type result struct {
+		items   []service.SpoolSummary
+		options service.SpoolFilterOptions
+		err     error
+		full    bool
+	}
+	loader := shared.NewLoader[result](ctx, box)
 	var refreshSpools func()
-	refreshList = func() {
-		spoolGrid.RemoveAll()
-		emptyLabel.SetVisible(false)
-
-		spools, err := spoolSvc.List(ctx, filters.Filter())
-		if err != nil {
-			view := layout.Load("spools-error")
-
-			label := layout.Configure[*gtk.Label](view, "label", func(w *gtk.Label) { w.SetLabel(fmt.Sprintf("%s: %v", t.ErrorPrefix, err)) })
-			spoolGrid.Append(label)
-			return
-		}
-		emptyLabel.SetVisible(len(spools) == 0)
-
-		for _, spool := range spools {
-			_, remaining, err := spoolSvc.GetWithRemaining(ctx, spool.ID)
-			if err != nil {
-				remaining = 0
+	updateCards := shared.Virtual(spoolGrid, func(item service.SpoolSummary) string { return item.Spool.ID }, func() (gtk.Widgetter, func(service.SpoolSummary)) {
+		cardView := layout.Load("spool-card")
+		var current service.SpoolSummary
+		archive := shared.Action(ctx, box)
+		changed := func() {
+			refreshSpools()
+			if onChanged != nil {
+				onChanged()
 			}
-			percent := spool.RemainingPercent(spool.TotalWeightG - remaining)
-			dryingStatus, dryingErr := dryingSvc.GetStatus(ctx, &spool)
-
-			spoolGrid.Append(newSpoolCard(t, spool, remaining, percent, dryingStatus, dryingErr, spoolCardActions{
-				dry: func() {
-					showDrySpoolDialog(ctx, parent, dryingSvc, spool, dryingStatus.Profile, func() {
-						refreshSpools()
-						if onChanged != nil {
-							onChanged()
-						}
-					})
-				},
-				edit: func() {
-					showEditSpoolDialog(ctx, parent, spoolSvc, settingsSvc, spool, func() {
-						refreshSpools()
-						if onChanged != nil {
-							onChanged()
-						}
-					})
-				},
-				archive: func() {
-					if err := spoolSvc.Archive(ctx, spool.ID); err != nil {
+		}
+		card := newSpoolCard(t, domain.Spool{}, 0, 0, service.DryingStatus{}, nil, spoolCardActions{
+			dry: func() {
+				item := current
+				showDrySpoolDialog(ctx, parent, dryingSvc, item.Spool, item.Drying.Profile, changed)
+			},
+			edit: func() { item := current; showEditSpoolDialog(ctx, parent, spoolSvc, settingsSvc, item.Spool, changed) },
+			archive: func() {
+				id := current.Spool.ID
+				archive(func() error { return spoolSvc.Archive(ctx, id) }, func(err error) {
+					if err != nil {
+						emptyLabel.SetLabel(fmt.Sprintf("%s: %v", t.ErrorPrefix, err))
+						emptyLabel.SetVisible(true)
 						return
 					}
-					refreshSpools()
-					if onChanged != nil {
-						onChanged()
-					}
-				},
-			}))
+					changed()
+				})
+			},
+		}, cardView)
+		return card, func(item service.SpoolSummary) {
+			current = item
+			spool := item.Spool
+			updateSpoolCard(t, cardView, spool, item.RemainingG, spool.RemainingPercent(spool.TotalWeightG-item.RemainingG), item.Drying, item.DryingErr)
 		}
+	})
+	request := func(full bool) {
+		filter := filters.Filter()
+		loader.Request(func(ctx context.Context) result {
+			data := result{full: full}
+			if full {
+				data.options, data.err = spoolSvc.FilterOptions(ctx)
+				if data.err != nil {
+					return data
+				}
+			}
+			if full {
+				if filter.Manufacturer != nil && !slices.Contains(data.options.Manufacturers, *filter.Manufacturer) {
+					filter.Manufacturer = nil
+				}
+				if filter.Material != nil && !slices.Contains(data.options.Materials, *filter.Material) {
+					filter.Material = nil
+				}
+			}
+			data.items, data.err = spoolSvc.ListSummaries(ctx, filter)
+			return data
+		}, func(data result) {
+			if data.err != nil {
+				emptyLabel.SetLabel(fmt.Sprintf("%s: %v", t.ErrorPrefix, data.err))
+				emptyLabel.SetVisible(true)
+				return
+			}
+			if data.full {
+				filters.SetOptions(data.options)
+			}
+			emptyLabel.SetLabel(t.NoMatchingSpools)
+			emptyLabel.SetVisible(len(data.items) == 0)
+			updateCards(data.items)
+		})
 	}
-	refreshSpools = func() {
-		options, err := spoolSvc.FilterOptions(ctx)
-		if err != nil {
-			view := layout.Load("spools-filter-error")
-
-			spoolGrid.RemoveAll()
-			emptyLabel.SetVisible(false)
-			spoolGrid.Append(layout.Configure[*gtk.Label](view, "object_1611", func(w *gtk.Label) { w.SetLabel(fmt.Sprintf("%s: %v", t.ErrorPrefix, err)) }))
-			return
-		}
-		filters.SetOptions(options)
-		refreshList()
-	}
+	refreshList = func() { request(false) }
+	refreshSpools = func() { request(true) }
 
 	openAddDialog := func() {
 		showAddSpoolDialog(ctx, parent, spoolSvc, settingsSvc, func() {

@@ -1,13 +1,14 @@
 package spools
 
 import (
+	"slices"
+
+	"github.com/diamondburned/gotk4-adwaita/pkg/adw"
+	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 	"github.com/yanefed/filatrack/internal/domain"
 	"github.com/yanefed/filatrack/internal/i18n"
 	"github.com/yanefed/filatrack/internal/service"
 	"github.com/yanefed/filatrack/internal/ui/layout"
-
-	"github.com/diamondburned/gotk4-adwaita/pkg/adw"
-	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 )
 
 // spoolFilters owns presentation state only; querying stays in SpoolService.
@@ -102,6 +103,10 @@ func (f *spoolFilters) SetOptions(options service.SpoolFilterOptions) {
 	materials := make([]string, len(options.Materials))
 	for i, material := range options.Materials {
 		materials[i] = string(material)
+	}
+	if slices.Equal(f.manufacturers, options.Manufacturers) && slices.Equal(f.materials, materials) {
+		f.updateReset()
+		return
 	}
 	set(f.manufacturer, f.manufacturers, options.Manufacturers, f.t.AllManufacturers)
 	set(f.material, f.materials, materials, f.t.AllMaterials)

@@ -1,18 +1,23 @@
 package shared
 
-import "github.com/diamondburned/gotk4/pkg/glib/v2"
+import "context"
 
-func RunAsyncUI(work func(), done func()) {
+// RunAsyncUI checks the view lifetime on both sides of a background operation.
+func RunAsyncUI(ctx context.Context, work func(), done func()) {
 	go func() {
+		if ctx.Err() != nil {
+			return
+		}
 		if work != nil {
 			work()
 		}
 		if done == nil {
 			return
 		}
-		glib.MainContextDefault().InvokeFull(glib.PRIORITY_DEFAULT_IDLE, func() bool {
-			done()
-			return false
+		Dispatch(func() {
+			if ctx.Err() == nil {
+				done()
+			}
 		})
 	}()
 }

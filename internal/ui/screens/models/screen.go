@@ -1,16 +1,15 @@
 package models
 
 import (
+	"context"
+	"fmt"
+
+	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 	"github.com/yanefed/filatrack/internal/domain"
 	"github.com/yanefed/filatrack/internal/i18n"
 	"github.com/yanefed/filatrack/internal/service"
 	"github.com/yanefed/filatrack/internal/ui/layout"
 	"github.com/yanefed/filatrack/internal/ui/screens/shared"
-
-	"context"
-	"fmt"
-
-	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 )
 
 func NewModelsScreen(ctx context.Context, parent *gtk.Window, printerSvc *service.PrinterService, spoolSvc *service.SpoolService, settingsSvc *service.SettingsService, onChanged func(), views ...*layout.View) (*gtk.Box, func(), *gtk.Button, *gtk.Button, *gtk.MenuButton) {
@@ -21,83 +20,77 @@ func NewModelsScreen(ctx context.Context, parent *gtk.Window, printerSvc *servic
 	box := layout.Configure[*gtk.Box](view, "box", func(w *gtk.Box) { layout.Get[*gtk.Label](view, "box_title").SetLabel(t.Models) })
 
 	messageLabel := layout.Get[*gtk.Label](view, "messageLabel")
-
-	var printers []domain.Printer
-	var spools []domain.Spool
-
+	emptyLabel := layout.Get[*gtk.Label](view, "emptyLabel")
+	emptyLabel.SetLabel(t.NoPrinterModels)
 	addModelBtn := layout.Get[*gtk.Button](view, "addModelBtn")
 	addModelBtn.SetTooltipText(t.UploadModel)
 	refreshModelsBtn := layout.Get[*gtk.Button](view, "refreshModelsBtn")
 	refreshModelsBtn.SetTooltipText(t.RefreshModels)
-
-	emptyLabel := layout.Configure[*gtk.Label](view, "emptyLabel", func(w *gtk.Label) { w.SetLabel(t.NoPrinterModels) })
-
-	_, updateModelsList := newVirtualModelsList(t, ctx, parent, printerSvc, settingsSvc, messageLabel, onChanged, layout.Scope(view, "object_634_slot"))
-
-	refreshPrinterChoices := func() {
-		loaded, err := printerSvc.List(ctx)
-		if err != nil {
-			printers = nil
-			messageLabel.SetLabel(fmt.Sprintf("%s: %v", t.ErrorPrefix, err))
-			messageLabel.SetVisible(true)
-			return
-		}
-		printers = loaded
-	}
-
-	refreshSpoolChoices := func() {
-		notArchived := false
-		loaded, err := spoolSvc.List(ctx, domain.SpoolFilter{Archived: &notArchived})
-		if err != nil {
-			spools = nil
-			messageLabel.SetLabel(fmt.Sprintf("%s: %v", t.ErrorPrefix, err))
-			messageLabel.SetVisible(true)
-			return
-		}
-		spools = loaded
-	}
-
 	optionsBtn := layout.Get[*gtk.MenuButton](view, "modelOptionsBtn")
 	optionsBtn.SetTooltipText(t.ModelRefreshOptions)
 	forceBtn := layout.Get[*gtk.Button](view, "refreshAllMetadataBtn")
 	forceBtn.SetLabel(t.RefreshAllModelMetadata)
 	popover := layout.Get[*gtk.Popover](view, "modelOptionsPopover")
-	var currentModels []domain.PrinterModelFile
-	var generation uint64
+	var printers []domain.Printer
+	var spools []domain.Spool
+	_, updateModelsList := newVirtualModelsList(t, ctx, parent, printerSvc, settingsSvc, messageLabel, onChanged, layout.Scope(view, "object_634_slot"))
+	type result struct {
+		models   []domain.PrinterModelFile
+		printers []domain.Printer
+		spools   []domain.Spool
+		report   service.ModelRefreshResult
+		err      error
+		remote   bool
+	}
+	loader := shared.NewLoader[result](ctx, box)
 	refreshing, reloadAfterRefresh := false, false
 	var loadCached func()
-	showModels := func(models []domain.PrinterModelFile) {
-		currentModels = models
-		emptyLabel.SetLabel(t.NoPrinterModels)
-		emptyLabel.SetVisible(len(models) == 0)
-		updateModelsList(models, printers, spools)
-	}
-	refreshCatalog := func(mode service.ModelRefreshMode) {
-		if refreshing {
-			return
+	request := func(remote bool, mode service.ModelRefreshMode) {
+		if remote {
+			refreshing = true
+			refreshModelsBtn.SetSensitive(false)
+			optionsBtn.SetSensitive(false)
+			messageLabel.SetLabel(t.RefreshingModels)
+			messageLabel.SetVisible(true)
 		}
-		refreshing = true
-		generation++ // Ignore any cache read started before this refresh.
-		refreshModelsBtn.SetSensitive(false)
-		optionsBtn.SetSensitive(false)
-		messageLabel.SetLabel(t.RefreshingModels)
-		messageLabel.SetVisible(true)
-		var result service.ModelRefreshResult
-		var err error
-		shared.RunAsyncUI(func() {
-			result, err = printerSvc.RefreshModelCatalog(ctx, mode)
-		}, func() {
-			refreshing = false
-			refreshModelsBtn.SetSensitive(true)
-			optionsBtn.SetSensitive(true)
-			if err != nil {
-				messageLabel.SetLabel(fmt.Sprintf("%s: %v", t.ErrorPrefix, err))
+		loader.Request(func(ctx context.Context) result {
+			data := result{remote: remote}
+			data.printers, data.err = printerSvc.List(ctx)
+			if data.err != nil {
+				return data
+			}
+			active := false
+			data.spools, data.err = spoolSvc.List(ctx, domain.SpoolFilter{Archived: &active})
+			if data.err != nil {
+				return data
+			}
+			if remote {
+				data.report, data.err = printerSvc.RefreshModelCatalog(ctx, mode)
+				data.models = data.report.Models
+			} else {
+				data.models, data.err = printerSvc.ListAllModels(ctx)
+			}
+			return data
+		}, func(data result) {
+			if data.remote {
+				refreshing = false
+				refreshModelsBtn.SetSensitive(true)
+				optionsBtn.SetSensitive(true)
+			}
+			if data.err != nil {
+				messageLabel.SetLabel(fmt.Sprintf("%s: %v", t.ErrorPrefix, data.err))
 				messageLabel.SetVisible(true)
 			} else {
-				showModels(result.Models)
-				messageLabel.SetVisible(len(result.Failures) > 0)
-				if len(result.Failures) > 0 {
-					messageLabel.SetLabel(fmt.Sprintf(t.PartialModelRefresh, len(result.Failures)) + "\n" + result.Failures[0].Error())
+				printers = data.printers
+				spools = data.spools
+				emptyLabel.SetLabel(t.NoPrinterModels)
+				emptyLabel.SetVisible(len(data.models) == 0)
+				updateModelsList(data.models, printers, spools)
+				if data.remote {
+					messageLabel.SetVisible(len(data.report.Failures) > 0)
+					if len(data.report.Failures) > 0 {
+						messageLabel.SetLabel(fmt.Sprintf(t.PartialModelRefresh, len(data.report.Failures)) + "\n" + data.report.Failures[0].Error())
+					}
 				}
 			}
 			if reloadAfterRefresh {
@@ -106,9 +99,19 @@ func NewModelsScreen(ctx context.Context, parent *gtk.Window, printerSvc *servic
 			}
 		})
 	}
-	refreshModels := func() { refreshCatalog(service.ModelRefreshChanges) }
-	forceBtn.ConnectClicked(func() { popover.Popdown(); refreshCatalog(service.ModelRefreshFull) })
-
+	loadCached = func() { request(false, service.ModelRefreshChanges) }
+	refreshModels := func() {
+		if !refreshing {
+			request(true, service.ModelRefreshChanges)
+		}
+	}
+	refreshModelsBtn.ConnectClicked(refreshModels)
+	forceBtn.ConnectClicked(func() {
+		popover.Popdown()
+		if !refreshing {
+			request(true, service.ModelRefreshFull)
+		}
+	})
 	addModelBtn.ConnectClicked(func() {
 		showModelUploadDialog(t, ctx, parent, printerSvc, settingsSvc, printers, spools, messageLabel, func() {
 			refreshModels()
@@ -117,30 +120,7 @@ func NewModelsScreen(ctx context.Context, parent *gtk.Window, printerSvc *servic
 			}
 		})
 	})
-
-	refreshModelsBtn.ConnectClicked(refreshModels)
-
-	loadCached = func() {
-		generation++
-		started := generation
-		var models []domain.PrinterModelFile
-		var err error
-		shared.RunAsyncUI(func() { models, err = printerSvc.ListAllModels(ctx) }, func() {
-			if started != generation {
-				return
-			}
-			if err != nil {
-				messageLabel.SetLabel(fmt.Sprintf("%s: %v", t.ErrorPrefix, err))
-				messageLabel.SetVisible(true)
-				return
-			}
-			showModels(models)
-		})
-	}
 	refreshScreen := func() {
-		refreshPrinterChoices()
-		refreshSpoolChoices()
-		updateModelsList(currentModels, printers, spools)
 		if refreshing {
 			reloadAfterRefresh = true
 			return
@@ -224,16 +204,16 @@ func showPrintLaunchDialog(t i18n.T, ctx context.Context, parent *gtk.Window, pr
 			return
 		}
 		req := domain.PrintLaunchRequest{
-			PrinterID:        targetID,
-			SpoolID:          spoolID,
-			AllowLowFilament: settingsSvc.AllowLowFilamentWarning(ctx),
+			PrinterID: targetID,
+			SpoolID:   spoolID,
 		}
 		printBtn.SetSensitive(false)
 		messageLabel.SetLabel("Loading…")
 		messageLabel.SetVisible(true)
 		var result *domain.PrintLaunchResult
 		var err error
-		shared.RunAsyncUI(func() {
+		shared.RunAsyncUI(ctx, func() {
+			req.AllowLowFilament = settingsSvc.AllowLowFilamentWarning(ctx)
 			if spoolID != "" {
 				for i := range printers {
 					if printers[i].ID == targetID && printers[i].ActiveSpoolID != spoolID {

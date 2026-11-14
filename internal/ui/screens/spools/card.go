@@ -2,13 +2,13 @@ package spools
 
 import (
 	"fmt"
+
+	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 	"github.com/yanefed/filatrack/internal/domain"
 	"github.com/yanefed/filatrack/internal/i18n"
 	"github.com/yanefed/filatrack/internal/service"
 	"github.com/yanefed/filatrack/internal/ui/layout"
 	"github.com/yanefed/filatrack/internal/ui/widgets"
-
-	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 )
 
 type spoolCardActions struct {
@@ -17,21 +17,12 @@ type spoolCardActions struct {
 	archive func()
 }
 
-func newSpoolCard(t i18n.T, spool domain.Spool, remaining, percent float64, dryingStatus service.DryingStatus, dryingErr error, handlers spoolCardActions) *gtk.Box {
-	view := layout.Load("spool-card")
+func newSpoolCard(t i18n.T, spool domain.Spool, remaining, percent float64, dryingStatus service.DryingStatus, dryingErr error, handlers spoolCardActions, views ...*layout.View) *gtk.Box {
+	view := layout.Use("spool-card", views...)
 
 	card := layout.Get[*gtk.Box](view, "card")
 
-	_ = widgets.NewSpoolPreview(spool.ColorHex, layout.Scope(view, "content_slot_1"))
-	_ = layout.Configure[*gtk.Label](view, "name", func(w *gtk.Label) { w.SetLabel(fmt.Sprintf("%s — %s", spool.DisplayCode, spool.Manufacturer)) })
-	_ = layout.Configure[*gtk.Label](view, "details", func(w *gtk.Label) { w.SetLabel(fmt.Sprintf("%s · %s", spool.Color, spool.Material)) })
-
-	weightText := fmt.Sprintf(t.SpoolWeightFmt, remaining, spool.TotalWeightG, percent)
-	_ = widgets.NewLevelProgress(percent, weightText, layout.Scope(view, "card_slot_2"))
-
-	_ = layout.Configure[*gtk.Label](view, "weight", func(w *gtk.Label) { w.SetLabel(weightText) })
-
-	_ = newSpoolDryingSection(t, dryingStatus, dryingErr, layout.Scope(view, "card_slot_4"))
+	updateSpoolCard(t, view, spool, remaining, percent, dryingStatus, dryingErr)
 
 	dryBtn := spoolActionButton(t.DrySpool, layout.Scope(view, "actions_slot_1"))
 	if dryingStatus.NeedsDrying {
@@ -55,4 +46,23 @@ func spoolActionButton(tooltip string, views ...*layout.View) *gtk.Button {
 
 	button.SetTooltipText(tooltip)
 	return button
+}
+
+func updateSpoolCard(t i18n.T, view *layout.View, spool domain.Spool, remaining, percent float64, dryingStatus service.DryingStatus, dryingErr error) {
+	_ = widgets.NewSpoolPreview(spool.ColorHex, layout.Scope(view, "content_slot_1"))
+	_ = layout.Configure[*gtk.Label](view, "name", func(w *gtk.Label) { w.SetLabel(fmt.Sprintf("%s — %s", spool.DisplayCode, spool.Manufacturer)) })
+	_ = layout.Configure[*gtk.Label](view, "details", func(w *gtk.Label) { w.SetLabel(fmt.Sprintf("%s · %s", spool.Color, spool.Material)) })
+
+	weightText := fmt.Sprintf(t.SpoolWeightFmt, remaining, spool.TotalWeightG, percent)
+	_ = widgets.NewLevelProgress(percent, weightText, layout.Scope(view, "card_slot_2"))
+
+	_ = layout.Configure[*gtk.Label](view, "weight", func(w *gtk.Label) { w.SetLabel(weightText) })
+
+	_ = newSpoolDryingSection(t, dryingStatus, dryingErr, layout.Scope(view, "card_slot_4"))
+
+	button := layout.Get[*gtk.Button](layout.Scope(view, "actions_slot_1"), "button")
+	button.RemoveCSSClass("warning")
+	if dryingStatus.NeedsDrying {
+		button.AddCSSClass("warning")
+	}
 }

@@ -3,6 +3,7 @@ package prints
 import (
 	"context"
 	"fmt"
+	"slices"
 
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 	"github.com/yanefed/filatrack/internal/domain"
@@ -82,85 +83,115 @@ func NewPrintsScreen(ctx context.Context, parent *gtk.Window, printSvc *service.
 		return len(visiblePrinters)
 	}
 
-	var refreshPrints func()
-	refreshLivePrints := func() {
-		loaded, err := printerSvc.List(ctx)
-		if err != nil {
-			return
-		}
-		printers = loaded
-		previousActiveCount := activePrintCount
-		activePrintCount = renderActivePrints()
-		if previousActiveCount > 0 && activePrintCount == 0 {
-			refreshPrints()
-		}
+	type result struct {
+		printers []domain.Printer
+		spools   []domain.Spool
+		jobs     []domain.PrintJob
+		err      error
+		live     bool
+		selected string
 	}
-	refreshPrints = func() {
-		filter := domain.PrintJobFilter{}
-		if len(printers) > 0 {
-			idx := printerCombo.Selected()
-			if int(idx) < len(printers) {
-				printerID := printers[idx].ID
-				filter.PrinterID = &printerID
-			}
-		}
-		filter.Limit = printsRenderLimit
-		jobs, err := printSvc.List(ctx, filter)
-		if err != nil {
-			messageLabel.SetLabel(fmt.Sprintf("%s: %v", t.ErrorPrefix, err))
-			messageLabel.SetVisible(true)
-			updatePrintsList(nil, nil)
-			emptyLabel.SetVisible(false)
-			return
-		}
-		// Все катушки, включая архивированные: записи истории могут ссылаться на них.
-		currentSpools := shared.AllSpools(ctx, spoolSvc)
-		activePrintCount = renderActivePrints()
-		updatePrintsList(jobs, currentSpools)
-		emptyLabel.SetVisible(activePrintCount == 0 && len(jobs) == 0)
-	}
-
+	loader := shared.NewLoader[result](ctx, box)
+	fullPending := false
 	updatingPrinterChoices := false
-	refreshPrinterChoices := func() {
-		updatingPrinterChoices = true
-		defer func() { updatingPrinterChoices = false }()
-		currentID := ""
-		if len(printers) > 0 {
-			selected := printerCombo.Selected()
-			if int(selected) < len(printers) {
-				currentID = printers[selected].ID
-			}
+	var choiceNames []string
+	selectedID := func() string {
+		i := printerCombo.Selected()
+		if int(i) < len(printers) {
+			return printers[i].ID
 		}
-
-		loaded, err := printerSvc.List(ctx)
-		if err != nil {
-			printers = nil
-			printerCombo.SetModel(gtk.NewStringList([]string{fmt.Sprintf("%s: %v", t.ErrorPrefix, err)}))
-			printerCombo.SetSelected(0)
+		return ""
+	}
+	var refreshPrints func()
+	refreshPrints = func() {
+		id := selectedID()
+		fullPending = true
+		loader.Request(func(ctx context.Context) result {
+			data := result{selected: id}
+			data.printers, data.err = printerSvc.List(ctx)
+			if data.err != nil {
+				return data
+			}
+			filter := domain.PrintJobFilter{Limit: printsRenderLimit}
+			if id == "" && len(data.printers) > 0 {
+				id = data.printers[0].ID
+				data.selected = id
+			}
+			if id != "" {
+				found := false
+				for _, p := range data.printers {
+					if p.ID == id {
+						found = true
+						break
+					}
+				}
+				if !found && len(data.printers) > 0 {
+					id = data.printers[0].ID
+					data.selected = id
+				}
+				if len(data.printers) > 0 {
+					filter.PrinterID = &id
+				}
+			}
+			data.jobs, data.err = printSvc.List(ctx, filter)
+			if data.err != nil {
+				return data
+			}
+			data.spools, data.err = spoolSvc.List(ctx, domain.SpoolFilter{})
+			return data
+		}, func(data result) {
+			fullPending = false
+			if data.err != nil {
+				messageLabel.SetLabel(fmt.Sprintf("%s: %v", t.ErrorPrefix, data.err))
+				messageLabel.SetVisible(true)
+				return
+			}
+			updatingPrinterChoices = true
+			printers = data.printers
+			names := make([]string, len(printers))
+			selected := uint(0)
+			for i, p := range printers {
+				names[i] = p.Name
+				if p.ID == data.selected {
+					selected = uint(i)
+				}
+			}
+			if len(names) == 0 {
+				names = []string{t.NoPrinters}
+			}
+			if !slices.Equal(choiceNames, names) {
+				printerCombo.SetModel(gtk.NewStringList(names))
+				choiceNames = names
+			}
+			printerCombo.SetSelected(selected)
+			updatingPrinterChoices = false
+			messageLabel.SetVisible(false)
+			activePrintCount = renderActivePrints()
+			updatePrintsList(data.jobs, data.spools)
+			emptyLabel.SetVisible(activePrintCount == 0 && len(data.jobs) == 0)
+		})
+	}
+	refreshLivePrints := func() {
+		if fullPending {
 			return
 		}
-
-		printers = loaded
-		printerNames := make([]string, len(printers))
-		selectedIdx := uint(0)
-		for i, printer := range printers {
-			printerNames[i] = printer.Name
-			if printer.ID == currentID {
-				selectedIdx = uint(i)
+		loader.Poll(func(ctx context.Context) result {
+			p, e := printerSvc.List(ctx)
+			return result{printers: p, err: e, live: true}
+		}, func(data result) {
+			if data.err != nil {
+				return
 			}
-		}
-		if len(printerNames) == 0 {
-			printerNames = []string{t.NoPrinters}
-		}
-		printerCombo.SetModel(gtk.NewStringList(printerNames))
-		printerCombo.SetSelected(selectedIdx)
-		activePrintCount = renderActivePrints()
+			printers = data.printers
+			previous := activePrintCount
+			activePrintCount = renderActivePrints()
+			if previous > 0 && activePrintCount == 0 {
+				refreshPrints()
+			}
+		})
 	}
+	refreshScreen := refreshPrints
 
-	refreshScreen := func() {
-		refreshPrinterChoices()
-		refreshPrints()
-	}
 	printerCombo.NotifyProperty("selected", func() {
 		if !updatingPrinterChoices {
 			refreshPrints()
@@ -183,7 +214,7 @@ func NewPrintsScreen(ctx context.Context, parent *gtk.Window, printSvc *service.
 		messageLabel.SetVisible(true)
 		var created int
 		var err error
-		shared.RunAsyncUI(func() {
+		shared.RunAsyncUI(ctx, func() {
 			created, err = printerSvc.SyncPrinterHistory(ctx, printerID, 0)
 		}, func() {
 			syncHistoryBtn.SetSensitive(true)

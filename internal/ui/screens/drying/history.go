@@ -3,14 +3,14 @@ package drying
 import (
 	"context"
 	"fmt"
+	"sort"
+
+	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 	"github.com/yanefed/filatrack/internal/domain"
 	"github.com/yanefed/filatrack/internal/i18n"
 	"github.com/yanefed/filatrack/internal/service"
 	"github.com/yanefed/filatrack/internal/ui/layout"
 	"github.com/yanefed/filatrack/internal/ui/widgets"
-	"sort"
-
-	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 )
 
 type dryingHistoryItem struct {
@@ -25,23 +25,28 @@ func loadDryingHistory(ctx context.Context, dryingSvc *service.DryingService, sp
 		return nil, err
 	}
 	items := make([]dryingHistoryItem, 0)
+	byID := make(map[string]domain.Spool, len(spools))
 	for _, spool := range spools {
-		sessions, err := dryingSvc.ListForSpool(ctx, spool.ID)
-		if err != nil {
-			return nil, fmt.Errorf("loading drying history for spool %s: %w", spool.ID, err)
-		}
-		for _, session := range sessions {
+		byID[spool.ID] = spool
+	}
+	sessions, err := dryingSvc.ListHistory(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("loading drying history: %w", err)
+	}
+	for _, session := range sessions {
+		if spool, ok := byID[session.SpoolID]; ok {
 			items = append(items, dryingHistoryItem{spool: spool, session: session})
 		}
 	}
+
 	sort.SliceStable(items, func(i, j int) bool {
 		return items[i].session.DriedAt.After(items[j].session.DriedAt)
 	})
 	return items, nil
 }
 
-func newDryingHistoryCard(t i18n.T, item dryingHistoryItem) *gtk.Box {
-	view := layout.Load("drying-history-card")
+func newDryingHistoryCard(t i18n.T, item dryingHistoryItem, views ...*layout.View) *gtk.Box {
+	view := layout.Use("drying-history-card", views...)
 
 	card := layout.Get[*gtk.Box](view, "card")
 

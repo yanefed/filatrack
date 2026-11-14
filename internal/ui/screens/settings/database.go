@@ -3,15 +3,14 @@ package settings
 import (
 	"context"
 	"fmt"
-	"github.com/yanefed/filatrack/internal/ui/layout"
 	"net/url"
-
-	"github.com/yanefed/filatrack/internal/config"
-	"github.com/yanefed/filatrack/internal/i18n"
-	"github.com/yanefed/filatrack/internal/ui/screens/shared"
 
 	"github.com/diamondburned/gotk4-adwaita/pkg/adw"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
+	"github.com/yanefed/filatrack/internal/config"
+	"github.com/yanefed/filatrack/internal/i18n"
+	"github.com/yanefed/filatrack/internal/ui/layout"
+	"github.com/yanefed/filatrack/internal/ui/screens/shared"
 )
 
 func newDatabaseSection(ctx context.Context, parent *gtk.Window, options DatabaseOptions, views ...*layout.View) *gtk.Box {
@@ -88,7 +87,7 @@ func newDatabaseSection(ctx context.Context, parent *gtk.Window, options Databas
 		message.SetLabel("…")
 		message.SetVisible(true)
 		var switchErr error
-		shared.RunAsyncUI(func() { switchErr = options.Manager.Switch(ctx, next, copyData) }, func() {
+		shared.RunAsyncUI(ctx, func() { switchErr = options.Manager.Switch(ctx, next, copyData) }, func() {
 			if switchErr != nil {
 				message.SetLabel(fmt.Sprintf("%s: %v", t.SaveError, switchErr))
 				apply.SetSensitive(true)

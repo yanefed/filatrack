@@ -289,13 +289,13 @@
                         <property name="vexpand">true</property>
                         <property name="vscrollbar-policy">automatic</property>
                         <child>
-                          <object class="GtkFlowBox" id="spools_spoolGrid">
-                            <property name="column-spacing">12</property>
-                            <property name="homogeneous">true</property>
-                            <property name="max-children-per-line">3</property>
-                            <property name="min-children-per-line">1</property>
-                            <property name="row-spacing">12</property>
-                            <property name="selection-mode">none</property>
+                          <object class="GtkGridView" id="spools_spoolGrid">
+
+
+                            <property name="max-columns">3</property>
+                            <property name="min-columns">1</property>
+
+                            <style><class name="spool-grid"/></style>
                             <property name="valign">start</property>
                           </object>
                         </child>
@@ -494,8 +494,8 @@
                       <object class="GtkScrolledWindow" id="drying_object_522">
                         <property name="vexpand">true</property>
                         <child>
-                          <object class="GtkListBox" id="drying_historyList">
-                            <property name="selection-mode">none</property>
+                          <object class="GtkListView" id="drying_historyList">
+
                             <style>
                               <class name="card-list"/>
                             </style>

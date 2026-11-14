@@ -82,17 +82,5 @@ func (s *DryingService) GetStatus(ctx context.Context, spool *domain.Spool) (Dry
 		return DryingStatus{}, err
 	}
 	status.LastSession = last
-	if profile == nil {
-		return status, nil
-	}
-	if last == nil {
-		status.NeedsDrying = true
-		return status, nil
-	}
-
-	now := time.Now()
-	status.NextDryingAt = domain.NextDryingAt(last.DriedAt, *profile)
-	status.DaysUntilNext = domain.DaysUntilNextDrying(last.DriedAt, *profile, now)
-	status.NeedsDrying = domain.NeedsDryingAt(last.DriedAt, *profile, now)
-	return status, nil
+	return calculateDryingStatus(status, time.Now()), nil
 }

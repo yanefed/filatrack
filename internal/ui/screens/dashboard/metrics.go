@@ -3,14 +3,13 @@ package dashboard
 import (
 	"fmt"
 
+	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 	"github.com/yanefed/filatrack/internal/i18n"
 	"github.com/yanefed/filatrack/internal/ui/layout"
-
-	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 )
 
-func newMetricsGrid(t i18n.T, data dashboardData) *gtk.FlowBox {
-	view := layout.Load("dashboard-metrics")
+func newMetricsGrid(t i18n.T, data dashboardData, views ...*layout.View) *gtk.FlowBox {
+	view := layout.Use("dashboard-metrics", views...)
 
 	totalPrints := "—"
 	successRate := "—"

@@ -1596,3 +1596,21 @@ func (r *printRepoStub) UpdatePreviewImageHash(_ context.Context, jobID, hash st
 	}
 	return r.updateErr
 }
+
+func (r *spoolRepoStub) GetUsedWeights(context.Context) (map[string]float64, error) {
+	weights := make(map[string]float64)
+	for _, spool := range r.list {
+		weights[spool.ID] = r.used
+	}
+	return weights, r.usedErr
+}
+func (r *dryingRepoStub) Latest(context.Context) (map[string]domain.DryingSession, error) {
+	latest := make(map[string]domain.DryingSession)
+	if r.last != nil {
+		latest[r.last.SpoolID] = *r.last
+	}
+	return latest, r.lastErr
+}
+func (r *dryingRepoStub) ListAll(context.Context) ([]domain.DryingSession, error) {
+	return r.list, r.listErr
+}

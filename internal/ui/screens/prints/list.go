@@ -3,15 +3,16 @@ package prints
 import (
 	"context"
 	"fmt"
+	"reflect"
+
+	coreglib "github.com/diamondburned/gotk4/pkg/core/glib"
+	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 	"github.com/yanefed/filatrack/internal/domain"
 	"github.com/yanefed/filatrack/internal/i18n"
 	"github.com/yanefed/filatrack/internal/service"
 	"github.com/yanefed/filatrack/internal/ui/layout"
 	"github.com/yanefed/filatrack/internal/ui/screens/shared"
 	"github.com/yanefed/filatrack/internal/ui/widgets"
-
-	coreglib "github.com/diamondburned/gotk4/pkg/core/glib"
-	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 )
 
 type printListState struct {
@@ -20,14 +21,16 @@ type printListState struct {
 }
 
 type printRowWidgets struct {
-	item      *gtk.ListItem
-	picture   *gtk.Picture
-	status    *gtk.Image
-	header    *gtk.Label
-	details   *gtk.Label
-	cost      *gtk.Label
-	assignRow *gtk.Box
-	assignBtn *gtk.Button
+	previous   *domain.PrintJob
+	spoolLabel string
+	item       *gtk.ListItem
+	picture    *gtk.Picture
+	status     *gtk.Image
+	header     *gtk.Label
+	details    *gtk.Label
+	cost       *gtk.Label
+	assignRow  *gtk.Box
+	assignBtn  *gtk.Button
 }
 
 func newVirtualPrintsList(t i18n.T, ctx context.Context, printSvc *service.PrintService, messageLabel *gtk.Label, views ...*layout.View) (*gtk.ListView, func([]domain.PrintJob, []domain.Spool)) {
@@ -55,6 +58,7 @@ func newVirtualPrintsList(t i18n.T, ctx context.Context, printSvc *service.Print
 		activeButton = nil
 		activeRow = nil
 	}
+	action := shared.Action(ctx, layout.Get[*gtk.ListView](view, "view"))
 	chooser.NotifyProperty("selected", func() {
 		if changingSelection || activeJobID == "" {
 			return
@@ -83,25 +87,35 @@ func newVirtualPrintsList(t i18n.T, ctx context.Context, printSvc *service.Print
 			finishChoosing()
 			return
 		}
-		if err := printSvc.ChangeSpool(ctx, job.ID, spoolID); err != nil {
-			messageLabel.SetLabel(fmt.Sprintf("%s: %v", t.SaveError, err))
-			messageLabel.SetVisible(true)
-			return
-		}
-		job.SpoolID = spoolID
-		if activeButton != nil {
-			activeButton.SetLabel(printSpoolButtonLabel(t, spoolID, state.spools))
-		}
-		messageLabel.SetVisible(false)
-		finishChoosing()
-		updated, err := printSvc.GetByID(ctx, job.ID)
-		if err != nil {
-			messageLabel.SetLabel(fmt.Sprintf("%s: %v", t.ErrorPrefix, err))
-			messageLabel.SetVisible(true)
-			return
-		}
-		state.jobs[jobIndex] = *updated
-		model.Splice(uint(jobIndex), 1, []string{updated.ID})
+		id := job.ID
+		chooser.SetSensitive(false)
+		var updated *domain.PrintJob
+		action(func() error {
+			if err := printSvc.ChangeSpool(ctx, id, spoolID); err != nil {
+				return err
+			}
+			var err error
+			updated, err = printSvc.GetByID(ctx, id)
+			return err
+		}, func(err error) {
+			chooser.SetSensitive(true)
+			if err != nil {
+				messageLabel.SetLabel(fmt.Sprintf("%s: %v", t.SaveError, err))
+				messageLabel.SetVisible(true)
+				return
+			}
+			if activeJobID == id {
+				finishChoosing()
+			}
+			messageLabel.SetVisible(false)
+			for i := range state.jobs {
+				if state.jobs[i].ID == id {
+					state.jobs[i] = *updated
+					model.Splice(uint(i), 1, []string{id})
+					break
+				}
+			}
+		})
 	})
 	focus := gtk.NewEventControllerFocus()
 	focus.ConnectLeave(func() {
@@ -174,14 +188,19 @@ func newVirtualPrintsList(t i18n.T, ctx context.Context, printSvc *service.Print
 		})
 	})
 
-	factory.ConnectBind(func(object *coreglib.Object) {
-		item := object.Cast().(*gtk.ListItem)
-		row := rows[item.Native()]
-		position := item.Position()
-		if row == nil || int(position) >= len(state.jobs) {
+	bindRow := func(row *printRowWidgets) {
+		position := row.item.Position()
+		if int(position) >= len(state.jobs) {
 			return
 		}
+
 		job := state.jobs[position]
+		spoolLabel := printSpoolButtonLabel(t, job.SpoolID, state.spools)
+		if row.previous != nil && reflect.DeepEqual(*row.previous, job) && row.spoolLabel == spoolLabel {
+			return
+		}
+		row.previous = &job
+		row.spoolLabel = spoolLabel
 		statusIcon := "object-select-symbolic"
 		statusClass := "success"
 		switch job.Status {
@@ -210,12 +229,18 @@ func newVirtualPrintsList(t i18n.T, ctx context.Context, printSvc *service.Print
 			finishChoosing()
 		}
 		row.assignBtn.SetLabel(printSpoolButtonLabel(t, job.SpoolID, state.spools))
+	}
+	factory.ConnectBind(func(object *coreglib.Object) {
+		if row := rows[object.Native()]; row != nil {
+			bindRow(row)
+		}
 	})
+
 	factory.ConnectUnbind(func(object *coreglib.Object) {
 		item := object.Cast().(*gtk.ListItem)
 		if row := rows[item.Native()]; row != nil {
-			row.picture.SetPaintable(nil)
-			row.picture.SetVisible(false)
+			widgets.SetPreview(row.picture, "")
+			row.previous = nil
 		}
 	})
 	factory.ConnectTeardown(func(object *coreglib.Object) {
@@ -226,15 +251,35 @@ func newVirtualPrintsList(t i18n.T, ctx context.Context, printSvc *service.Print
 	listView := layout.Configure[*gtk.ListView](view, "view", func(w *gtk.ListView) { w.SetModel(selection); w.SetFactory(&factory.ListItemFactory) })
 
 	update := func(jobs []domain.PrintJob, spools []domain.Spool) {
-		finishChoosing()
+		if reflect.DeepEqual(state.jobs, jobs) && reflect.DeepEqual(state.spools, spools) {
+			return
+		}
+		if !reflect.DeepEqual(state.spools, spools) {
+			finishChoosing()
+			setChooserSpools(spools)
+		}
+		if activeJobID != "" {
+			found := false
+			for _, job := range jobs {
+				if job.ID == activeJobID {
+					found = true
+					break
+				}
+			}
+			if !found {
+				finishChoosing()
+			}
+		}
 		state.jobs = jobs
 		state.spools = spools
-		setChooserSpools(spools)
 		keys := make([]string, len(jobs))
 		for i := range jobs {
 			keys[i] = jobs[i].ID
 		}
-		model.Splice(0, model.NItems(), keys)
+		shared.SyncStrings(model, keys)
+		for _, row := range rows {
+			bindRow(row)
+		}
 	}
 	return listView, update
 }

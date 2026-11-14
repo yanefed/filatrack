@@ -2,10 +2,12 @@ package port
 
 import (
 	"context"
+
 	"github.com/yanefed/filatrack/internal/domain"
 )
 
 type SpoolRepository interface {
+	GetUsedWeights(context.Context) (map[string]float64, error)
 	Create(ctx context.Context, spool *domain.Spool) error
 	GetByID(ctx context.Context, id string) (*domain.Spool, error)
 	List(ctx context.Context, filter domain.SpoolFilter) ([]domain.Spool, error)
@@ -50,6 +52,8 @@ type PreviewImageRepository interface {
 }
 
 type DryingSessionRepository interface {
+	Latest(context.Context) (map[string]domain.DryingSession, error)
+	ListAll(context.Context) ([]domain.DryingSession, error)
 	Create(ctx context.Context, session *domain.DryingSession) error
 	List(ctx context.Context, spoolID string) ([]domain.DryingSession, error)
 	GetLastDrying(ctx context.Context, spoolID string) (*domain.DryingSession, error)

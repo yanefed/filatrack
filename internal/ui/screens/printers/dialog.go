@@ -1,16 +1,15 @@
 package printers
 
 import (
+	"context"
+	"fmt"
+
+	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 	"github.com/yanefed/filatrack/internal/domain"
 	"github.com/yanefed/filatrack/internal/i18n"
 	"github.com/yanefed/filatrack/internal/service"
 	"github.com/yanefed/filatrack/internal/ui/layout"
 	"github.com/yanefed/filatrack/internal/ui/screens/shared"
-
-	"context"
-	"fmt"
-
-	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 )
 
 func showAddPrinterDialog(ctx context.Context, parent *gtk.Window, printerSvc *service.PrinterService, onSave func()) {
@@ -90,7 +89,7 @@ func showPrinterDialog(t i18n.T, ctx context.Context, parent *gtk.Window, printe
 		statusLabel.SetLabel("Loading…")
 		statusLabel.SetVisible(true)
 		var err error
-		shared.RunAsyncUI(func() {
+		shared.RunAsyncUI(ctx, func() {
 			err = printerSvc.CheckMoonrakerConnection(ctx, &printer)
 		}, func() {
 			if closed {
@@ -115,7 +114,7 @@ func showPrinterDialog(t i18n.T, ctx context.Context, parent *gtk.Window, printe
 		statusLabel.SetLabel("Loading…")
 		statusLabel.SetVisible(true)
 		var err error
-		shared.RunAsyncUI(func() {
+		shared.RunAsyncUI(ctx, func() {
 			err = save(printer)
 		}, func() {
 			if closed {

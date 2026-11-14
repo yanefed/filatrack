@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+
 	"github.com/yanefed/filatrack/internal/domain"
 	"github.com/yanefed/filatrack/internal/service"
 )
@@ -32,21 +33,13 @@ func loadDashboardData(ctx context.Context, spoolSvc *service.SpoolService, prin
 	data.stats, data.statsErr = printSvc.GetStats(ctx, domain.StatsFilter{})
 
 	notArchived := false
-	spools, err := spoolSvc.List(ctx, domain.SpoolFilter{Archived: &notArchived})
+	summaries, err := spoolSvc.ListSummaries(ctx, domain.SpoolFilter{Archived: &notArchived})
 	data.spoolsErr = err
-	if err == nil {
-		data.spools = make([]dashboardSpool, 0, len(spools))
-		for i := range spools {
-			_, remaining, remainingErr := spoolSvc.GetWithRemaining(ctx, spools[i].ID)
-			if remainingErr != nil {
-				remaining = spools[i].TotalWeightG
-			}
-			needsDrying, dryingErr := spoolSvc.NeedsDrying(ctx, &spools[i])
-			if dryingErr != nil {
-				data.spoolsErr = errors.Join(data.spoolsErr, fmt.Errorf("checking drying for spool %s: %w", spools[i].ID, dryingErr))
-			}
-			data.spools = append(data.spools, dashboardSpool{Spool: spools[i], RemainingG: remaining, NeedsDrying: needsDrying})
+	for _, summary := range summaries {
+		if summary.DryingErr != nil {
+			data.spoolsErr = errors.Join(data.spoolsErr, fmt.Errorf("checking drying for spool %s: %w", summary.Spool.ID, summary.DryingErr))
 		}
+		data.spools = append(data.spools, dashboardSpool{Spool: summary.Spool, RemainingG: summary.RemainingG, NeedsDrying: summary.Drying.NeedsDrying})
 	}
 
 	data.printers, data.printersErr = printerSvc.List(ctx)

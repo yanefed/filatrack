@@ -1,17 +1,16 @@
 package printers
 
 import (
+	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 	"github.com/yanefed/filatrack/internal/domain"
 	"github.com/yanefed/filatrack/internal/i18n"
 	"github.com/yanefed/filatrack/internal/ui/layout"
 	"github.com/yanefed/filatrack/internal/ui/screens/shared"
 	"github.com/yanefed/filatrack/internal/ui/widgets"
-
-	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 )
 
-func newPrinterCard(t i18n.T, printer domain.Printer, spools []domain.Spool, onAssign func(uint), onEdit func()) (*gtk.Box, *widgets.PrinterStatusWidget) {
-	view := layout.Load("printer-card")
+func newPrinterCard(t i18n.T, printer domain.Printer, spools []domain.Spool, onAssign func(uint), onEdit func(), views ...*layout.View) (*gtk.Box, *widgets.PrinterStatusWidget) {
+	view := layout.Use("printer-card", views...)
 
 	card := layout.Get[*gtk.Box](view, "card")
 

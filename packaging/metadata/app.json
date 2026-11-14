@@ -2,7 +2,7 @@
   "id": "com.filatrack.app",
   "name": "FilaTrack",
   "executable": "filatrack",
-  "version": "0.5.0",
+  "version": "1.0.0",
   "release_date": "2026-09-05",
   "summary": {
     "en": "Track filament spools and 3D printer jobs",

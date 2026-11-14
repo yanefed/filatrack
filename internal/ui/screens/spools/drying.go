@@ -1,16 +1,16 @@
 package spools
 
 import (
-	"github.com/yanefed/filatrack/internal/domain"
-	"github.com/yanefed/filatrack/internal/i18n"
-	"github.com/yanefed/filatrack/internal/service"
-	"github.com/yanefed/filatrack/internal/ui/layout"
-
 	"context"
 	"fmt"
 	"strconv"
 
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
+	"github.com/yanefed/filatrack/internal/domain"
+	"github.com/yanefed/filatrack/internal/i18n"
+	"github.com/yanefed/filatrack/internal/service"
+	"github.com/yanefed/filatrack/internal/ui/layout"
+	"github.com/yanefed/filatrack/internal/ui/screens/shared"
 )
 
 func newSpoolDryingSection(t i18n.T, status service.DryingStatus, statusErr error, views ...*layout.View) *gtk.Box {
@@ -25,6 +25,8 @@ func newSpoolDryingSection(t i18n.T, status service.DryingStatus, statusErr erro
 	_ = dryingCaption(lastText, layout.Scope(view, "section_slot_2"))
 
 	stateLabel := dryingCaption(dryingStateText(t, status, statusErr), layout.Scope(view, "section_slot_3"))
+	stateLabel.AddCSSClass("dim-label")
+	stateLabel.RemoveCSSClass("drying-warning")
 	if status.NeedsDrying {
 		stateLabel.RemoveCSSClass("dim-label")
 		stateLabel.AddCSSClass("drying-warning")
@@ -98,6 +100,7 @@ func showDrySpoolDialog(ctx context.Context, parent *gtk.Window, dryingSvc *serv
 
 	saveBtn := layout.Configure[*gtk.Button](view, "saveBtn", func(w *gtk.Button) { w.SetLabel(t.Save) })
 
+	action := shared.Action(ctx, dialog)
 	saveBtn.ConnectClicked(func() {
 		temperature, err := strconv.Atoi(temperatureEntry.Text())
 		if err != nil {
@@ -115,15 +118,18 @@ func showDrySpoolDialog(ctx context.Context, parent *gtk.Window, dryingSvc *serv
 			TemperatureC:  temperature,
 			DurationHours: duration,
 		}
-		if err := dryingSvc.Create(ctx, session); err != nil {
-			errorLabel.SetText(fmt.Sprintf("%s: %v", t.ErrorPrefix, err))
-			return
-		}
-
-		dialog.Destroy()
-		if onSave != nil {
-			onSave()
-		}
+		saveBtn.SetSensitive(false)
+		action(func() error { return dryingSvc.Create(ctx, session) }, func(err error) {
+			saveBtn.SetSensitive(true)
+			if err != nil {
+				errorLabel.SetText(fmt.Sprintf("%s: %v", t.ErrorPrefix, err))
+				return
+			}
+			dialog.Destroy()
+			if onSave != nil {
+				onSave()
+			}
+		})
 	})
 
 	dialog.SetVisible(true)

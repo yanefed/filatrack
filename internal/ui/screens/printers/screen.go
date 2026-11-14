@@ -3,13 +3,15 @@ package printers
 import (
 	"context"
 	"fmt"
+	"slices"
+
+	"github.com/diamondburned/gotk4/pkg/gtk/v4"
+	"github.com/yanefed/filatrack/internal/domain"
 	"github.com/yanefed/filatrack/internal/i18n"
 	"github.com/yanefed/filatrack/internal/service"
 	"github.com/yanefed/filatrack/internal/ui/layout"
 	"github.com/yanefed/filatrack/internal/ui/screens/shared"
 	"github.com/yanefed/filatrack/internal/ui/widgets"
-
-	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 )
 
 // NewPrintersScreen creates the Moonraker printer management screen.
@@ -25,67 +27,138 @@ func NewPrintersScreen(ctx context.Context, parent *gtk.Window, printerSvc *serv
 
 	list := layout.Get[*gtk.ListBox](view, "list")
 
-	statusSlots := map[string]*widgets.PrinterStatusWidget{}
-	var refreshPrinters func()
-	refreshPrinterStatuses := func() {
-		printers, err := printerSvc.List(ctx)
-		if err != nil {
-			return
-		}
-		for _, printer := range printers {
-			status, ok := statusSlots[printer.ID]
-			if !ok {
-				refreshPrinters()
-				return
-			}
-			status.Update(t, printer)
-		}
+	type card struct {
+		root     *gtk.Box
+		status   *widgets.PrinterStatusWidget
+		view     *layout.View
+		printer  domain.Printer
+		spools   []domain.Spool
+		updating bool
+		names    *gtk.StringList
 	}
-
-	refreshPrinters = func() {
-		messageLabel.SetVisible(false)
-		widgets.ClearListBox(list)
-		statusSlots = map[string]*widgets.PrinterStatusWidget{}
-
-		configuredPrinters, err := printerSvc.List(ctx)
-		if err != nil {
-			messageLabel.SetLabel(fmt.Sprintf("%s: %v", t.ErrorPrefix, err))
+	cards := make(map[string]*card)
+	var order []string
+	type result struct {
+		printers []domain.Printer
+		spools   []domain.Spool
+		err      error
+		live     bool
+	}
+	loader := shared.NewLoader[result](ctx, box)
+	fullPending := false
+	var refreshPrinters func()
+	apply := func(data result) {
+		if data.err != nil {
+			messageLabel.SetLabel(fmt.Sprintf("%s: %v", t.ErrorPrefix, data.err))
 			messageLabel.SetVisible(true)
-			emptyLabel.SetVisible(false)
 			return
 		}
-		emptyLabel.SetVisible(len(configuredPrinters) == 0)
-		spools := shared.ActiveSpools(ctx, spoolSvc)
-
-		for _, printer := range configuredPrinters {
-			card, status := newPrinterCard(t, printer, spools, func(index uint) {
-				var err error
-				if index == 0 {
-					err = printerSvc.ClearAssignedSpool(ctx, printer.ID)
-				} else if int(index-1) < len(spools) {
-					err = printerSvc.AssignSpool(ctx, printer.ID, spools[index-1].ID)
-				}
-				if err != nil {
-					refreshPrinters()
-					messageLabel.SetLabel(fmt.Sprintf("%s: %v", t.AssignPrinterError, err))
-					messageLabel.SetVisible(true)
-					return
-				}
-				messageLabel.SetVisible(false)
-				if onChanged != nil {
-					onChanged()
-				}
-			}, func() {
-				showEditPrinterDialog(ctx, parent, printerSvc, printer, func() {
-					refreshPrinters()
-					if onChanged != nil {
-						onChanged()
-					}
-				})
-			})
-			statusSlots[printer.ID] = status
-			list.Append(card)
+		ids := make([]string, len(data.printers))
+		for i, p := range data.printers {
+			ids[i] = p.ID
 		}
+		if data.live && !slices.Equal(order, ids) {
+			refreshPrinters()
+			return
+		}
+		if !data.live {
+			fullPending = false
+		}
+		for _, printer := range data.printers {
+			row := cards[printer.ID]
+			if row == nil {
+				row = &card{view: layout.Load("printer-card"), printer: printer, spools: data.spools}
+				cards[printer.ID] = row
+				assign := shared.Action(ctx, box)
+				row.root, row.status = newPrinterCard(t, printer, data.spools, func(index uint) {
+					if row.updating {
+						return
+					}
+					id := row.printer.ID
+					spoolID := ""
+					if index > 0 && int(index-1) < len(row.spools) {
+						spoolID = row.spools[index-1].ID
+					}
+					row.root.SetSensitive(false)
+					assign(func() error {
+						if spoolID == "" {
+							return printerSvc.ClearAssignedSpool(ctx, id)
+						}
+						return printerSvc.AssignSpool(ctx, id, spoolID)
+					}, func(err error) {
+						row.root.SetSensitive(true)
+						refreshPrinters()
+						if err != nil {
+							messageLabel.SetLabel(fmt.Sprintf("%s: %v", t.AssignPrinterError, err))
+							messageLabel.SetVisible(true)
+							return
+						}
+						if onChanged != nil {
+							onChanged()
+						}
+					})
+				}, func() {
+					showEditPrinterDialog(ctx, parent, printerSvc, row.printer, func() {
+						refreshPrinters()
+						if onChanged != nil {
+							onChanged()
+						}
+					})
+				}, row.view)
+			}
+			row.printer = printer
+			row.status.Update(t, printer)
+			if !data.live {
+				row.updating = true
+				row.spools = data.spools
+				layout.Get[*gtk.Label](row.view, "endpointLabel").SetLabel(printer.MoonrakerURL)
+				dropdown := layout.Get[*gtk.DropDown](row.view, "dropdown")
+				// Retain the dropdown model, selection and signal handlers.
+				if row.names == nil {
+					row.names = gtk.NewStringList(nil)
+					dropdown.SetModel(row.names)
+				}
+				shared.SyncStrings(row.names, shared.SpoolChoiceNames(t, data.spools))
+				dropdown.SetSelected(shared.SelectedSpoolIndex(printer.ActiveSpoolID, data.spools))
+				row.updating = false
+			}
+		}
+		if !slices.Equal(order, ids) {
+			widgets.ClearListBox(list)
+			live := make(map[string]bool, len(ids))
+			for _, id := range ids {
+				live[id] = true
+				list.Append(cards[id].root)
+			}
+			for id := range cards {
+				if !live[id] {
+					delete(cards, id)
+				}
+			}
+			order = ids
+		}
+		emptyLabel.SetVisible(len(ids) == 0)
+	}
+	refreshPrinters = func() {
+		fullPending = true
+		loader.Request(func(ctx context.Context) result {
+			p, e := printerSvc.List(ctx)
+			if e != nil {
+				return result{err: e}
+			}
+			archived := false
+			s, e := spoolSvc.List(ctx, domain.SpoolFilter{Archived: &archived})
+			return result{printers: p, spools: s, err: e}
+		}, func(data result) { fullPending = false; apply(data) })
+	}
+	refreshPrinterStatuses := func() {
+		if fullPending {
+			return
+		}
+		loader.Poll(func(ctx context.Context) result {
+			p, e := printerSvc.List(ctx)
+			return result{printers: p, err: e, live: true}
+		}, apply)
 	}
 
 	addPrinterButton := layout.Get[*gtk.Button](view, "addPrinterButton")
