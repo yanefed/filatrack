@@ -105,7 +105,10 @@ func (s *SpoolService) FilterOptions(ctx context.Context) (SpoolFilterOptions, e
 
 func (s *SpoolService) NeedsDrying(ctx context.Context, spool *domain.Spool) (bool, error) {
 	status, err := s.drying.GetStatus(ctx, spool)
-	return status.NeedsDrying, err
+	if err != nil {
+		return false, err
+	}
+	return status.NeedsDrying, nil
 }
 
 func (s *SpoolService) prepareSpool(ctx context.Context, spool *domain.Spool) error {
