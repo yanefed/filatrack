@@ -3,7 +3,7 @@
   "name": "FilaTrack",
   "executable": "filatrack",
   "version": "1.0.0",
-  "release_date": "2026-09-05",
+  "release_date": "2026-11-15",
   "summary": {
     "en": "Track filament spools and 3D printer jobs",
     "ru": "Учёт катушек филамента и заданий 3D-принтеров"
