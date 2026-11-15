@@ -116,28 +116,34 @@ func (r *SpoolRepo) Update(ctx context.Context, spool *domain.Spool) error {
 		spool.DisplayCode = domain.NewSpoolDisplayCode(spool, spool.ID)
 	}
 	persisted := entity.SpoolFromDomain(*spool)
-	_, err := r.db.ExecContext(ctx,
-		`UPDATE spools SET display_code=?, manufacturer=?, material=?, color=?, color_hex=?, diameter_mm=?, total_weight_g=?, price=?, density_g_cm3=?, purchased_at=?, archived=?, updated_at=?
-		 WHERE id=?`,
+	result, err := r.db.ExecContext(ctx,
+		`UPDATE spools SET display_code=?, manufacturer=?, material=?, color=?, color_hex=?, diameter_mm=?, total_weight_g=?, price=?, density_g_cm3=?, purchased_at=?, updated_at=?
+		 WHERE id=? AND archived=?`,
 		persisted.DisplayCode, persisted.Manufacturer, persisted.Material, persisted.Color, persisted.ColorHex,
 		persisted.DiameterMM, persisted.TotalWeightG, persisted.Price, persisted.DensityGCM3,
-		persisted.PurchasedAt, persisted.Archived, persisted.UpdatedAt, persisted.ID,
+		persisted.PurchasedAt, persisted.UpdatedAt, persisted.ID, persisted.Archived,
 	)
 	if err != nil {
 		return fmt.Errorf("updating spool: %w", err)
+	}
+	if n, err := result.RowsAffected(); err != nil {
+		return err
+	} else if n == 0 {
+		return domain.ErrArchiveChanged
 	}
 	return nil
 }
 
 func (r *SpoolRepo) Archive(ctx context.Context, id string) error {
-	_, err := r.db.ExecContext(ctx,
-		`UPDATE spools SET archived = 1, updated_at = ? WHERE id = ?`,
-		time.Now(), id,
-	)
-	if err != nil {
-		return fmt.Errorf("archiving spool: %w", err)
-	}
-	return nil
+	_, err := r.ArchiveWithAssignments(ctx, id, nil)
+	return err
+}
+
+func (r *SpoolRepo) ArchiveWithAssignments(ctx context.Context, id string, detachPrinterIDs []string) (domain.SpoolArchive, error) {
+	return dbutil.ArchiveSpool(ctx, r.db.conn, id, detachPrinterIDs, true)
+}
+func (r *SpoolRepo) Restore(ctx context.Context, archive domain.SpoolArchive) (domain.SpoolRestoreResult, error) {
+	return dbutil.RestoreSpool(ctx, r.db.conn, archive, true)
 }
 
 func (r *SpoolRepo) GetUsedWeight(ctx context.Context, spoolID string) (float64, error) {

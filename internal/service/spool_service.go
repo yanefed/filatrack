@@ -80,7 +80,10 @@ func (s *SpoolService) List(ctx context.Context, filter domain.SpoolFilter) ([]d
 
 // FilterOptions includes all active spools, independent of the current selection.
 func (s *SpoolService) FilterOptions(ctx context.Context) (SpoolFilterOptions, error) {
-	archived := false
+	return s.FilterOptionsFor(ctx, false)
+}
+
+func (s *SpoolService) FilterOptionsFor(ctx context.Context, archived bool) (SpoolFilterOptions, error) {
 	spools, err := s.spools.List(ctx, domain.SpoolFilter{Archived: &archived})
 	if err != nil {
 		return SpoolFilterOptions{}, err
@@ -125,4 +128,17 @@ func (s *SpoolService) prepareSpool(ctx context.Context, spool *domain.Spool) er
 		spool.DensityGCM3 = s.materialDensity(ctx, spool.Material)
 	}
 	return nil
+}
+
+func (s *SpoolService) ArchiveWithAssignments(ctx context.Context, id string, detachPrinterIDs []string) (domain.SpoolArchive, error) {
+	if id == "" {
+		return domain.SpoolArchive{}, fmt.Errorf("spool id is required")
+	}
+	return s.spools.ArchiveWithAssignments(ctx, id, detachPrinterIDs)
+}
+func (s *SpoolService) Restore(ctx context.Context, archive domain.SpoolArchive) (domain.SpoolRestoreResult, error) {
+	if archive.SpoolID == "" {
+		return domain.SpoolRestoreResult{}, fmt.Errorf("spool id is required")
+	}
+	return s.spools.Restore(ctx, archive)
 }

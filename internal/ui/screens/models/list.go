@@ -56,6 +56,8 @@ func newVirtualModelsList(t i18n.T, ctx context.Context, parent *gtk.Window, pri
 
 		printBtn := layout.Get[*gtk.Button](view, "printBtn")
 		printBtn.SetTooltipText(t.PrintModel)
+		shared.AccessibleName(printBtn, t.PrintModel)
+		shared.ProtectWrites(ctx, printBtn)
 
 		itemNative := item.Native()
 		printBtn.ConnectClicked(func() {
@@ -68,7 +70,7 @@ func newVirtualModelsList(t i18n.T, ctx context.Context, parent *gtk.Window, pri
 				return
 			}
 			selected := state.models[position]
-			showPrintLaunchDialog(t, ctx, parent, printerSvc, settingsSvc, state.printers, state.spools, selected.PrinterID, func(req domain.PrintLaunchRequest) (*domain.PrintLaunchResult, error) {
+			showPrintLaunchDialog(t, ctx, parent, printerSvc, settingsSvc, state.printers, state.spools, selected.PrinterID, selected.Path, func(req domain.PrintLaunchRequest) (*domain.PrintLaunchResult, error) {
 				req.SourcePrinterID = selected.PrinterID
 				req.GcodeFilename = selected.Path
 				return printerSvc.PrintModel(ctx, req)
@@ -98,6 +100,9 @@ func newVirtualModelsList(t i18n.T, ctx context.Context, parent *gtk.Window, pri
 		}
 		row.name.SetLabel(name)
 		details := fmt.Sprintf("%s — %.1f g", state.printerNames[entry.PrinterID], entry.EstimatedWeightG)
+		if entry.EstimatedWeightG <= 0 {
+			details = state.printerNames[entry.PrinterID] + " — " + t.UsageUnknown
+		}
 		if entry.PrintDuration > 0 {
 			details = fmt.Sprintf("%s — %s", details, entry.PrintDuration.String())
 		}
@@ -140,7 +145,7 @@ func newVirtualModelsList(t i18n.T, ctx context.Context, parent *gtk.Window, pri
 func modelKeys(models []domain.PrinterModelFile) []string {
 	keys := make([]string, len(models))
 	for i := range models {
-		keys[i] = models[i].PrinterID + "\x00" + models[i].Path
+		keys[i] = fmt.Sprintf("%d:%s%s", len(models[i].PrinterID), models[i].PrinterID, models[i].Path)
 	}
 	return keys
 }

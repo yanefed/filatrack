@@ -191,3 +191,16 @@ func (r *cachedDryingRepository) Latest(ctx context.Context) (map[string]domain.
 func (r *cachedDryingRepository) ListAll(ctx context.Context) ([]domain.DryingSession, error) {
 	return readRepository(r.manager, func(b *backend) ([]domain.DryingSession, error) { return b.dryings.ListAll(ctx) })
 }
+
+func (r *cachedSpoolRepository) ArchiveWithAssignments(ctx context.Context, id string, detachPrinterIDs []string) (receipt domain.SpoolArchive, err error) {
+	err = r.manager.write(func() error {
+		var e error
+		receipt, e = r.manager.active.spools.ArchiveWithAssignments(ctx, id, detachPrinterIDs)
+		return e
+	})
+	return
+}
+func (r *cachedSpoolRepository) Restore(ctx context.Context, receipt domain.SpoolArchive) (result domain.SpoolRestoreResult, err error) {
+	err = r.manager.write(func() error { var e error; result, e = r.manager.active.spools.Restore(ctx, receipt); return e })
+	return
+}

@@ -13,6 +13,59 @@ const (
 
 // T holds all translatable strings.
 type T struct {
+	EmptySpools       string
+	EmptyArchive      string
+	ReturnToSelection string
+	Refreshing        string
+	UsageUnknown      string
+	StateReady        string
+	StatePrinting     string
+	StatePaused       string
+	StateOffline      string
+	StateError        string
+	StateUnknown      string
+
+	Navigation                string
+	LaunchUnconfirmed         string
+	AllPrinters               string
+	Loading                   string
+	Saving                    string
+	Saved                     string
+	Search                    string
+	NoSearchResults           string
+	ShowMore                  string
+	Retry                     string
+	ArchivedSpools            string
+	ActiveSpools              string
+	Restore                   string
+	Undo                      string
+	SpoolArchived             string
+	SpoolRestored             string
+	RestoreAssignmentsSkipped string
+	ArchiveDetachFmt          string
+	ArchiveInUse              string
+	ArchiveChanged            string
+	PrintAnyway               string
+	LaunchQueued              string
+	LaunchAssignUnconfirmed   string
+	FilamentEstimateFmt       string
+	FilamentUnknown           string
+	FilamentInsufficientFmt   string
+	FilamentLowFmt            string
+	UnsavedTitle              string
+	UnsavedBody               string
+	KeepEditing               string
+	Discard                   string
+	InvalidPositive           string
+	InvalidPrice              string
+	RequiredField             string
+	InvalidURL                string
+	OfflineAction             string
+	OpenPrinter               string
+	Uploading                 string
+	StartingPrint             string
+	UsageLengthFmt            string
+
 	// Navigation
 	Dashboard string
 	Spools    string

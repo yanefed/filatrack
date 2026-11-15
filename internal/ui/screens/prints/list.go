@@ -151,7 +151,7 @@ func newVirtualPrintsList(t i18n.T, ctx context.Context, printSvc *service.Print
 		assignRow := layout.Get[*gtk.Box](view, "assignRow")
 
 		assignBtn := layout.Configure[*gtk.Button](view, "assignBtn", func(w *gtk.Button) { w.SetLabel(t.SpoolColon) })
-		//assignBtn.AddCSSClass("flat")
+		shared.ProtectWrites(ctx, assignBtn)
 
 		item.SetChild(card)
 

@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strconv"
+	"strings"
 
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 	"github.com/yanefed/filatrack/internal/domain"
@@ -96,20 +97,31 @@ func showDrySpoolDialog(ctx context.Context, parent *gtk.Window, dryingSvc *serv
 	errorLabel := layout.Get[*gtk.Label](view, "errorLabel")
 
 	cancelBtn := layout.Configure[*gtk.Button](view, "cancelBtn", func(w *gtk.Button) { w.SetLabel(t.Cancel) })
-	cancelBtn.ConnectClicked(dialog.Destroy)
+	busy := false
+	closeForm, _ := shared.GuardChanges(dialog, func() string { return temperatureEntry.Text() + "\x00" + durationEntry.Text() }, func() bool { return busy })
+	cancelBtn.ConnectClicked(closeForm)
 
 	saveBtn := layout.Configure[*gtk.Button](view, "saveBtn", func(w *gtk.Button) { w.SetLabel(t.Save) })
 
 	action := shared.Action(ctx, dialog)
 	saveBtn.ConnectClicked(func() {
-		temperature, err := strconv.Atoi(temperatureEntry.Text())
-		if err != nil {
-			errorLabel.SetText(fmt.Sprintf("%s: %v", t.ErrorPrefix, err))
+
+		temperature, te := strconv.Atoi(strings.TrimSpace(temperatureEntry.Text()))
+		duration, de := shared.ParseDecimal(durationEntry.Text())
+		temperatureEntry.RemoveCSSClass("error")
+		durationEntry.RemoveCSSClass("error")
+		if te != nil || temperature <= 0 {
+			errorLabel.SetText(t.TemperatureC + ": " + t.InvalidPositive)
+			errorLabel.SetVisible(true)
+			temperatureEntry.AddCSSClass("error")
+			temperatureEntry.GrabFocus()
 			return
 		}
-		duration, err := strconv.ParseFloat(durationEntry.Text(), 64)
-		if err != nil {
-			errorLabel.SetText(fmt.Sprintf("%s: %v", t.ErrorPrefix, err))
+		if de != nil || duration <= 0 {
+			errorLabel.SetText(t.DurationHours + ": " + t.InvalidPositive)
+			errorLabel.SetVisible(true)
+			durationEntry.AddCSSClass("error")
+			durationEntry.GrabFocus()
 			return
 		}
 
@@ -118,13 +130,25 @@ func showDrySpoolDialog(ctx context.Context, parent *gtk.Window, dryingSvc *serv
 			TemperatureC:  temperature,
 			DurationHours: duration,
 		}
+		busy = true
+		temperatureEntry.SetSensitive(false)
+		durationEntry.SetSensitive(false)
+		cancelBtn.SetSensitive(false)
+		saveBtn.SetLabel(t.Saving)
 		saveBtn.SetSensitive(false)
 		action(func() error { return dryingSvc.Create(ctx, session) }, func(err error) {
+			busy = false
+			temperatureEntry.SetSensitive(true)
+			durationEntry.SetSensitive(true)
+			cancelBtn.SetSensitive(true)
+			saveBtn.SetLabel(t.Save)
 			saveBtn.SetSensitive(true)
 			if err != nil {
 				errorLabel.SetText(fmt.Sprintf("%s: %v", t.ErrorPrefix, err))
+				errorLabel.SetVisible(true)
 				return
 			}
+			shared.Notify(parent, t.Saved, "", nil)
 			dialog.Destroy()
 			if onSave != nil {
 				onSave()

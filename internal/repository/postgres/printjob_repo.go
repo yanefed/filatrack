@@ -76,6 +76,19 @@ func (r *PrintJobRepo) List(ctx context.Context, filter domain.PrintJobFilter) (
 	_, _ = query.WriteString(`SELECT id, spool_id, printer_id, external_print_id, gcode_filename, model_name, status, completion_percent, estimated_weight_g, actual_weight_g, estimated_length_mm, print_duration_sec, nozzle_temp_c, bed_temp_c, slicer, preview_image_path, notes, printed_at, created_at, COALESCE((SELECT s.price / s.total_weight_g FROM spools s WHERE s.id = print_jobs.spool_id AND s.price > 0 AND s.total_weight_g > 0), 0), COALESCE((SELECT value FROM app_settings WHERE key = 'currency'), 'RUB'), usage_measured, preview_image_hash FROM print_jobs WHERE 1=1`)
 	var args []any
 
+	if filter.Search != "" {
+		_, _ = query.WriteString(" AND (" + "LOWER(model_name) LIKE ? ESCAPE '!' OR LOWER(gcode_filename) LIKE ? ESCAPE '!')")
+		search := "%" + strings.NewReplacer("!", "!!", "%", "!%", "_", "!_").Replace(strings.ToLower(strings.TrimSpace(filter.Search))) + "%"
+		args = append(args, search, search)
+	}
+	if filter.Before != nil {
+		_, _ = query.WriteString(" AND (printed_at < ? OR (printed_at = ? AND id < ?))")
+		args = append(args, filter.Before.PrintedAt, filter.Before.PrintedAt, filter.Before.ID)
+	}
+	if filter.Through != nil {
+		_, _ = query.WriteString(" AND (printed_at > ? OR (printed_at = ? AND id >= ?))")
+		args = append(args, filter.Through.PrintedAt, filter.Through.PrintedAt, filter.Through.ID)
+	}
 	if filter.SpoolID != nil {
 		_, _ = query.WriteString(" AND spool_id = ?")
 		args = append(args, *filter.SpoolID)
@@ -111,7 +124,7 @@ func (r *PrintJobRepo) List(ctx context.Context, filter domain.PrintJobFilter) (
 		}
 		_, _ = query.WriteString(")")
 	}
-	_, _ = query.WriteString(" ORDER BY printed_at DESC")
+	_, _ = query.WriteString(" ORDER BY printed_at DESC, id DESC")
 	if filter.Limit > 0 {
 		_, _ = query.WriteString(" LIMIT ?")
 		args = append(args, filter.Limit)

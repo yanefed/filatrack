@@ -79,7 +79,7 @@ func (a *App) activate(app *adw.Application) {
 	refreshActive := func(bool) {}
 	refreshLive := func() {}
 	activePage := "dashboard"
-	var currentContent *adw.ToolbarView
+	var currentContent gtk.Widgetter
 	var currentStack *gtk.Stack
 	var visibleChildHandle coreglib.SignalHandle
 	reconnecting := false
@@ -109,6 +109,7 @@ func (a *App) activate(app *adw.Application) {
 
 		t := i18n.L()
 		readOnly := a.Database != nil && a.Database.ReadOnly()
+		viewCtx = shared.WithReadOnly(viewCtx, readOnly)
 		banner := layout.Get[*adw.Banner](view, "offlineBanner")
 		banner.SetRevealed(readOnly)
 		if readOnly {
@@ -239,6 +240,7 @@ func (a *App) activate(app *adw.Application) {
 		settingsPage.SetSensitive(!readOnly)
 
 		addSpoolButton := layout.Get[*gtk.Button](view, "addSpoolButton")
+		addSpoolButton.SetLabel(t.AddSpoolBtn)
 		addSpoolButton.SetTooltipText(t.AddSpoolBtn)
 		addSpoolButton.ConnectClicked(openAddSpoolDialog)
 		_ = newAboutButton(t, window, layout.Scope(view, "headerBar_slot_1"))
@@ -249,12 +251,41 @@ func (a *App) activate(app *adw.Application) {
 		toolbarView := layout.Get[*adw.ToolbarView](view, "toolbarView")
 		for _, button := range []*gtk.Button{addSpoolButton, refreshHistoryButton, addModelButton, refreshModelsButton, addDryingButton, addPrinterButton} {
 			button.SetSensitive(!readOnly)
+			shared.ProtectWrites(viewCtx, button)
 		}
 
+		addModelButton.SetLabel(t.UploadModel)
+		addPrinterButton.SetLabel(t.AddPrinter)
+		addDryingButton.SetLabel(t.AddDrying)
+		if readOnly {
+			for _, b := range []*gtk.Button{addSpoolButton, addModelButton, addPrinterButton, addDryingButton} {
+				b.SetTooltipText(t.OfflineAction)
+			}
+
+		}
 		modelOptionsButton.SetSensitive(!readOnly)
 
-		window.SetContent(toolbarView)
-		currentContent = toolbarView
+		overlay := adw.NewToastOverlay()
+		overlay.SetChild(toolbarView)
+
+		split := layout.Get[*adw.OverlaySplitView](view, "splitView")
+		navigation := layout.Get[*gtk.ToggleButton](view, "navigationButton")
+		navigation.SetTooltipText(t.Navigation)
+		shared.AccessibleName(navigation, t.Navigation)
+		navigation.SetActive(split.ShowSidebar())
+		navigation.ConnectToggled(func() { split.SetShowSidebar(navigation.Active()) })
+		split.NotifyProperty("show-sidebar", func() { navigation.SetActive(split.ShowSidebar()) })
+		breakpointBin := adw.NewBreakpointBin()
+		breakpointBin.SetChild(overlay)
+		breakpointBin.SetSizeRequest(560, 500)
+		narrow := adw.NewBreakpoint(adw.BreakpointConditionParse("max-width: 800px"))
+		narrow.AddSetter(split, "collapsed", true)
+		narrow.AddSetter(split, "show-sidebar", false)
+		narrow.AddSetter(layout.Get[*gtk.Box](layout.Scope(view, "spools"), "box_slot_2_f_root"), "orientation", gtk.OrientationVertical)
+		breakpointBin.AddBreakpoint(narrow)
+		window.SetContent(breakpointBin)
+		shared.LabelIcons(toolbarView)
+		currentContent = breakpointBin
 		currentStack = stack
 		stack.SetVisibleChildName(activePage)
 		updateHeaderActions := func() {
@@ -270,12 +301,24 @@ func (a *App) activate(app *adw.Application) {
 		updateHeaderActions()
 		visibleChildHandle = stack.NotifyProperty("visible-child", func() {
 			activePage = stack.VisibleChildName()
+			if split.Collapsed() {
+				split.SetShowSidebar(false)
+			}
 			updateHeaderActions()
 			refreshActive(false)
 			refreshLive()
 		})
 	}
 
+	searchKeys := gtk.NewEventControllerKey()
+	searchKeys.SetPropagationPhase(gtk.PhaseCapture)
+	searchKeys.ConnectKeyPressed(func(keyval, keycode uint, state gdk.ModifierType) bool {
+		if (keyval == gdk.KEY_f || keyval == gdk.KEY_F) && state&(gdk.ControlMask|gdk.MetaMask) != 0 && currentStack != nil {
+			return shared.FocusSearch(currentStack.VisibleChild())
+		}
+		return false
+	})
+	window.AddController(searchKeys)
 	rebuildUI()
 	window.SetVisible(true)
 

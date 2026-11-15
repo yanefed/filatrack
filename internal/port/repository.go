@@ -7,10 +7,14 @@ import (
 )
 
 type SpoolRepository interface {
+	// detachPrinterIDs contains only printer assignments explicitly approved by the user.
+	ArchiveWithAssignments(context.Context, string, []string) (domain.SpoolArchive, error)
+	Restore(context.Context, domain.SpoolArchive) (domain.SpoolRestoreResult, error)
 	GetUsedWeights(context.Context) (map[string]float64, error)
 	Create(ctx context.Context, spool *domain.Spool) error
 	GetByID(ctx context.Context, id string) (*domain.Spool, error)
 	List(ctx context.Context, filter domain.SpoolFilter) ([]domain.Spool, error)
+	// Update edits spool details only if its archive state has not changed.
 	Update(ctx context.Context, spool *domain.Spool) error
 	Archive(ctx context.Context, id string) error
 	GetUsedWeight(ctx context.Context, spoolID string) (float64, error)
@@ -36,6 +40,7 @@ type PrinterRepository interface {
 	Create(ctx context.Context, printer *domain.Printer) error
 	GetByID(ctx context.Context, id string) (*domain.Printer, error)
 	List(ctx context.Context) ([]domain.Printer, error)
+	// Update edits connection settings; status and assignments have dedicated commands.
 	Update(ctx context.Context, printer *domain.Printer) error
 	AssignSpool(ctx context.Context, printerID, spoolID string) error
 	UpdateStatus(ctx context.Context, printer *domain.Printer) error

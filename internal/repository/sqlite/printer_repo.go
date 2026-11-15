@@ -88,11 +88,10 @@ func (r *PrinterRepo) Update(ctx context.Context, printer *domain.Printer) error
 	persisted := entity.PrinterFromDomain(*printer)
 	result, err := r.db.conn.ExecContext(ctx,
 		`UPDATE printers
-		 SET name=?, kind=?, moonraker_url=?, api_key=?, enabled=?, active_spool_id=?, state=?, current_file=?, progress=?, last_seen_at=?, updated_at=?
+		 SET name=?, kind=?, moonraker_url=?, api_key=?, enabled=?, updated_at=?
 		 WHERE id=?`,
 		persisted.Name, persisted.Kind, persisted.MoonrakerURL, persisted.APIKey,
-		persisted.Enabled, persisted.ActiveSpoolID, persisted.State,
-		persisted.CurrentFile, persisted.Progress, persisted.LastSeenAt, persisted.UpdatedAt,
+		persisted.Enabled, persisted.UpdatedAt,
 		persisted.ID,
 	)
 	if err != nil {
@@ -105,17 +104,7 @@ func (r *PrinterRepo) Update(ctx context.Context, printer *domain.Printer) error
 }
 
 func (r *PrinterRepo) AssignSpool(ctx context.Context, printerID, spoolID string) error {
-	result, err := r.db.conn.ExecContext(ctx,
-		`UPDATE printers SET active_spool_id = ?, updated_at = ? WHERE id = ?`,
-		entity.NullString(spoolID), time.Now(), printerID,
-	)
-	if err != nil {
-		return fmt.Errorf("assigning printer spool: %w", err)
-	}
-	if affected, err := result.RowsAffected(); err == nil && affected == 0 {
-		return fmt.Errorf("printer not found: %s", printerID)
-	}
-	return nil
+	return dbutil.AssignSpool(ctx, r.db.conn, printerID, spoolID, false)
 }
 
 func (r *PrinterRepo) UpdateStatus(ctx context.Context, printer *domain.Printer) error {

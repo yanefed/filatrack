@@ -113,6 +113,8 @@ func (j *PrinterHistoryJob) getModelName() string {
 }
 
 type FilamentCheck struct {
+	SpoolID          string
+	UsageKnown       bool
 	RequiredWeightG  float64
 	RemainingBeforeG float64
 	RemainingAfterG  float64
@@ -136,6 +138,8 @@ type PrinterUploadResult struct {
 }
 
 type PrintLaunchResult struct {
+	SpoolAssigned            bool
+	LaunchAttempted          bool
 	Filename                 string
 	Uploaded                 bool
 	Started                  bool

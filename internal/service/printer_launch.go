@@ -46,8 +46,12 @@ func (s *printerLaunch) StartPrinterFile(ctx context.Context, req domain.PrintLa
 	if requireLaunchConfirmation(result, req.AllowLowFilament) {
 		return result, nil
 	}
+	if err := s.assignLaunchSpool(ctx, printer, result); err != nil {
+		return result, err
+	}
+	result.LaunchAttempted = true
 	if err := s.jobClient.StartFile(ctx, *printer, req.GcodeFilename); err != nil {
-		return nil, err
+		return result, err
 	}
 	result.Started = true
 	return result, nil
@@ -104,9 +108,21 @@ func (s *printerLaunch) PrintModel(ctx context.Context, req domain.PrintLaunchRe
 	if err := s.jobClient.DownloadFile(ctx, *source, req.GcodeFilename, tmpPath); err != nil {
 		return nil, err
 	}
+	check, err = s.checkFilament(ctx, *target, req.SpoolID, metadata)
+	if err != nil {
+		return result, err
+	}
+	result.Filament = check
+	if requireLaunchConfirmation(result, req.AllowLowFilament) {
+		return result, nil
+	}
+	if err := s.assignLaunchSpool(ctx, target, result); err != nil {
+		return result, err
+	}
+	result.LaunchAttempted = true
 	uploaded, err := s.jobClient.Upload(ctx, *target, tmpPath, remotePath, true)
 	if err != nil {
-		return nil, err
+		return result, err
 	}
 	result.Filename = uploaded.Path
 	result.Uploaded = true
@@ -144,9 +160,15 @@ func (s *printerLaunch) UploadLocalFile(ctx context.Context, req domain.PrintLau
 			return result, nil
 		}
 	}
+	if startPrint {
+		if err := s.assignLaunchSpool(ctx, printer, result); err != nil {
+			return result, err
+		}
+	}
+	result.LaunchAttempted = startPrint
 	uploaded, err := s.jobClient.Upload(ctx, *printer, req.LocalPath, filepath.Base(req.LocalPath), startPrint)
 	if err != nil {
-		return nil, err
+		return result, err
 	}
 	result.Filename = uploaded.Path
 	result.Uploaded = true
@@ -191,6 +213,9 @@ func (s *printerLaunch) checkFilament(ctx context.Context, printer domain.Printe
 	if err != nil {
 		return domain.FilamentCheck{}, fmt.Errorf("getting spool: %w", err)
 	}
+	if spool.Archived {
+		return domain.FilamentCheck{}, fmt.Errorf("archived spool cannot be used for printing")
+	}
 	used, err := s.spools.GetUsedWeight(ctx, spoolID)
 	if err != nil {
 		return domain.FilamentCheck{}, fmt.Errorf("getting spool used weight: %w", err)
@@ -201,6 +226,7 @@ func (s *printerLaunch) checkFilament(ctx context.Context, printer domain.Printe
 	}
 	remaining := spool.RemainingWeightG(used)
 	check := domain.FilamentCheck{
+		SpoolID: spoolID, UsageKnown: required > 0,
 		RequiredWeightG:  required,
 		RemainingBeforeG: remaining,
 		RemainingAfterG:  remaining - required,
@@ -231,4 +257,52 @@ func (s *printerLaunch) checkFilament(ctx context.Context, printer domain.Printe
 func requireLaunchConfirmation(result *domain.PrintLaunchResult, allowLowFilament bool) bool {
 	result.RequiresUserConfirmation = !result.Filament.Blocked && result.Filament.Warning != "" && !allowLowFilament
 	return result.Filament.Blocked || result.RequiresUserConfirmation
+}
+
+// PreviewLaunch checks the current selection without uploading or assigning a spool.
+func (s *printerLaunch) PreviewLaunch(ctx context.Context, req domain.PrintLaunchRequest) (*domain.PrintLaunchResult, error) {
+	printer, err := s.printers.GetByID(ctx, req.PrinterID)
+	if err != nil {
+		return nil, err
+	}
+	var metadata *domain.GcodeMetadata
+	if req.LocalPath != "" {
+		metadata, err = gcode.ParseFile(req.LocalPath)
+	} else {
+		if s.jobClient == nil {
+			return nil, fmt.Errorf("printer job client is not configured")
+		}
+		source := printer
+		if req.SourcePrinterID != "" && req.SourcePrinterID != req.PrinterID {
+			source, err = s.printers.GetByID(ctx, req.SourcePrinterID)
+			if err != nil {
+				return nil, err
+			}
+		}
+		metadata, err = s.jobClient.FetchMetadata(ctx, *source, req.GcodeFilename)
+	}
+	if err != nil {
+		return nil, err
+	}
+	check, err := s.checkFilament(ctx, *printer, req.SpoolID, metadata)
+	if err != nil {
+		return nil, err
+	}
+	result := &domain.PrintLaunchResult{Filename: req.GcodeFilename, Filament: check}
+	requireLaunchConfirmation(result, req.AllowLowFilament)
+	return result, nil
+}
+
+func (s *printerLaunch) assignLaunchSpool(ctx context.Context, printer *domain.Printer, result *domain.PrintLaunchResult) error {
+	current, err := s.printers.GetByID(ctx, printer.ID)
+	if err != nil {
+		return err
+	}
+	changed := current.ActiveSpoolID != result.Filament.SpoolID
+	if err := s.printers.AssignSpool(ctx, printer.ID, result.Filament.SpoolID); err != nil {
+		return fmt.Errorf("assigning spool before print: %w", err)
+	}
+	printer.ActiveSpoolID = result.Filament.SpoolID
+	result.SpoolAssigned = changed
+	return nil
 }

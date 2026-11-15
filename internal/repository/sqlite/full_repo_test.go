@@ -65,6 +65,9 @@ func TestSpoolRepoFullCRUDAndFilters(t *testing.T) {
 	first.Color = "White"
 	first.ColorHex = "#ffffff"
 	first.TotalWeightG = 750
+	if err := repo.Archive(ctx, first.ID); err != nil {
+		t.Fatal(err)
+	}
 	first.Archived = true
 	beforeUpdate := time.Now()
 	if err := repo.Update(ctx, first); err != nil {

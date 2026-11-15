@@ -152,10 +152,13 @@ func SetPreview(picture *gtk.Picture, path string) {
 					if !active {
 						return
 					}
-					texture := gdk.NewTextureForPixbuf(pixbuf)
-					if texture == nil {
-						return
+					format := gdk.MemoryR8G8B8
+					if pixbuf.HasAlpha() {
+						format = gdk.MemoryR8G8B8A8
 					}
+					// The texture retains immutable pixel bytes after the pixbuf is released.
+					memory := gdk.NewMemoryTexture(pixbuf.Width(), pixbuf.Height(), format, pixbuf.ReadPixelBytes(), uint(pixbuf.Rowstride()))
+					texture := &memory.Texture
 					previewTextures.Lock()
 					entry := previewTextures.lru.PushFront(previewTextureEntry{key, texture})
 					previewTextures.items[key] = entry

@@ -11,7 +11,16 @@ type PrintHistoryMatch struct {
 	EndedAt         time.Time
 }
 
+type PrintJobCursor struct {
+	PrintedAt time.Time
+	ID        string
+}
+
 type PrintJobFilter struct {
+	Search string
+	// Before excludes the cursor; Through includes it and all newer jobs.
+	Before  *PrintJobCursor
+	Through *PrintJobCursor
 	// Non-nil restricts results to the supplied history page; empty matches nothing.
 	HistoryMatches []PrintHistoryMatch
 	SpoolID        *string

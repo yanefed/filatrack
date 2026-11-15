@@ -5,6 +5,7 @@ import (
 	"github.com/yanefed/filatrack/internal/domain"
 	"github.com/yanefed/filatrack/internal/i18n"
 	"github.com/yanefed/filatrack/internal/ui/layout"
+	"github.com/yanefed/filatrack/internal/ui/screens/shared"
 	"github.com/yanefed/filatrack/internal/ui/widgets"
 	"strconv"
 	"strings"
@@ -105,14 +106,17 @@ func (f *spoolForm) Widget() *adw.PreferencesGroup {
 }
 
 func (f *spoolForm) Spool(materials []domain.MaterialDefinition, base domain.Spool) (domain.Spool, bool) {
+	if !f.Valid(materials) {
+		return domain.Spool{}, false
+	}
 	idx := f.materialCombo.Selected()
 	if int(idx) >= len(materials) {
 		return domain.Spool{}, false
 	}
-	weight, _ := strconv.ParseFloat(f.weightEntry.Text(), 64)
-	price, _ := strconv.ParseFloat(f.priceEntry.Text(), 64)
-	diameter, _ := strconv.ParseFloat(strings.TrimSpace(f.diameterEntry.Text()), 64)
-	density, _ := strconv.ParseFloat(strings.TrimSpace(f.densityEntry.Text()), 64)
+	weight, _ := shared.ParseDecimal(f.weightEntry.Text())
+	price, _ := shared.ParseDecimal(f.priceEntry.Text())
+	diameter, _ := shared.ParseDecimal(strings.TrimSpace(f.diameterEntry.Text()))
+	density, _ := shared.ParseDecimal(strings.TrimSpace(f.densityEntry.Text()))
 	base.Manufacturer = f.manufacturerEntry.Text()
 	base.Material = materials[idx].Name
 	base.Color = f.colorEntry.Text()
@@ -128,15 +132,15 @@ func (f *spoolForm) Valid(materials []domain.MaterialDefinition) bool {
 	if int(f.materialCombo.Selected()) >= len(materials) {
 		return false
 	}
-	weight, err := strconv.ParseFloat(strings.TrimSpace(f.weightEntry.Text()), 64)
+	weight, err := shared.ParseDecimal(strings.TrimSpace(f.weightEntry.Text()))
 	if err != nil || weight <= 0 {
 		return false
 	}
-	diameter, err := strconv.ParseFloat(strings.TrimSpace(f.diameterEntry.Text()), 64)
+	diameter, err := shared.ParseDecimal(strings.TrimSpace(f.diameterEntry.Text()))
 	if err != nil || diameter <= 0 {
 		return false
 	}
-	density, err := strconv.ParseFloat(strings.TrimSpace(f.densityEntry.Text()), 64)
+	density, err := shared.ParseDecimal(strings.TrimSpace(f.densityEntry.Text()))
 	if err != nil || density <= 0 {
 		return false
 	}
@@ -144,6 +148,41 @@ func (f *spoolForm) Valid(materials []domain.MaterialDefinition) bool {
 	if priceText == "" {
 		return true
 	}
-	price, err := strconv.ParseFloat(priceText, 64)
+	price, err := shared.ParseDecimal(priceText)
 	return err == nil && price >= 0
+}
+
+func (f *spoolForm) Validate(t i18n.T, materials []domain.MaterialDefinition, focus bool) bool {
+	valid := true
+	first := true
+	check := func(row *adw.EntryRow, title, message string, ok bool) {
+		shared.FieldError(row, title, message, ok)
+		if !ok {
+			valid = false
+			if first && focus {
+				f.additionalRow.SetExpanded(true)
+				row.GrabFocus()
+			}
+			first = false
+		}
+	}
+	for _, field := range []struct {
+		row   *adw.EntryRow
+		title string
+	}{{f.weightEntry, t.NetWeightPH}, {f.diameterEntry, t.FilamentDiameter}, {f.densityEntry, t.FilamentDensity}} {
+		value, err := shared.ParseDecimal(field.row.Text())
+		check(field.row, field.title, t.InvalidPositive, err == nil && value > 0)
+	}
+	price, err := shared.ParseDecimal(f.priceEntry.Text())
+	check(f.priceEntry, t.PricePH, t.InvalidPrice, strings.TrimSpace(f.priceEntry.Text()) == "" || (err == nil && price >= 0))
+	if int(f.materialCombo.Selected()) >= len(materials) {
+		f.materialCombo.SetSubtitle(t.RequiredField)
+		if first && focus {
+			f.materialCombo.GrabFocus()
+		}
+		valid = false
+	} else {
+		f.materialCombo.SetSubtitle("")
+	}
+	return valid
 }

@@ -47,7 +47,9 @@ func showPrinterDialog(t i18n.T, ctx context.Context, parent *gtk.Window, printe
 	checkButton := layout.Configure[*gtk.Button](view, "checkButton", func(w *gtk.Button) { w.SetLabel(t.CheckConnection) })
 
 	cancelButton := layout.Configure[*gtk.Button](view, "cancelButton", func(w *gtk.Button) { w.SetLabel(t.Cancel) })
-	cancelButton.ConnectClicked(dialog.Destroy)
+	busy, attempted := false, false
+	closeForm, _ := shared.GuardChanges(dialog, func() string { return shared.FormSnapshot(form.root) }, func() bool { return busy })
+	cancelButton.ConnectClicked(closeForm)
 
 	saveButton := layout.Configure[*gtk.Button](view, "saveButton", func(w *gtk.Button) { w.SetLabel(actionLabel) })
 
@@ -60,9 +62,10 @@ func showPrinterDialog(t i18n.T, ctx context.Context, parent *gtk.Window, printe
 	updateActions := func() {
 		valid := form.Valid()
 		checkButton.SetSensitive(valid)
-		saveButton.SetSensitive(valid)
+		saveButton.SetSensitive(!busy)
 	}
-	setBusy := func(busy bool) {
+	setBusy := func(value bool) {
+		busy = value
 		form.root.SetSensitive(!busy)
 		cancelButton.SetSensitive(!busy)
 		if busy {
@@ -72,7 +75,25 @@ func showPrinterDialog(t i18n.T, ctx context.Context, parent *gtk.Window, printe
 			updateActions()
 		}
 	}
+	validate := func(focus bool) bool {
+		printer := form.Printer(basePrinter())
+		nameOK := printer.Name != ""
+		urlOK := printer.ValidateMoonrakerURL() == nil
+		shared.FieldError(form.nameEntry, t.PrinterName, t.RequiredField, nameOK)
+		shared.FieldError(form.urlEntry, t.MoonrakerURL, t.InvalidURL, urlOK)
+		if focus {
+			if !nameOK {
+				form.nameEntry.GrabFocus()
+			} else if !urlOK {
+				form.urlEntry.GrabFocus()
+			}
+		}
+		return nameOK && urlOK
+	}
 	invalidateStatus := func() {
+		if attempted {
+			validate(false)
+		}
 		statusLabel.SetVisible(false)
 		updateActions()
 	}
@@ -86,7 +107,7 @@ func showPrinterDialog(t i18n.T, ctx context.Context, parent *gtk.Window, printe
 		setBusy(true)
 		statusLabel.RemoveCSSClass("error")
 		statusLabel.RemoveCSSClass("success")
-		statusLabel.SetLabel("Loading…")
+		statusLabel.SetLabel(t.Loading)
 		statusLabel.SetVisible(true)
 		var err error
 		shared.RunAsyncUI(ctx, func() {
@@ -107,11 +128,15 @@ func showPrinterDialog(t i18n.T, ctx context.Context, parent *gtk.Window, printe
 	})
 
 	saveButton.ConnectClicked(func() {
+		attempted = true
+		if !validate(true) {
+			return
+		}
 		printer := form.Printer(basePrinter())
 		setBusy(true)
 		statusLabel.RemoveCSSClass("error")
 		statusLabel.RemoveCSSClass("success")
-		statusLabel.SetLabel("Loading…")
+		statusLabel.SetLabel(t.Saving)
 		statusLabel.SetVisible(true)
 		var err error
 		shared.RunAsyncUI(ctx, func() {
@@ -126,6 +151,7 @@ func showPrinterDialog(t i18n.T, ctx context.Context, parent *gtk.Window, printe
 				statusLabel.SetLabel(fmt.Sprintf("%s: %v", t.AddPrinterError, err))
 				return
 			}
+			shared.Notify(parent, t.Saved, "", nil)
 			dialog.Destroy()
 			if onSave != nil {
 				onSave()

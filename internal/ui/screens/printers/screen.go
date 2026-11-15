@@ -22,6 +22,8 @@ func NewPrintersScreen(ctx context.Context, parent *gtk.Window, printerSvc *serv
 	box := layout.Configure[*gtk.Box](view, "box", func(w *gtk.Box) { layout.Get[*gtk.Label](view, "box_title").SetLabel(t.Printers) })
 
 	messageLabel := layout.Get[*gtk.Label](view, "messageLabel")
+	messageLabel.SetText(t.Loading)
+	messageLabel.SetVisible(true)
 
 	emptyLabel := layout.Configure[*gtk.Label](view, "emptyLabel", func(w *gtk.Label) { w.SetLabel(t.NoPrinters) })
 
@@ -47,11 +49,15 @@ func NewPrintersScreen(ctx context.Context, parent *gtk.Window, printerSvc *serv
 	loader := shared.NewLoader[result](ctx, box)
 	fullPending := false
 	var refreshPrinters func()
+	feedback := shared.NewReadFeedback(box, messageLabel, func() { refreshPrinters() })
 	apply := func(data result) {
 		if data.err != nil {
-			messageLabel.SetLabel(fmt.Sprintf("%s: %v", t.ErrorPrefix, data.err))
-			messageLabel.SetVisible(true)
+			fullPending = false
+			feedback.Failure(data.err)
 			return
+		}
+		if !data.live {
+			feedback.Success()
 		}
 		ids := make([]string, len(data.printers))
 		for i, p := range data.printers {
@@ -106,6 +112,7 @@ func NewPrintersScreen(ctx context.Context, parent *gtk.Window, printerSvc *serv
 					})
 				}, row.view)
 			}
+			shared.ProtectWrites(ctx, layout.Get[*gtk.Button](row.view, "editButton"))
 			row.printer = printer
 			row.status.Update(t, printer)
 			if !data.live {
@@ -113,6 +120,7 @@ func NewPrintersScreen(ctx context.Context, parent *gtk.Window, printerSvc *serv
 				row.spools = data.spools
 				layout.Get[*gtk.Label](row.view, "endpointLabel").SetLabel(printer.MoonrakerURL)
 				dropdown := layout.Get[*gtk.DropDown](row.view, "dropdown")
+				shared.ProtectWrites(ctx, dropdown)
 				// Retain the dropdown model, selection and signal handlers.
 				if row.names == nil {
 					row.names = gtk.NewStringList(nil)
@@ -140,6 +148,7 @@ func NewPrintersScreen(ctx context.Context, parent *gtk.Window, printerSvc *serv
 		emptyLabel.SetVisible(len(ids) == 0)
 	}
 	refreshPrinters = func() {
+		feedback.Begin()
 		fullPending = true
 		loader.Request(func(ctx context.Context) result {
 			p, e := printerSvc.List(ctx)
@@ -172,6 +181,7 @@ func NewPrintersScreen(ctx context.Context, parent *gtk.Window, printerSvc *serv
 		})
 	})
 
+	shared.ProtectWrites(ctx, shared.EmptyAction(ctx, box, emptyLabel, t.AddPrinter, func() { addPrinterButton.Object.Emit("clicked") }))
 	refreshPrinters()
 	return box, refreshPrinters, refreshPrinterStatuses, addPrinterButton
 }

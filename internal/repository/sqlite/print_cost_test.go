@@ -64,6 +64,9 @@ func TestPrintStatsCost(t *testing.T) {
 	check(domain.StatsFilter{From: &from, To: &to}, 58, 7, 3, 1)
 	// Archived spools still contribute, and changing their price updates history costs.
 	priced.Price = 3000
+	if err := spools.Archive(ctx, priced.ID); err != nil {
+		t.Fatal(err)
+	}
 	priced.Archived = true
 	if err := spools.Update(ctx, priced); err != nil {
 		t.Fatal(err)

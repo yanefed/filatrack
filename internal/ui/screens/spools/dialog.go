@@ -25,18 +25,50 @@ func showEditSpoolDialog(ctx context.Context, parent *gtk.Window, spoolSvc *serv
 }
 
 func prepareSpoolDialog(ctx context.Context, parent *gtk.Window, settings *service.SettingsService, done func(i18n.T, []domain.MaterialDefinition)) {
-	t := i18n.L()
-	var currency string
-	var materials []domain.MaterialDefinition
-	shared.RunAsyncUI(ctx, func() { currency = settings.GetCurrency(ctx); materials = availableMaterials(ctx, settings) }, func() { t.PricePH += " (" + currency + ")"; done(t, materials) })
-}
 
-func availableMaterials(ctx context.Context, settingsSvc *service.SettingsService) []domain.MaterialDefinition {
-	materials, err := settingsSvc.ListMaterials(ctx)
-	if err != nil {
-		return nil
+	t := i18n.L()
+	view := layout.Load("modal-window")
+	dialog := layout.Get[*gtk.Window](view, "dialog")
+	dialog.SetTitle(t.Spools)
+	if parent != nil {
+		dialog.SetTransientFor(parent)
+		dialog.SetDestroyWithParent(true)
 	}
-	return materials
+	box := gtk.NewBox(gtk.OrientationVertical, 12)
+	box.SetMarginTop(16)
+	box.SetMarginBottom(16)
+	box.SetMarginStart(16)
+	box.SetMarginEnd(16)
+	dialog.SetChild(box)
+	status := shared.InlineMessage(box)
+	cancel := gtk.NewButtonWithLabel(t.Cancel)
+	box.Append(cancel)
+	cancel.ConnectClicked(dialog.Destroy)
+	type initial struct {
+		currency  string
+		materials []domain.MaterialDefinition
+		err       error
+	}
+	loader := shared.NewLoader[initial](ctx, dialog)
+	var load func()
+	feedback := shared.NewReadFeedback(box, status, func() { load() })
+	load = func() {
+		feedback.Begin()
+		loader.Request(func(c context.Context) initial {
+			materials, err := settings.ListMaterials(c)
+			return initial{settings.GetCurrency(c), materials, err}
+		}, func(data initial) {
+			if data.err != nil {
+				feedback.Failure(data.err)
+				return
+			}
+			dialog.Destroy()
+			t.PricePH += " (" + data.currency + ")"
+			done(t, data.materials)
+		})
+	}
+	load()
+	dialog.Present()
 }
 
 func showSpoolFormDialog(ctx context.Context, t i18n.T, parent *gtk.Window, title string, materials []domain.MaterialDefinition, original *domain.Spool, save func(domain.Spool) error, onSave func()) {
@@ -55,7 +87,9 @@ func showSpoolFormDialog(ctx context.Context, t i18n.T, parent *gtk.Window, titl
 	errorLabel := layout.Get[*gtk.Label](view, "errorLabel")
 
 	cancelBtn := layout.Configure[*gtk.Button](view, "cancelBtn", func(w *gtk.Button) { w.SetLabel(t.Cancel) })
-	cancelBtn.ConnectClicked(dialog.Destroy)
+	busy, attempted := false, false
+	closeForm, _ := shared.GuardChanges(dialog, func() string { return shared.FormSnapshot(form.root) + form.colorPicker.Hex() }, func() bool { return busy })
+	cancelBtn.ConnectClicked(closeForm)
 
 	actionLabel := t.Save
 	if original == nil {
@@ -64,7 +98,10 @@ func showSpoolFormDialog(ctx context.Context, t i18n.T, parent *gtk.Window, titl
 	saveBtn := layout.Configure[*gtk.Button](view, "saveBtn", func(w *gtk.Button) { w.SetLabel(actionLabel) })
 
 	updateSaveState := func() {
-		saveBtn.SetSensitive(form.Valid(materials))
+		saveBtn.SetSensitive(!busy)
+		if attempted {
+			form.Validate(t, materials, false)
+		}
 	}
 	form.weightEntry.NotifyProperty("text", updateSaveState)
 	form.priceEntry.NotifyProperty("text", updateSaveState)
@@ -74,6 +111,10 @@ func showSpoolFormDialog(ctx context.Context, t i18n.T, parent *gtk.Window, titl
 	updateSaveState()
 	saveAction := shared.Action(ctx, dialog)
 	saveBtn.ConnectClicked(func() {
+		attempted = true
+		if !form.Validate(t, materials, true) {
+			return
+		}
 		base := domain.Spool{}
 		if original != nil {
 			base = *original
@@ -82,14 +123,23 @@ func showSpoolFormDialog(ctx context.Context, t i18n.T, parent *gtk.Window, titl
 		if !ok {
 			return
 		}
+		busy = true
+		form.root.SetSensitive(false)
+		cancelBtn.SetSensitive(false)
+		saveBtn.SetLabel(t.Saving)
 		saveBtn.SetSensitive(false)
 		saveAction(func() error { return save(spool) }, func(err error) {
+			busy = false
 			if err != nil {
+				form.root.SetSensitive(true)
+				cancelBtn.SetSensitive(true)
+				saveBtn.SetLabel(actionLabel)
 				updateSaveState()
 				errorLabel.SetLabel(fmt.Sprintf("%s: %v", t.ErrorPrefix, err))
 				errorLabel.SetVisible(true)
 				return
 			}
+			shared.Notify(parent, t.Saved, "", nil)
 			dialog.Destroy()
 			if onSave != nil {
 				onSave()

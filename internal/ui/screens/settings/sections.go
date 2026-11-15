@@ -220,22 +220,54 @@ func showMaterialDialog(ctx context.Context, parent *gtk.Window, settingsSvc *se
 	errorLabel := layout.Get[*gtk.Label](view, "errorLabel")
 
 	cancelBtn := layout.Configure[*gtk.Button](view, "cancelBtn", func(w *gtk.Button) { w.SetLabel(t.Cancel) })
-	cancelBtn.ConnectClicked(dialog.Destroy)
+	busy, attempted := false, false
+	closeForm, _ := shared.GuardChanges(dialog, func() string { return shared.FormSnapshot(dialog) }, func() bool { return busy })
+	cancelBtn.ConnectClicked(closeForm)
 
 	saveBtn := layout.Configure[*gtk.Button](view, "saveBtn", func(w *gtk.Button) { w.SetLabel(t.Save) })
 
 	materialFromForm := func() *domain.MaterialDefinition {
-		density, _ := strconv.ParseFloat(strings.TrimSpace(densityEntry.Text()), 64)
+		density, _ := shared.ParseDecimal(strings.TrimSpace(densityEntry.Text()))
 		temperature, _ := strconv.Atoi(strings.TrimSpace(temperatureEntry.Text()))
-		duration, _ := strconv.ParseFloat(strings.TrimSpace(durationEntry.Text()), 64)
+		duration, _ := shared.ParseDecimal(strings.TrimSpace(durationEntry.Text()))
 		days, _ := strconv.Atoi(strings.TrimSpace(daysEntry.Text()))
 		return &domain.MaterialDefinition{
 			Name: domain.Material(strings.TrimSpace(nameEntry.Text())), DensityGCM3: density,
 			DryingTemperatureC: temperature, DryingDurationHours: duration, MaxDaysNoDry: days,
 		}
 	}
+
+	validate := func(focus bool) bool {
+		material := materialFromForm()
+		valid, first := true, true
+		for _, f := range []struct {
+			row     *adw.EntryRow
+			title   string
+			ok      bool
+			message string
+		}{
+			{nameEntry, t.MaterialLabel, strings.TrimSpace(nameEntry.Text()) != "", t.RequiredField},
+			{densityEntry, t.FilamentDensity, material.DensityGCM3 > 0, t.InvalidPositive},
+			{temperatureEntry, t.TemperatureC, material.DryingTemperatureC > 0, t.InvalidPositive},
+			{durationEntry, t.DurationHours, material.DryingDurationHours > 0, t.InvalidPositive},
+			{daysEntry, t.MaxDaysNoDry, material.MaxDaysNoDry > 0, t.InvalidPositive},
+		} {
+			shared.FieldError(f.row, f.title, f.message, f.ok)
+			if !f.ok {
+				valid = false
+				if focus && first {
+					f.row.GrabFocus()
+				}
+				first = false
+			}
+		}
+		return valid
+	}
 	updateSaveState := func() {
-		saveBtn.SetSensitive(materialFromForm().Validate() == nil)
+		saveBtn.SetSensitive(!busy)
+		if attempted {
+			validate(false)
+		}
 		errorLabel.SetVisible(false)
 	}
 	for _, entry := range []*adw.EntryRow{nameEntry, densityEntry, temperatureEntry, durationEntry, daysEntry} {
@@ -244,7 +276,17 @@ func showMaterialDialog(ctx context.Context, parent *gtk.Window, settingsSvc *se
 	updateSaveState()
 	action := shared.Action(ctx, dialog)
 	saveBtn.ConnectClicked(func() {
+		attempted = true
+		if !validate(true) {
+			return
+		}
 		material := materialFromForm()
+		busy = true
+		saveBtn.SetLabel(t.Saving)
+		cancelBtn.SetSensitive(false)
+		for _, row := range []*adw.EntryRow{nameEntry, densityEntry, temperatureEntry, durationEntry, daysEntry} {
+			row.SetSensitive(false)
+		}
 		saveBtn.SetSensitive(false)
 		action(func() error {
 			if original == nil {
@@ -252,12 +294,19 @@ func showMaterialDialog(ctx context.Context, parent *gtk.Window, settingsSvc *se
 			}
 			return settingsSvc.UpdateMaterial(ctx, material)
 		}, func(err error) {
+			busy = false
+			saveBtn.SetLabel(t.Save)
+			cancelBtn.SetSensitive(true)
+			for _, row := range []*adw.EntryRow{nameEntry, densityEntry, temperatureEntry, durationEntry, daysEntry} {
+				row.SetSensitive(row != nameEntry || original == nil)
+			}
 			updateSaveState()
 			if err != nil {
 				errorLabel.SetText(fmt.Sprintf("%s: %v", t.ErrorPrefix, err))
 				errorLabel.SetVisible(true)
 				return
 			}
+			shared.Notify(parent, t.Saved, "", nil)
 			dialog.Destroy()
 			refresh()
 			if onChanged != nil {

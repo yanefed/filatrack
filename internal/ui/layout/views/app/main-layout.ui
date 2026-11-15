@@ -8,6 +8,11 @@
     <child type="top">
       <object class="AdwHeaderBar" id="headerBar">
         <property name="show-end-title-buttons">true</property>
+        <child type="start">
+          <object class="GtkToggleButton" id="navigationButton">
+            <property name="icon-name">sidebar-show-symbolic</property>
+          </object>
+        </child>
         <child type="end">
           <object class="GtkButton" id="headerBar_slot_1_button">
             <property name="icon-name">help-about-symbolic</property>
@@ -81,23 +86,16 @@
       </object>
     </child>
     <child>
-      <object class="GtkBox" id="splitView">
-        <property name="orientation">horizontal</property>
-        <property name="spacing">0</property>
-        <child>
-          <object class="GtkStackSidebar" id="sidebar">
+      <object class="AdwOverlaySplitView" id="splitView">
+        <property name="sidebar-width-fraction">0.22</property>
+        <property name="min-sidebar-width">180</property>
+        <property name="max-sidebar-width">240</property>
+        <property name="sidebar"><object class="GtkStackSidebar" id="sidebar">
             <property name="height-request">-1</property>
             <property name="stack">stack</property>
             <property name="width-request">200</property>
-          </object>
-        </child>
-        <child>
-          <object class="GtkSeparator" id="separator">
-            <property name="orientation">vertical</property>
-          </object>
-        </child>
-        <child>
-          <object class="GtkStack" id="stack">
+          </object></property>
+        <property name="content"><object class="GtkStack" id="stack">
             <property name="hexpand">true</property>
             <property name="transition-type">crossfade</property>
             <property name="vexpand">true</property>
@@ -308,6 +306,63 @@
               </object>
             </child>
             <child>
+              <object class="GtkStackPage" id="models_page">
+                <property name="child">
+                  <object class="GtkBox" id="models_box">
+                    <property name="margin-bottom">24</property>
+                    <property name="margin-end">24</property>
+                    <property name="margin-start">24</property>
+                    <property name="margin-top">24</property>
+                    <property name="orientation">vertical</property>
+                    <property name="spacing">12</property>
+                    <child>
+                      <object class="GtkLabel" id="models_box_title">
+                        <property name="label">Models</property>
+                        <style>
+                          <class name="title-1"/>
+                        </style>
+                      </object>
+                    </child>
+                    <child>
+                      <object class="GtkLabel" id="models_messageLabel">
+                        <property name="halign">start</property>
+                        <property name="label"/>
+                        <property name="visible">false</property>
+                        <property name="wrap">true</property>
+                        <style>
+                          <class name="dim-label"/>
+                        </style>
+                      </object>
+                    </child>
+                    <child>
+                      <object class="GtkLabel" id="models_emptyLabel">
+                        <property name="label">No records</property>
+                        <property name="visible">false</property>
+                        <style>
+                          <class name="dim-label"/>
+                        </style>
+                      </object>
+                    </child>
+                    <child>
+                      <object class="GtkScrolledWindow" id="models_object_634">
+                        <property name="vexpand">true</property>
+                        <child>
+                          <object class="GtkListView" id="models_object_634_slot_view">
+                            <property name="vexpand">true</property>
+                            <style>
+                              <class name="card-list"/>
+                            </style>
+                          </object>
+                        </child>
+                      </object>
+                    </child>
+                  </object>
+                </property>
+                <property name="name">models</property>
+                <property name="title">Models</property>
+              </object>
+            </child>
+            <child>
               <object class="GtkStackPage" id="prints_page">
                 <property name="child">
                   <object class="GtkBox" id="prints_box">
@@ -370,63 +425,6 @@
                 </property>
                 <property name="name">prints</property>
                 <property name="title">Print history</property>
-              </object>
-            </child>
-            <child>
-              <object class="GtkStackPage" id="models_page">
-                <property name="child">
-                  <object class="GtkBox" id="models_box">
-                    <property name="margin-bottom">24</property>
-                    <property name="margin-end">24</property>
-                    <property name="margin-start">24</property>
-                    <property name="margin-top">24</property>
-                    <property name="orientation">vertical</property>
-                    <property name="spacing">12</property>
-                    <child>
-                      <object class="GtkLabel" id="models_box_title">
-                        <property name="label">Models</property>
-                        <style>
-                          <class name="title-1"/>
-                        </style>
-                      </object>
-                    </child>
-                    <child>
-                      <object class="GtkLabel" id="models_messageLabel">
-                        <property name="halign">start</property>
-                        <property name="label"/>
-                        <property name="visible">false</property>
-                        <property name="wrap">true</property>
-                        <style>
-                          <class name="dim-label"/>
-                        </style>
-                      </object>
-                    </child>
-                    <child>
-                      <object class="GtkLabel" id="models_emptyLabel">
-                        <property name="label">No records</property>
-                        <property name="visible">false</property>
-                        <style>
-                          <class name="dim-label"/>
-                        </style>
-                      </object>
-                    </child>
-                    <child>
-                      <object class="GtkScrolledWindow" id="models_object_634">
-                        <property name="vexpand">true</property>
-                        <child>
-                          <object class="GtkListView" id="models_object_634_slot_view">
-                            <property name="vexpand">true</property>
-                            <style>
-                              <class name="card-list"/>
-                            </style>
-                          </object>
-                        </child>
-                      </object>
-                    </child>
-                  </object>
-                </property>
-                <property name="name">models</property>
-                <property name="title">Models</property>
               </object>
             </child>
             <child>
@@ -730,8 +728,12 @@
                                   <object class="GtkDropDown" id="settings_database_section_choice"/>
                                 </child>
                                 <child>
-                                  <object class="AdwEntryRow" id="settings_database_section_path">
-                                    <property name="title">SQLite path</property>
+                                  <object class="AdwPreferencesGroup">
+                                    <child>
+                                      <object class="AdwEntryRow" id="settings_database_section_path">
+                                        <property name="title">SQLite path</property>
+                                      </object>
+                                    </child>
                                   </object>
                                 </child>
                                 <child>
@@ -830,8 +832,7 @@
                 <property name="name">settings</property>
               </object>
             </child>
-          </object>
-        </child>
+          </object></property>
       </object>
     </child>
   </object>

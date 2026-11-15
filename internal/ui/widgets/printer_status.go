@@ -97,9 +97,9 @@ func PrinterHasActivePrint(printer domain.Printer) bool {
 
 func PrinterInfoText(t i18n.T, printer domain.Printer) string {
 	if PrinterHasActivePrint(printer) {
-		return fmt.Sprintf(t.PrinterInfoFmt, printer.Name, string(printer.State), ClampProgress(printer.Progress)*100)
+		return fmt.Sprintf(t.PrinterInfoFmt, printer.Name, PrinterStateText(t, printer.State), ClampProgress(printer.Progress)*100)
 	}
-	return fmt.Sprintf(t.PrinterIdleInfoFmt, printer.Name, string(printer.State))
+	return fmt.Sprintf(t.PrinterIdleInfoFmt, printer.Name, PrinterStateText(t, printer.State))
 }
 
 func ClampProgress(progress float64) float64 {
@@ -110,4 +110,21 @@ func ClampProgress(progress float64) float64 {
 		return 1
 	}
 	return progress
+}
+
+func PrinterStateText(t i18n.T, state domain.PrinterState) string {
+	switch state {
+	case domain.PrinterStateReady:
+		return t.StateReady
+	case domain.PrinterStatePrinting:
+		return t.StatePrinting
+	case domain.PrinterStatePaused:
+		return t.StatePaused
+	case domain.PrinterStateOffline:
+		return t.StateOffline
+	case domain.PrinterStateError:
+		return t.StateError
+	default:
+		return t.StateUnknown
+	}
 }

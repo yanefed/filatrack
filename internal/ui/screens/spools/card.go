@@ -8,6 +8,7 @@ import (
 	"github.com/yanefed/filatrack/internal/i18n"
 	"github.com/yanefed/filatrack/internal/service"
 	"github.com/yanefed/filatrack/internal/ui/layout"
+	"github.com/yanefed/filatrack/internal/ui/screens/shared"
 	"github.com/yanefed/filatrack/internal/ui/widgets"
 )
 
@@ -45,6 +46,7 @@ func spoolActionButton(tooltip string, views ...*layout.View) *gtk.Button {
 	button := layout.Get[*gtk.Button](view, "button")
 
 	button.SetTooltipText(tooltip)
+	shared.AccessibleName(button, tooltip)
 	return button
 }
 
@@ -58,7 +60,19 @@ func updateSpoolCard(t i18n.T, view *layout.View, spool domain.Spool, remaining,
 
 	_ = layout.Configure[*gtk.Label](view, "weight", func(w *gtk.Label) { w.SetLabel(weightText) })
 
-	_ = newSpoolDryingSection(t, dryingStatus, dryingErr, layout.Scope(view, "card_slot_4"))
+	dryingSection := newSpoolDryingSection(t, dryingStatus, dryingErr, layout.Scope(view, "card_slot_4"))
+	dryingSection.SetVisible(!spool.Archived)
+
+	archiveButton := layout.Get[*gtk.Button](layout.Scope(view, "actions_slot_3"), "button")
+	archiveButton.SetTooltipText(t.Archive)
+	archiveButton.SetIconName("user-trash-symbolic")
+	if spool.Archived {
+		archiveButton.SetTooltipText(t.Restore)
+		archiveButton.SetIconName("edit-undo-symbolic")
+	}
+	shared.AccessibleName(archiveButton, archiveButton.TooltipText())
+	layout.Get[*gtk.Button](layout.Scope(view, "actions_slot_1"), "button").SetSensitive(!spool.Archived)
+	layout.Get[*gtk.Button](layout.Scope(view, "actions_slot_2"), "button").SetSensitive(!spool.Archived)
 
 	button := layout.Get[*gtk.Button](layout.Scope(view, "actions_slot_1"), "button")
 	button.RemoveCSSClass("warning")

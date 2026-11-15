@@ -64,7 +64,23 @@ func NewDashboard(ctx context.Context, spoolSvc *service.SpoolService, printSvc 
 	widgets.ReplaceBoxChild(metricsSlot, newMetricsGrid(t, dashboardData{}, metricsView))
 	var previous dashboardData
 	initialized := false
+	var refreshDashboard func()
+	feedback := shared.NewReadFeedback(box, messageLabel, func() { refreshDashboard() })
 	render := func(data dashboardData) {
+		if initialized {
+			if data.statsErr != nil {
+				data.stats = previous.stats
+			}
+			if data.spoolsErr != nil && data.spools == nil {
+				data.spools = previous.spools
+			}
+			if data.printersErr != nil {
+				data.printers = previous.printers
+			}
+			if data.recentErr != nil {
+				data.recent = previous.recent
+			}
+		}
 
 		if !initialized || !reflect.DeepEqual(previous.stats, data.stats) || !reflect.DeepEqual(previous.spools, data.spools) {
 			newMetricsGrid(t, data, metricsView)
@@ -78,13 +94,19 @@ func NewDashboard(ctx context.Context, spoolSvc *service.SpoolService, printSvc 
 		}
 
 		showDashboardErrors(t, messageLabel, data)
+		if messageLabel.Visible() {
+			feedback.FailureMessage(messageLabel.Label())
+		} else {
+			feedback.Success()
+		}
 		previous = data
 		initialized = true
 	}
 
 	loader := shared.NewLoader[dashboardData](ctx, box)
 	fullPending := false
-	refreshDashboard := func() {
+	refreshDashboard = func() {
+		feedback.Begin()
 		fullPending = true
 		loader.Request(func(ctx context.Context) dashboardData { return loadDashboardData(ctx, spoolSvc, printSvc, printerSvc) }, func(data dashboardData) { fullPending = false; render(data) })
 	}

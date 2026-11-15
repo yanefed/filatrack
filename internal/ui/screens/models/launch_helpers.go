@@ -20,27 +20,57 @@ func selectedDirectSpool(dropdown *gtk.DropDown, spools []domain.Spool) string {
 }
 
 func showLaunchResult(t i18n.T, label *gtk.Label, result *domain.PrintLaunchResult, err error) {
+
 	if err != nil {
-		label.SetLabel(fmt.Sprintf("%s: %v", t.ErrorPrefix, err))
+		text := fmt.Sprintf("%s: %v", t.ErrorPrefix, err)
+		if result != nil {
+			if result.SpoolAssigned {
+				text = t.LaunchAssignUnconfirmed + "\n" + text
+			} else if result.LaunchAttempted {
+				text = t.LaunchUnconfirmed + "\n" + text
+			}
+		}
+		label.SetText(text)
 		label.SetVisible(true)
 		return
 	}
 	if result == nil {
 		return
 	}
-	switch {
-	case result.Filament.Blocked:
-		label.SetLabel(fmt.Sprintf("%s: %s", t.LaunchBlocked, result.Filament.Warning))
-	case result.RequiresUserConfirmation:
-		label.SetLabel(fmt.Sprintf("%s: %s", t.LaunchWarning, result.Filament.Warning))
-	case result.Started || result.Queued:
-		label.SetLabel(fmt.Sprintf("%s: %s", t.LaunchStarted, result.Filename))
-	case result.Uploaded:
-		label.SetLabel(fmt.Sprintf("%s: %s", t.LaunchUploaded, result.Filename))
-	default:
-		label.SetLabel(fmt.Sprintf("%s: %.1fg / %.1fg", t.LaunchWarning, result.Filament.RequiredWeightG, result.Filament.RemainingBeforeG))
+	if result.Started || result.Queued || result.Uploaded {
+		label.SetText(launchSuccessText(t, result))
+	} else {
+		label.SetText(filamentText(t, result.Filament))
 	}
 	label.SetVisible(true)
+}
+
+type launchPreview struct {
+	result *domain.PrintLaunchResult
+	err    error
+}
+
+func filamentText(t i18n.T, check domain.FilamentCheck) string {
+	if check.Blocked {
+		return fmt.Sprintf(t.FilamentInsufficientFmt, check.RequiredWeightG, check.RemainingBeforeG)
+	}
+	if !check.UsageKnown {
+		return t.FilamentUnknown
+	}
+	text := fmt.Sprintf(t.FilamentEstimateFmt, check.RequiredWeightG, check.RemainingBeforeG, check.RemainingAfterG)
+	if check.Warning != "" {
+		text += "\n" + fmt.Sprintf(t.FilamentLowFmt, check.RemainingAfterG)
+	}
+	return text
+}
+func launchSuccessText(t i18n.T, result *domain.PrintLaunchResult) string {
+	state := t.LaunchUploaded
+	if result.Queued {
+		state = t.LaunchQueued
+	} else if result.Started {
+		state = t.LaunchStarted
+	}
+	return state + ": " + result.Filename
 }
 
 func showGCodeFileChooser(parent *gtk.Window, onSelected func(string)) {

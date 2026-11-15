@@ -1614,3 +1614,10 @@ func (r *dryingRepoStub) Latest(context.Context) (map[string]domain.DryingSessio
 func (r *dryingRepoStub) ListAll(context.Context) ([]domain.DryingSession, error) {
 	return r.list, r.listErr
 }
+
+func (r *spoolRepoStub) ArchiveWithAssignments(ctx context.Context, id string, detachPrinterIDs []string) (domain.SpoolArchive, error) {
+	return domain.SpoolArchive{SpoolID: id}, r.Archive(ctx, id)
+}
+func (r *spoolRepoStub) Restore(context.Context, domain.SpoolArchive) (domain.SpoolRestoreResult, error) {
+	return domain.SpoolRestoreResult{}, nil
+}

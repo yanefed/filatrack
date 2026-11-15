@@ -5,6 +5,7 @@ import (
 	"github.com/yanefed/filatrack/internal/domain"
 	"github.com/yanefed/filatrack/internal/i18n"
 	"github.com/yanefed/filatrack/internal/ui/layout"
+	"github.com/yanefed/filatrack/internal/ui/screens/shared"
 	"strconv"
 	"strings"
 
@@ -53,12 +54,15 @@ func (f *dryingForm) SetSpools(t i18n.T, spools []domain.Spool, currentID string
 }
 
 func (f *dryingForm) Session(spools []domain.Spool) (*domain.DryingSession, bool) {
+	if !f.Valid(spools) {
+		return nil, false
+	}
 	idx := f.spoolDropdown.Selected()
 	if int(idx) >= len(spools) {
 		return nil, false
 	}
-	temperature, _ := strconv.Atoi(f.tempEntry.Text())
-	duration, _ := strconv.ParseFloat(f.durationEntry.Text(), 64)
+	temperature, _ := strconv.Atoi(strings.TrimSpace(f.tempEntry.Text()))
+	duration, _ := shared.ParseDecimal(f.durationEntry.Text())
 	return &domain.DryingSession{SpoolID: spools[idx].ID, TemperatureC: temperature, DurationHours: duration}, true
 }
 
@@ -80,6 +84,29 @@ func (f *dryingForm) Valid(spools []domain.Spool) bool {
 	if err != nil || temperature <= 0 {
 		return false
 	}
-	duration, err := strconv.ParseFloat(strings.TrimSpace(f.durationEntry.Text()), 64)
+	duration, err := shared.ParseDecimal(strings.TrimSpace(f.durationEntry.Text()))
 	return err == nil && duration > 0
+}
+
+func (f *dryingForm) Validate(t i18n.T, spools []domain.Spool, focus bool) bool {
+	temp, te := strconv.Atoi(strings.TrimSpace(f.tempEntry.Text()))
+	duration, de := shared.ParseDecimal(f.durationEntry.Text())
+	tempOK, durationOK := te == nil && temp > 0, de == nil && duration > 0
+	shared.FieldError(f.tempEntry, t.TemperatureC, t.InvalidPositive, tempOK)
+	shared.FieldError(f.durationEntry, t.DurationHours, t.InvalidPositive, durationOK)
+	spoolOK := int(f.spoolDropdown.Selected()) < len(spools)
+	f.spoolDropdown.SetSubtitle("")
+	if !spoolOK {
+		f.spoolDropdown.SetSubtitle(t.RequiredField)
+	}
+	if focus {
+		if !spoolOK {
+			f.spoolDropdown.GrabFocus()
+		} else if !tempOK {
+			f.tempEntry.GrabFocus()
+		} else if !durationOK {
+			f.durationEntry.GrabFocus()
+		}
+	}
+	return spoolOK && tempOK && durationOK
 }
